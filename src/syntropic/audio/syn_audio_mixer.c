@@ -8,6 +8,11 @@
 
 #include <string.h>
 
+/**
+ * @brief Clamp signed 32-bit value into signed 16-bit range.
+ * @param val Input 32-bit sample value.
+ * @return Clamped 16-bit sample value.
+ */
 static inline int16_t saturate_i32_to_i16(int32_t val)
 {
     if (val > 32767) {

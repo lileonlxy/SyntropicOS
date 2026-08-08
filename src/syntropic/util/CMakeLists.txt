@@ -29,4 +29,5 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_stream.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_transform.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_vector.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_protobuf.c
 )

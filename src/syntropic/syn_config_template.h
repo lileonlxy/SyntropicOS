@@ -207,6 +207,11 @@
 #define SYN_USE_SCURVE 1        /**< S-curve motion profile              */
 #define SYN_USE_GOERTZEL 1      /**< Goertzel tone detector              */
 #define SYN_USE_LZ4 1           /**< Zero-heap LZ4 compression           */
+#define SYN_USE_USB_MIDI 1      /**< USB MIDI Class 1.0 device           */
+#define SYN_USE_MFCC 1          /**< Fixed-point MFCC feature extractor  */
+#define SYN_USE_USB_MSC 1       /**< USB Mass Storage Class BOT device   */
+#define SYN_USE_NTP_SERVER 1    /**< NTP v4 time server                  */
+#define SYN_USE_PROTOBUF 1      /**< Protocol Buffers wire format        */
 #define SYN_LZ4_HASH_SIZE 4096U /**< 4096 entries (8 KB)              */
 #define SYN_CRC_USE_TABLE 1     /**< 1=lookup table (fast), 0=bitwise    */
 /* Ring buffer, assert, bits, timeout, hysteresis, change filter, LUT,        */

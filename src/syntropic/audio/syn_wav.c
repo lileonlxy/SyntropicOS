@@ -8,11 +8,21 @@
 
 #include <string.h>
 
+/**
+ * @brief Read unsigned 16-bit little-endian integer from byte stream.
+ * @param p Pointer to byte stream.
+ * @return Unsigned 16-bit integer value.
+ */
 static inline uint16_t peek_u16_le(const uint8_t *p)
 {
     return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
 }
 
+/**
+ * @brief Read unsigned 32-bit little-endian integer from byte stream.
+ * @param p Pointer to byte stream.
+ * @return Unsigned 32-bit integer value.
+ */
 static inline uint32_t peek_u32_le(const uint8_t *p)
 {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);

@@ -8,14 +8,24 @@
 
 #include <string.h>
 
-#define LZ4_MIN_MATCH 4U
-#define LZ4_HASH_BITS 12U
+#define LZ4_MIN_MATCH 4U  /**< Minimum byte match length for LZ4 compression */
+#define LZ4_HASH_BITS 12U /**< Log2 size of 4096-entry hash table */
 
+/**
+ * @brief Hash 4 bytes into 12-bit hash index using Knuth multiplicative hash.
+ * @param val 32-bit integer word to hash.
+ * @return 12-bit hash index (0..4095).
+ */
 static inline uint32_t lz4_hash4(uint32_t val)
 {
     return (val * 2654435761U) >> (32U - LZ4_HASH_BITS);
 }
 
+/**
+ * @brief Read 32-bit little-endian word from unaligned byte pointer.
+ * @param ptr Pointer to byte stream.
+ * @return 32-bit unsigned integer value.
+ */
 static inline uint32_t lz4_read32(const uint8_t *ptr)
 {
     return ((uint32_t)ptr[0]) | (((uint32_t)ptr[1]) << 8) | (((uint32_t)ptr[2]) << 16) |

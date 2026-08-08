@@ -10,7 +10,7 @@
 
 #include <string.h>
 
-#define Q14_ONE 16384L
+#define Q14_ONE 16384L /**< Q14 fixed-point unity multiplier (2^14 = 16384) */
 
 SYN_Status syn_goertzel_init(SYN_Goertzel *g, uint32_t sample_rate_hz, uint32_t target_freq_hz,
                              size_t block_size)

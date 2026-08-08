@@ -694,6 +694,26 @@ extern "C" {
 #include "system/syn_sleep.h"
 #include "system/syn_version.h"
 
+#if !defined(SYN_USE_USB_MIDI) || SYN_USE_USB_MIDI
+#include "drivers/syn_usb_midi.h"
+#endif
+
+#if !defined(SYN_USE_USB_MSC) || SYN_USE_USB_MSC
+#include "drivers/syn_usb_msc.h"
+#endif
+
+#if !defined(SYN_USE_MFCC) || SYN_USE_MFCC
+#include "dsp/syn_mfcc.h"
+#endif
+
+#if !defined(SYN_USE_NTP_SERVER) || SYN_USE_NTP_SERVER
+#include "net/syn_ntp_server.h"
+#endif
+
+#if !defined(SYN_USE_PROTOBUF) || SYN_USE_PROTOBUF
+#include "util/syn_protobuf.h"
+#endif
+
 #ifdef __cplusplus
 }
 #endif

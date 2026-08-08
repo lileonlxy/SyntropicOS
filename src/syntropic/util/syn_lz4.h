@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #ifndef SYN_LZ4_HASH_SIZE
-#define SYN_LZ4_HASH_SIZE 4096U
+#define SYN_LZ4_HASH_SIZE 4096U /**< LZ4 hash table size (4096 entries = 8 KB) */
 #endif
 
 /**

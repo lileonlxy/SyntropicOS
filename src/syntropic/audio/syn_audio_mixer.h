@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 #ifndef SYN_AUDIO_MIXER_MAX_CHANNELS
-#define SYN_AUDIO_MIXER_MAX_CHANNELS 4U
+#define SYN_AUDIO_MIXER_MAX_CHANNELS 4U /**< Maximum concurrent mixer channels */
 #endif
 
 /** Q15 identity gain (1.0 = 32768) */

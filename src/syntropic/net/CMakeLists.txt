@@ -20,4 +20,5 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_udp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_websocket.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_wg.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_ntp_server.c
 )

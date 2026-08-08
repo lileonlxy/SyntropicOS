@@ -808,6 +808,11 @@ int main(void)
     extern void run_wav_tests(void);
     extern void run_goertzel_tests(void);
     extern void run_lz4_tests(void);
+    extern void run_usb_midi_tests(void);
+    extern void run_mfcc_tests(void);
+    extern void run_usb_msc_tests(void);
+    extern void run_ntp_server_tests(void);
+    extern void run_protobuf_tests(void);
     run_adpcm_tests();
     run_sbc_tests();
     run_audio_tests();
@@ -815,6 +820,11 @@ int main(void)
     run_wav_tests();
     run_goertzel_tests();
     run_lz4_tests();
+    run_usb_midi_tests();
+    run_mfcc_tests();
+    run_usb_msc_tests();
+    run_ntp_server_tests();
+    run_protobuf_tests();
 
     return UNITY_END();
 }

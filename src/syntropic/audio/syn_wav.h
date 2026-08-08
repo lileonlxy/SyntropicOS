@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 /** WAVE format tags */
-#define SYN_WAV_FORMAT_PCM 0x0001U
-#define SYN_WAV_FORMAT_IMA_ADPCM 0x0011U
+#define SYN_WAV_FORMAT_PCM 0x0001U       /**< Uncompressed PCM audio format */
+#define SYN_WAV_FORMAT_IMA_ADPCM 0x0011U /**< IMA ADPCM compressed audio format */
 
 /**
  * @brief Parsed WAV Header Metadata.

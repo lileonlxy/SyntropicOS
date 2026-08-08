@@ -32,4 +32,6 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_usb_hid_mouse.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_usb_host.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_usb_host_cdc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_usb_midi.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_usb_msc.c
 )
