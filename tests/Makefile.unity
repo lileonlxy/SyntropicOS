@@ -94,11 +94,13 @@ SYN_SRCS := \
 	src/syntropic/net/syn_dns.c \
 	src/syntropic/net/syn_mqtt.c \
 	src/syntropic/util/syn_json_write.c src/syntropic/util/syn_json_read.c \
+	src/syntropic/util/syn_lz4.c \
 	src/syntropic/sched/syn_ao.c \
 	src/syntropic/storage/syn_vfs.c \
 	src/syntropic/storage/syn_lfs.c \
 	src/syntropic/net/syn_coap.c \
 	src/syntropic/dsp/syn_fft.c \
+	src/syntropic/dsp/syn_goertzel.c \
 	src/syntropic/system/syn_fault.c \
 	src/syntropic/util/syn_sha256.c \
 	src/syntropic/util/syn_aes128.c \

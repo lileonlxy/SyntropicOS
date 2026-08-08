@@ -127,6 +127,10 @@ extern "C" {
 #include "util/syn_pool.h"
 #endif
 
+#if !defined(SYN_USE_LZ4) || SYN_USE_LZ4
+#include "util/syn_lz4.h"
+#endif
+
 /* ── Drivers ────────────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_GPIO) || SYN_USE_GPIO
@@ -348,6 +352,10 @@ extern "C" {
 
 #if !defined(SYN_USE_DDS) || SYN_USE_DDS
 #include "dsp/syn_dds.h"
+#endif
+
+#if !defined(SYN_USE_GOERTZEL) || SYN_USE_GOERTZEL
+#include "dsp/syn_goertzel.h"
 #endif
 
 /* ── Audio & Codecs ─────────────────────────────────────────────────────── */

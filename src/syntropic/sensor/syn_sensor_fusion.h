@@ -63,6 +63,28 @@ SYN_Status syn_sensor_fusion_update(SYN_SensorFusion *f, q16_t gx, q16_t gy, q16
                                     q16_t ay, q16_t az);
 
 /**
+ * @brief Update orientation estimate using 9-axis IMU + Magnetometer sample.
+ *
+ * Fuses 3-axis gyroscope, 3-axis accelerometer, and 3-axis magnetometer measurements
+ * to compute drift-compensated quaternion orientation with absolute magnetic north heading.
+ *
+ * @param f   Filter instance.
+ * @param gx  Gyroscope X rate in rad/s (Q16.16).
+ * @param gy  Gyroscope Y rate in rad/s (Q16.16).
+ * @param gz  Gyroscope Z rate in rad/s (Q16.16).
+ * @param ax  Accelerometer X acceleration (Q16.16).
+ * @param ay  Accelerometer Y acceleration (Q16.16).
+ * @param az  Accelerometer Z acceleration (Q16.16).
+ * @param mx  Magnetometer X field strength (Q16.16).
+ * @param my  Magnetometer Y field strength (Q16.16).
+ * @param mz  Magnetometer Z field strength (Q16.16).
+ * @return SYN_OK on success, SYN_INVALID_PARAM if NULL.
+ */
+SYN_Status syn_sensor_fusion_update_9dof(SYN_SensorFusion *f, q16_t gx, q16_t gy, q16_t gz,
+                                         q16_t ax, q16_t ay, q16_t az, q16_t mx, q16_t my,
+                                         q16_t mz);
+
+/**
  * @brief Retrieve current quaternion orientation estimate.
  * @param f Filter instance.
  * @param q Output quaternion pointer.

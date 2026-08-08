@@ -197,15 +197,18 @@
 
 /* ── Utilities ──────────────────────────────────────────────────────────── */
 
-#define SYN_USE_FMT 1       /**< Lightweight printf alternative      */
-#define SYN_USE_CBOR 1      /**< CBOR binary serializer              */
-#define SYN_USE_JSON 1      /**< JSON reader/writer                  */
-#define SYN_USE_SHA256 1    /**< SHA-256 hash + HMAC-SHA256          */
-#define SYN_USE_POOL 1      /**< Fixed-size block memory pool        */
-#define SYN_USE_PUBSUB 1    /**< Publish-subscribe message bus       */
-#define SYN_USE_RAMP 1      /**< Ramp / slew rate generator          */
-#define SYN_USE_SCURVE 1    /**< S-curve motion profile              */
-#define SYN_CRC_USE_TABLE 1 /**< 1=lookup table (fast), 0=bitwise    */
+#define SYN_USE_FMT 1           /**< Lightweight printf alternative      */
+#define SYN_USE_CBOR 1          /**< CBOR binary serializer              */
+#define SYN_USE_JSON 1          /**< JSON reader/writer                  */
+#define SYN_USE_SHA256 1        /**< SHA-256 hash + HMAC-SHA256          */
+#define SYN_USE_POOL 1          /**< Fixed-size block memory pool        */
+#define SYN_USE_PUBSUB 1        /**< Publish-subscribe message bus       */
+#define SYN_USE_RAMP 1          /**< Ramp / slew rate generator          */
+#define SYN_USE_SCURVE 1        /**< S-curve motion profile              */
+#define SYN_USE_GOERTZEL 1      /**< Goertzel tone detector              */
+#define SYN_USE_LZ4 1           /**< Zero-heap LZ4 compression           */
+#define SYN_LZ4_HASH_SIZE 4096U /**< 4096 entries (8 KB)              */
+#define SYN_CRC_USE_TABLE 1     /**< 1=lookup table (fast), 0=bitwise    */
 /* Ring buffer, assert, bits, timeout, hysteresis, change filter, LUT,        */
 /* Q-math, rate limiter, ping-pong, CRC, and mailbox are always available.    */
 

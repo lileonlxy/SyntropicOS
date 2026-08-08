@@ -806,11 +806,15 @@ int main(void)
     extern void run_audio_tests(void);
     extern void run_audio_mixer_tests(void);
     extern void run_wav_tests(void);
+    extern void run_goertzel_tests(void);
+    extern void run_lz4_tests(void);
     run_adpcm_tests();
     run_sbc_tests();
     run_audio_tests();
     run_audio_mixer_tests();
     run_wav_tests();
+    run_goertzel_tests();
+    run_lz4_tests();
 
     return UNITY_END();
 }

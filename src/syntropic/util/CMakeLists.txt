@@ -10,6 +10,7 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_geo.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_json_read.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_json_write.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_lz4.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_matrix.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_metrics.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_netbuf.c

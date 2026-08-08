@@ -136,6 +136,34 @@ static void test_sensor_fusion_reset_and_invalid(void)
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_sensor_fusion_get_euler(NULL, NULL));
 }
 
+static void test_sensor_fusion_9dof_magnetometer(void)
+{
+    SYN_SensorFusion f;
+    syn_sensor_fusion_init(&f, Q16_FROM_FLOAT(2.0), Q16_FROM_FLOAT(0.01), Q16_FROM_FLOAT(0.01));
+
+    /* NULL check for 9-DOF */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_sensor_fusion_update_9dof(NULL, 0, 0, 0, 0, 0, Q16_ONE, Q16_ONE, 0, 0));
+
+    /* Zero magnetometer fallback */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_sensor_fusion_update_9dof(&f, 0, 0, 0, 0, 0, Q16_ONE, 0, 0, 0));
+
+    /* 9-DOF update with level accel [0, 0, 1g] and magnetic field pointing North [1, 0, 0] */
+    q16_t mx = Q16_FROM_FLOAT(0.5);
+    q16_t mz = Q16_FROM_FLOAT(0.5);
+
+    for (int i = 0; i < 50; i++) {
+        TEST_ASSERT_EQUAL(SYN_OK,
+                          syn_sensor_fusion_update_9dof(&f, 0, 0, 0, 0, 0, Q16_ONE, mx, 0, mz));
+    }
+
+    SYN_EulerAngles euler;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_sensor_fusion_get_euler(&f, &euler));
+    TEST_ASSERT_INT_WITHIN(FUSION_TOL, 0, euler.roll_rad);
+    TEST_ASSERT_INT_WITHIN(FUSION_TOL, 0, euler.pitch_rad);
+    TEST_ASSERT_INT_WITHIN(FUSION_TOL, 0, euler.yaw_rad);
+}
+
 void run_sensor_fusion_tests(void)
 {
     RUN_TEST(test_sensor_fusion_init);
@@ -144,4 +172,5 @@ void run_sensor_fusion_tests(void)
     RUN_TEST(test_sensor_fusion_gyro_integration);
     RUN_TEST(test_sensor_fusion_quaternion_norm);
     RUN_TEST(test_sensor_fusion_reset_and_invalid);
+    RUN_TEST(test_sensor_fusion_9dof_magnetometer);
 }
