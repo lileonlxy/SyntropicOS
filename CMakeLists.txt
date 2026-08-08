@@ -10,6 +10,7 @@ target_include_directories(syntropic INTERFACE
 )
 
 # ── Subdirectory modules ───────────────────────────────────────────────────
+add_subdirectory(src/syntropic/audio)
 add_subdirectory(src/syntropic/cli)
 add_subdirectory(src/syntropic/control)
 add_subdirectory(src/syntropic/crypto)

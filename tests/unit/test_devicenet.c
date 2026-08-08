@@ -33,6 +33,11 @@ static void test_devicenet_init_and_config(void)
     TEST_ASSERT_TRUE(syn_devicenet_set_quickconnect(&g_dnet, true));
     TEST_ASSERT_TRUE(g_dnet.identity.quick_connect_enabled);
     TEST_ASSERT_EQUAL_UINT32(100, g_dnet.dup_mac_timer_ms);
+
+    /* Serial number configuration */
+    syn_devicenet_set_serial_number(NULL, 0x87654321U);
+    syn_devicenet_set_serial_number(&g_dnet, 0x87654321U);
+    TEST_ASSERT_EQUAL_UINT32(0x87654321U, g_dnet.identity.serial_number);
 }
 
 static void test_devicenet_dup_mac_and_state_transitions(void)

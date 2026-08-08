@@ -292,6 +292,85 @@ static void test_ccp_seed_unlock_and_cal_page(void)
     TEST_ASSERT_EQUAL_HEX8(0x02, dto[4]);
 }
 
+static uint32_t ccp_seed_generator(uint8_t resource, void *ctx)
+{
+    (void)ctx;
+    return (uint32_t)resource * 0x11111111U;
+}
+
+static bool ccp_unlock_validator(uint8_t resource, uint32_t key, void *ctx)
+{
+    (void)ctx;
+    return key == ((uint32_t)resource * 0x11111111U);
+}
+
+static bool ccp_erase_handler(uint32_t addr, uint32_t size, void *ctx)
+{
+    (void)addr;
+    (void)ctx;
+    return size > 0;
+}
+
+static void test_ccp_callbacks_seed_unlock_erase(void)
+{
+    syn_ccp_init(&g_ccp_slave, 0x1234U);
+    g_ccp_slave.seed_cb = ccp_seed_generator;
+    g_ccp_slave.unlock_cb = ccp_unlock_validator;
+    g_ccp_slave.erase_cb = ccp_erase_handler;
+
+    uint8_t cro[8] = {0};
+    uint8_t dto[8] = {0};
+
+    /* Connect */
+    cro[0] = SYN_CCP_CMD_CONNECT;
+    cro[1] = 0x01;
+    cro[2] = 0x34;
+    cro[3] = 0x12;
+    syn_ccp_process_cro(&g_ccp_slave, cro, dto);
+
+    /* GET_SEED using callback */
+    cro[0] = SYN_CCP_CMD_GET_SEED;
+    cro[1] = 0x02;
+    cro[2] = SYN_CCP_RESOURCE_PGM;
+    TEST_ASSERT_TRUE(syn_ccp_process_cro(&g_ccp_slave, cro, dto));
+    TEST_ASSERT_EQUAL_HEX8(SYN_CCP_ERR_SUCCESS, dto[1]);
+
+    /* UNLOCK with invalid key -> ACCESS_DENIED */
+    cro[0] = SYN_CCP_CMD_UNLOCK;
+    cro[1] = 0x03;
+    cro[2] = SYN_CCP_RESOURCE_PGM;
+    cro[4] = 0x00;
+    cro[5] = 0x00;
+    cro[6] = 0x00;
+    cro[7] = 0x00;
+    TEST_ASSERT_TRUE(syn_ccp_process_cro(&g_ccp_slave, cro, dto));
+    TEST_ASSERT_EQUAL_HEX8(SYN_CCP_ERR_ACCESS_DENIED, dto[1]);
+
+    /* UNLOCK with valid key -> SUCCESS */
+    uint32_t valid_key = (uint32_t)SYN_CCP_RESOURCE_PGM * 0x11111111U;
+    cro[4] = (uint8_t)(valid_key);
+    cro[5] = (uint8_t)(valid_key >> 8);
+    cro[6] = (uint8_t)(valid_key >> 16);
+    cro[7] = (uint8_t)(valid_key >> 24);
+    TEST_ASSERT_TRUE(syn_ccp_process_cro(&g_ccp_slave, cro, dto));
+    TEST_ASSERT_EQUAL_HEX8(SYN_CCP_ERR_SUCCESS, dto[1]);
+
+    /* CLEAR_MEMORY with callback success */
+    cro[0] = SYN_CCP_CMD_CLEAR_MEMORY;
+    cro[1] = 0x04;
+    cro[2] = 0x00;
+    cro[3] = 0x10; /* Size 0x1000 */
+    cro[4] = 0x00;
+    cro[5] = 0x00;
+    TEST_ASSERT_TRUE(syn_ccp_process_cro(&g_ccp_slave, cro, dto));
+    TEST_ASSERT_EQUAL_HEX8(SYN_CCP_ERR_SUCCESS, dto[1]);
+
+    /* CLEAR_MEMORY with callback failure (size = 0) -> ACCESS_DENIED */
+    cro[3] = 0x00; /* Size 0 */
+    TEST_ASSERT_TRUE(syn_ccp_process_cro(&g_ccp_slave, cro, dto));
+    TEST_ASSERT_EQUAL_HEX8(SYN_CCP_ERR_ACCESS_DENIED, dto[1]);
+}
+
 static void test_ccp_program_and_clear_memory(void)
 {
     syn_ccp_init(&g_ccp_slave, 0x1234U);
@@ -520,6 +599,7 @@ void run_ccp_tests(void)
     RUN_TEST(test_ccp_mta_upload_download);
     RUN_TEST(test_ccp_daq_list_streaming);
     RUN_TEST(test_ccp_seed_unlock_and_cal_page);
+    RUN_TEST(test_ccp_callbacks_seed_unlock_erase);
     RUN_TEST(test_ccp_program_and_clear_memory);
     RUN_TEST(test_ccp_extended_cro_and_daq);
     RUN_TEST(test_ccp_null_checks_and_bounds);

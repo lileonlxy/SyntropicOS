@@ -65,6 +65,13 @@ bool syn_devicenet_init(SYN_DeviceNet_Node *node, uint8_t mac_id, SYN_DeviceNet_
     return true;
 }
 
+void syn_devicenet_set_serial_number(SYN_DeviceNet_Node *node, uint32_t serial_number)
+{
+    if (node != NULL) {
+        node->identity.serial_number = serial_number;
+    }
+}
+
 bool syn_devicenet_set_assembly(SYN_DeviceNet_Node *node, uint8_t *in_buf, uint8_t in_len,
                                 uint8_t *out_buf, uint8_t out_len)
 {

@@ -112,6 +112,21 @@ typedef struct {
 } SYN_CCP_DAQList;
 
 /**
+ * @brief CCP Security Seed Generator callback.
+ */
+typedef uint32_t (*SYN_CCP_SeedFn)(uint8_t resource, void *ctx);
+
+/**
+ * @brief CCP Security Unlock Key verification callback.
+ */
+typedef bool (*SYN_CCP_UnlockFn)(uint8_t resource, uint32_t key, void *ctx);
+
+/**
+ * @brief CCP Memory Erase callback.
+ */
+typedef bool (*SYN_CCP_EraseFn)(uint32_t addr, uint32_t size, void *ctx);
+
+/**
  * @brief CCP Slave Instance Handle.
  */
 typedef struct {
@@ -126,6 +141,12 @@ typedef struct {
     SYN_CCP_DAQList daq_lists[SYN_CCP_MAX_DAQ_LISTS]; /**< Configured DAQ lists */
     uint8_t selected_daq;                             /**< Currently selected DAQ list index */
     uint8_t selected_odt;                             /**< Currently selected ODT index */
+    SYN_CCP_SeedFn seed_cb;                           /**< Security seed generator callback */
+    void *seed_ctx;                                   /**< Context for seed callback */
+    SYN_CCP_UnlockFn unlock_cb; /**< Security unlock key verification callback */
+    void *unlock_ctx;           /**< Context for unlock callback */
+    SYN_CCP_EraseFn erase_cb;   /**< Flash/RAM memory erase callback */
+    void *erase_ctx;            /**< Context for erase callback */
 } SYN_CCP_Slave;
 
 /**

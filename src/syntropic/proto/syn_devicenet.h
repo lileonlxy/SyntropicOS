@@ -94,6 +94,13 @@ typedef struct {
 bool syn_devicenet_init(SYN_DeviceNet_Node *node, uint8_t mac_id, SYN_DeviceNet_Baud baud);
 
 /**
+ * @brief Set CIP Identity serial number for DeviceNet node.
+ * @param node Pointer to DeviceNet node context.
+ * @param serial_number 32-bit serial number.
+ */
+void syn_devicenet_set_serial_number(SYN_DeviceNet_Node *node, uint32_t serial_number);
+
+/**
  * @brief Configure Assembly Object (Class 0x04) input/output I/O buffers.
  *
  * @param node Pointer to DeviceNet node instance.

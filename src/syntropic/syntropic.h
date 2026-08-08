@@ -350,6 +350,20 @@ extern "C" {
 #include "dsp/syn_dds.h"
 #endif
 
+/* ── Audio & Codecs ─────────────────────────────────────────────────────── */
+
+#if !defined(SYN_USE_ADPCM) || SYN_USE_ADPCM
+#include "audio/syn_adpcm.h"
+#endif
+
+#if !defined(SYN_USE_SBC) || SYN_USE_SBC
+#include "audio/syn_sbc.h"
+#endif
+
+#if !defined(SYN_USE_AUDIO) || SYN_USE_AUDIO
+#include "audio/syn_audio.h"
+#endif
+
 /* ── Control ────────────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_PID) || SYN_USE_PID

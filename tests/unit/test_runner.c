@@ -801,5 +801,12 @@ int main(void)
     run_i2c_queue_tests();
     run_spi_queue_tests();
 
+    extern void run_adpcm_tests(void);
+    extern void run_sbc_tests(void);
+    extern void run_audio_tests(void);
+    run_adpcm_tests();
+    run_sbc_tests();
+    run_audio_tests();
+
     return UNITY_END();
 }

@@ -183,7 +183,6 @@ SYN_YMODEM_Status syn_ymodem_receive(SYN_YMODEM_Receiver *rx)
             if (rx->event_fn != NULL) {
                 rx->event_fn(SYN_YMODEM_EVENT_SESSION_END, NULL, 0, rx->ctx);
             }
-            session_active = false;
             break;
         }
 

@@ -97,14 +97,32 @@ bool syn_ccp_process_cro(SYN_CCP_Slave *slave, const uint8_t cro[8], uint8_t dto
 
     case SYN_CCP_CMD_GET_SEED: {
         uint8_t req_resource = cro[2];
-        dto_out[3] =
-            (slave->unlocked_resources & req_resource) ? 0x00U : 0x01U; /* Unlocked / Seed needed */
-        syn_poke_u32_le(0x12345678U, dto_out, 4);                       /* Fixed dummy seed */
+        bool is_unlocked = (slave->unlocked_resources & req_resource) != 0U;
+        dto_out[3] = is_unlocked ? 0x00U : 0x01U; /* 0: Unlocked, 1: Seed needed */
+        uint32_t seed = 0U;
+        if (slave->seed_cb != NULL) {
+            seed = slave->seed_cb(req_resource, slave->seed_ctx);
+        } else {
+            seed = 0x5A5A5A5AU;
+        }
+        syn_poke_u32_le(seed, dto_out, 4);
         break;
     }
 
     case SYN_CCP_CMD_UNLOCK: {
-        /* Accept key if unlocks resource */
+        uint8_t resource = cro[2];
+        uint32_t key = syn_peek_u32_le(cro, 4);
+        bool valid = false;
+        if (slave->unlock_cb != NULL) {
+            valid = slave->unlock_cb(resource, key, slave->unlock_ctx);
+        } else {
+            valid = true;
+        }
+        if (valid) {
+            slave->unlocked_resources |= resource;
+        } else {
+            dto_out[1] = SYN_CCP_ERR_ACCESS_DENIED;
+        }
         dto_out[3] = slave->unlocked_resources;
         break;
     }
@@ -197,7 +215,12 @@ bool syn_ccp_process_cro(SYN_CCP_Slave *slave, const uint8_t cro[8], uint8_t dto
     }
 
     case SYN_CCP_CMD_CLEAR_MEMORY: {
-        /* Dummy memory erase confirmation */
+        uint32_t size = syn_peek_u32_le(cro, 2);
+        if (slave->erase_cb != NULL) {
+            if (!slave->erase_cb((uint32_t)slave->mta0_addr, size, slave->erase_ctx)) {
+                dto_out[1] = SYN_CCP_ERR_ACCESS_DENIED;
+            }
+        }
         break;
     }
 
