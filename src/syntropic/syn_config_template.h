@@ -214,4 +214,9 @@
 /* Uncomment to compile out all SYN_ASSERT() calls in release builds. */
 /* #define SYN_DISABLE_ASSERT */
 
+/* ── Audio configuration ────────────────────────────────────────────────── */
+#ifndef SYN_AUDIO_MIXER_MAX_CHANNELS
+#define SYN_AUDIO_MIXER_MAX_CHANNELS 4U /**< Maximum concurrent mixer channels */
+#endif
+
 #endif /* SYN_CONFIG_H */

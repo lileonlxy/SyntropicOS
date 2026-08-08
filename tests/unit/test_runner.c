@@ -804,9 +804,13 @@ int main(void)
     extern void run_adpcm_tests(void);
     extern void run_sbc_tests(void);
     extern void run_audio_tests(void);
+    extern void run_audio_mixer_tests(void);
+    extern void run_wav_tests(void);
     run_adpcm_tests();
     run_sbc_tests();
     run_audio_tests();
+    run_audio_mixer_tests();
+    run_wav_tests();
 
     return UNITY_END();
 }

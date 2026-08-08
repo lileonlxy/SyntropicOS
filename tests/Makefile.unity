@@ -11,6 +11,8 @@ SYN_SRCS := \
 	src/syntropic/audio/syn_adpcm.c \
 	src/syntropic/audio/syn_sbc.c \
 	src/syntropic/audio/syn_audio.c \
+	src/syntropic/audio/syn_audio_mixer.c \
+	src/syntropic/audio/syn_wav.c \
 	src/syntropic/proto/syn_at_parser.c \
 	src/syntropic/proto/syn_dlt645.c \
 	src/syntropic/drivers/syn_gpio.c src/syntropic/drivers/syn_uart.c \

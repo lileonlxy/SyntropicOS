@@ -362,6 +362,8 @@ extern "C" {
 
 #if !defined(SYN_USE_AUDIO) || SYN_USE_AUDIO
 #include "audio/syn_audio.h"
+#include "audio/syn_audio_mixer.h"
+#include "audio/syn_wav.h"
 #endif
 
 /* ── Control ────────────────────────────────────────────────────────────── */
