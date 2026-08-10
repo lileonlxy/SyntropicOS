@@ -194,6 +194,12 @@ static void test_is_zero(void)
 
     ts.lsb = 1;
     TEST_ASSERT_FALSE(syn_hpclock_is_zero(&ts));
+
+    ts = (SYN_HPTimestamp){.msb_1 = 1, .lsb = 0, .msb_2 = 0};
+    TEST_ASSERT_FALSE(syn_hpclock_is_zero(&ts));
+
+    ts = (SYN_HPTimestamp){.msb_1 = 0, .lsb = 0, .msb_2 = 1};
+    TEST_ASSERT_FALSE(syn_hpclock_is_zero(&ts));
 }
 
 static void test_overflow_tick_macro(void)

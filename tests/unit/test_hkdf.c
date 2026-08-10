@@ -91,6 +91,7 @@ void test_hkdf_null_and_bounds_checks(void)
     TEST_ASSERT_FALSE(syn_hkdf_expand(okm, 16, NULL, 0, okm, 32));
     TEST_ASSERT_FALSE(syn_hkdf_expand(okm, 32, NULL, 0, NULL, 32));
     TEST_ASSERT_FALSE(syn_hkdf_expand(okm, 32, NULL, 0, okm, 0));
+    TEST_ASSERT_FALSE(syn_hkdf_expand(okm, 32, NULL, 0, okm, 255 * 32 + 1));
 
     TEST_ASSERT_FALSE(syn_hkdf_expand_label(NULL, 32, "key", 3, NULL, 0, okm, 32));
     TEST_ASSERT_FALSE(syn_hkdf_expand_label(okm, 32, NULL, 3, NULL, 0, okm, 32));

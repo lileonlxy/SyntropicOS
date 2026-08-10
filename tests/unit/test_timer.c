@@ -153,10 +153,36 @@ static void test_timer_tick_wraparound(void)
     TEST_ASSERT_EQUAL_UINT32(0, syn_timeout_remaining(&to));
 }
 
+static void test_timer_next_expiry(void)
+{
+    SYN_Timer timers[3];
+    mock_tick_ms = 1000;
+
+    syn_timer_init(&timers[0], 500, false, NULL, NULL);
+    syn_timer_init(&timers[1], 200, false, NULL, NULL);
+    syn_timer_init(&timers[2], 1000, false, NULL, NULL);
+
+    /* Inactive timers return UINT32_MAX */
+    TEST_ASSERT_EQUAL_UINT32(UINT32_MAX, syn_timer_next_expiry(timers, 3));
+
+    /* Start timers: 0 at t=1500, 1 at t=1200, 2 at t=2000 */
+    syn_timer_start(&timers[0]);
+    syn_timer_start(&timers[1]);
+    syn_timer_start(&timers[2]);
+
+    /* Earliest is timer 1 at t=1200 */
+    TEST_ASSERT_EQUAL_UINT32(1200, syn_timer_next_expiry(timers, 3));
+
+    /* Advance tick to 1250 (timer 1 expired -> any_ready_now == true) */
+    mock_tick_advance(250);
+    TEST_ASSERT_EQUAL_UINT32(1250, syn_timer_next_expiry(timers, 3));
+}
+
 void run_timer_tests(void)
 {
     RUN_TEST(test_software_timer);
     RUN_TEST(test_timeout);
     RUN_TEST(test_timer_extensions);
     RUN_TEST(test_timer_tick_wraparound);
+    RUN_TEST(test_timer_next_expiry);
 }

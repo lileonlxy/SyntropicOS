@@ -111,6 +111,11 @@ static void test_watchdog_double_unregister(void)
     /* Second call on the same (now inactive) id must be a no-op */
     syn_watchdog_unregister(&wdt, id);
     TEST_ASSERT_EQUAL_UINT8(0, wdt.count); /* Must NOT wrap to 255 */
+
+    /* Re-register into freed slot */
+    int8_t new_id = syn_watchdog_register(&wdt, "b", 200);
+    TEST_ASSERT_EQUAL_INT(id, new_id);
+    TEST_ASSERT_EQUAL_UINT8(1, wdt.count);
 }
 
 void run_watchdog_tests(void)

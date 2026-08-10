@@ -393,6 +393,11 @@ static void test_ringbuf_uninitialized_and_zero_len(void)
     /* Read 4 bytes: tail moves 4 + 4 = 8 == rb->size => wraps to 0 */
     syn_ringbuf_read(&rb, out, 4);
     TEST_ASSERT_EQUAL_size_t(0, rb.tail);
+
+    /* Test h < t count state explicitly (tail wrapped past head) */
+    rb.head = 2;
+    rb.tail = 5;
+    TEST_ASSERT_EQUAL_size_t(8 - 5 + 2, syn_ringbuf_count(&rb));
 }
 
 void run_ringbuf_tests(void)

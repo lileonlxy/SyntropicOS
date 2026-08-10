@@ -53,6 +53,21 @@ void test_sbc_header_parsing(void)
     uint8_t frame_joint[4] = {SYN_SBC_SYNCWORD, 0x0F, 32, 0x0F};
     TEST_ASSERT_EQUAL_INT(SYN_OK, syn_sbc_parse_header(frame_joint, 4, &info));
     TEST_ASSERT_EQUAL_INT(SYN_SBC_MODE_JOINT_STEREO, info.mode);
+
+    /* Mono mode check */
+    uint8_t frame_mono[4] = {SYN_SBC_SYNCWORD, 0x80, 32, 0x00};
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_sbc_parse_header(frame_mono, 4, &info));
+    TEST_ASSERT_EQUAL_INT(SYN_SBC_MODE_MONO, info.mode);
+
+    /* Dual Channel mode check */
+    uint8_t frame_dual[4] = {SYN_SBC_SYNCWORD, 0x84, 32, 0x00};
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_sbc_parse_header(frame_dual, 4, &info));
+    TEST_ASSERT_EQUAL_INT(SYN_SBC_MODE_DUAL_CHANNEL, info.mode);
+
+    /* Loudness allocation check */
+    uint8_t frame_loudness[4] = {SYN_SBC_SYNCWORD, 0x85, 32, 0x00};
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_sbc_parse_header(frame_loudness, 4, &info));
+    TEST_ASSERT_EQUAL_INT(SYN_SBC_ALLOC_LOUDNESS, info.alloc);
 }
 
 void test_sbc_decode_frame(void)

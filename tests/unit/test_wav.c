@@ -97,6 +97,14 @@ void test_wav_parse_invalid_magics_and_truncated(void)
                              0x80, 0x3E, 0,   0,   0x00, 0x7D, 0, 0, 2,   0,   16,  0,
                              'N',  'O',  'P', 'E', 4,    0,    0, 0, 0,   0,   0,   0};
     TEST_ASSERT_EQUAL(SYN_ERROR, syn_wav_parse_header(no_data_wav, sizeof(no_data_wav), &info));
+
+    /* Zero num_channels test (Line 90 guard) */
+    uint8_t zero_chan_wav[] = {'R',  'I',  'F', 'F', 44,   0,    0, 0, 'W', 'A', 'V', 'E',
+                               'f',  'm',  't', ' ', 16,   0,    0, 0, 1,   0,   0,   0,
+                               0x80, 0x3E, 0,   0,   0x00, 0x7D, 0, 0, 2,   0,   0,   0,
+                               'd',  'a',  't', 'a', 10,   0,    0, 0, 0,   0,   0,   0};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_wav_parse_header(zero_chan_wav, sizeof(zero_chan_wav), &info));
+    TEST_ASSERT_EQUAL_UINT32(0, info.total_samples);
 }
 
 void run_wav_tests(void)

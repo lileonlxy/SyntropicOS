@@ -110,6 +110,16 @@ void test_usb_msc_process_cbw_scsi_commands(void)
     cbw[0] = 'X';
     TEST_ASSERT_EQUAL(SYN_ERROR, syn_usb_msc_process_cbw(&g_msc, cbw));
 
+    /* Test all supported SCSI opcodes */
+    uint8_t opcodes[] = {SYN_SCSI_TEST_UNIT_READY,  SYN_SCSI_REQUEST_SENSE, SYN_SCSI_INQUIRY,
+                         SYN_SCSI_READ_CAPACITY_10, SYN_SCSI_READ_10,       SYN_SCSI_WRITE_10};
+    for (size_t i = 0; i < sizeof(opcodes); i++) {
+        cbw[0] = 'U';
+        cbw[15] = opcodes[i];
+        TEST_ASSERT_EQUAL(SYN_OK, syn_usb_msc_process_cbw(&g_msc, cbw));
+        TEST_ASSERT_EQUAL(0U, g_msc.csw.bCSWStatus);
+    }
+
     /* Test unsupported opcode */
     cbw[0] = 'U';
     cbw[15] = 0xFF;

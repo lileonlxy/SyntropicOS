@@ -329,6 +329,30 @@ static void test_wasm_fixture_traps(void)
     TEST_ASSERT_TRUE(fn_oob >= 0);
     TEST_ASSERT_TRUE(syn_wasm_call(&g_wasm_ctx, (uint16_t)fn_oob));
     TEST_ASSERT_EQUAL(SYN_WASM_TRAP_OUT_OF_BOUNDS, syn_wasm_step(&g_wasm_ctx, 1000));
+
+    /* 3. Direct i32.div_s signed overflow trap (INT32_MIN / -1) */
+    static const uint8_t code_div_overflow[] = {
+        0x41, 0x80, 0x80, 0x80, 0x80, 0x78, /* i32.const -2147483648 (INT32_MIN) */
+        0x41, 0x7F,                         /* i32.const -1 */
+        0x6D,                               /* i32.div_s */
+        0x0B                                /* end */
+    };
+    SYN_WASM_Module mod_div_ovf;
+    memset(&mod_div_ovf, 0, sizeof(mod_div_ovf));
+    mod_div_ovf.bytes = code_div_overflow;
+    mod_div_ovf.size = sizeof(code_div_overflow);
+    mod_div_ovf.func_count = 1;
+    mod_div_ovf.funcs[0].code_offset = 0;
+    mod_div_ovf.funcs[0].code_size = sizeof(code_div_overflow);
+
+    TEST_ASSERT_TRUE(syn_wasm_init(&g_wasm_ctx, &mod_div_ovf, g_linear_mem, sizeof(g_linear_mem)));
+    g_wasm_ctx.call_depth = 1;
+    g_wasm_ctx.call_stack[0].func_idx = 0;
+    g_wasm_ctx.call_stack[0].return_pc = 0;
+    g_wasm_ctx.pc = 0;
+    g_wasm_ctx.sp = 0;
+    g_wasm_ctx.status = SYN_WASM_OK;
+    TEST_ASSERT_EQUAL(SYN_WASM_TRAP_DIV_ZERO, syn_wasm_step(&g_wasm_ctx, 100));
 }
 
 static void test_wasm_fixture_yield_resume(void)
@@ -385,6 +409,13 @@ static void test_wasm_extended_traps_and_nulls(void)
     TEST_ASSERT_TRUE(syn_wasm_init(&ctx, &test_mod, mem, sizeof(mem)));
     TEST_ASSERT_TRUE(syn_wasm_call(&ctx, 0));
     syn_wasm_step(&ctx, 10);
+
+    /* Test step on non-OK status returns current status immediately */
+    ctx.status = SYN_WASM_HALTED;
+    TEST_ASSERT_EQUAL(SYN_WASM_HALTED, syn_wasm_step(&ctx, 10));
+
+    /* Test register_host at max host func index boundary */
+    TEST_ASSERT_TRUE(syn_wasm_register_host(&ctx, SYN_WASM_MAX_HOST_FUNCS - 1, mock_host_func));
 }
 
 static void test_wasm_native_f64_ops(void)
@@ -420,6 +451,74 @@ static void test_wasm_native_f64_ops(void)
     TEST_ASSERT_EQUAL(SYN_WASM_HALTED, syn_wasm_step(&g_wasm_ctx, 100));
 }
 
+static void test_wasm_opcodes_branch_coverage(void)
+{
+    TEST_ASSERT_TRUE(syn_wasm_init(&g_wasm_ctx, &g_wasm_mod, g_linear_mem, sizeof(g_linear_mem)));
+
+    /* Bytecode: i32.const 10, i32.const 20, i32.const 0, select, end (selects 2nd operand 20 when
+     * cond=0) */
+    static const uint8_t code_select_false[] = {0x41, 0x0A, 0x41, 0x14, 0x41, 0x00, 0x1B, 0x0B};
+    SYN_WASM_Module mod_select;
+    memset(&mod_select, 0, sizeof(mod_select));
+    mod_select.bytes = code_select_false;
+    mod_select.size = sizeof(code_select_false);
+    mod_select.func_count = 1;
+    mod_select.funcs[0].code_offset = 0;
+    mod_select.funcs[0].code_size = sizeof(code_select_false);
+
+    g_wasm_ctx.module = &mod_select;
+    g_wasm_ctx.call_depth = 1;
+    g_wasm_ctx.call_stack[0].func_idx = 0;
+    g_wasm_ctx.call_stack[0].return_pc = 0;
+    g_wasm_ctx.pc = 0;
+    g_wasm_ctx.sp = 0;
+    g_wasm_ctx.status = SYN_WASM_OK;
+
+    TEST_ASSERT_EQUAL(SYN_WASM_HALTED, syn_wasm_step(&g_wasm_ctx, 100));
+    TEST_ASSERT_EQUAL_UINT32(20, syn_wasm_result(&g_wasm_ctx));
+
+    /* Test local.tee and global.set/get */
+    static const uint8_t code_globals[] = {0x41, 0x2A, 0x24, 0x00, 0x23, 0x00, 0x22, 0x01, 0x0B};
+    SYN_WASM_Module mod_glob;
+    memset(&mod_glob, 0, sizeof(mod_glob));
+    mod_glob.bytes = code_globals;
+    mod_glob.size = sizeof(code_globals);
+    mod_glob.func_count = 1;
+    mod_glob.funcs[0].code_offset = 0;
+    mod_glob.funcs[0].code_size = sizeof(code_globals);
+
+    g_wasm_ctx.module = &mod_glob;
+    g_wasm_ctx.call_depth = 1;
+    g_wasm_ctx.call_stack[0].func_idx = 0;
+    g_wasm_ctx.call_stack[0].return_pc = 0;
+    g_wasm_ctx.pc = 0;
+    g_wasm_ctx.sp = 0;
+    g_wasm_ctx.status = SYN_WASM_OK;
+
+    TEST_ASSERT_EQUAL(SYN_WASM_HALTED, syn_wasm_step(&g_wasm_ctx, 100));
+    TEST_ASSERT_EQUAL_UINT32(42, g_wasm_ctx.globals[0]);
+    TEST_ASSERT_EQUAL_UINT32(42, g_wasm_ctx.locals[1]);
+
+    /* Test Table (kind 1), Memory (kind 2), Global (kind 3) imports and Element section (sec 9) */
+    static const uint8_t wasm_extra_sections[] = {
+        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, /* magic & version */
+        0x01, 0x04, 0x01, 0x60, 0x00, 0x00,             /* Type: () -> () */
+        0x02, 0x26, 0x03, /* Import Section (3 entries, 38 bytes payload) */
+        0x03, 'e',  'n',  'v',  0x05, 't',  'a',  'b',  'l',  'e',
+        0x01, 0x70, 0x00, /* Table import: funcref, min 0 */
+        0x03, 'e',  'n',  'v',  0x03, 'm',  'e',  'm',  0x02, 0x01,
+        0x01, 0x02, /* Memory import: flags=1, min 1, max 2 */
+        0x03, 'e',  'n',  'v',  0x04, 'g',  'l',  'o',  'b',  0x03,
+        0x7f, 0x00,                                           /* Global import: i32, const */
+        0x09, 0x07, 0x01, 0x00, 0x41, 0x00, 0x0b, 0x01, 0x00, /* Element section: table 0, offset
+                                                                 i32.const 0, func 0 */
+    };
+    SYN_WASM_Module extra_mod;
+    TEST_ASSERT_TRUE(
+        syn_wasm_module_load(&extra_mod, wasm_extra_sections, sizeof(wasm_extra_sections)));
+    TEST_ASSERT_EQUAL_UINT16(1, extra_mod.table_element_count);
+}
+
 void run_wasm_tests(void)
 {
     RUN_TEST(test_wasm_load_null_and_invalid);
@@ -442,5 +541,6 @@ void run_wasm_tests(void)
     RUN_TEST(test_wasm_fixture_traps);
     RUN_TEST(test_wasm_fixture_yield_resume);
     RUN_TEST(test_wasm_extended_traps_and_nulls);
+    RUN_TEST(test_wasm_opcodes_branch_coverage);
 }
 /* touch test_wasm.c */

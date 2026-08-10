@@ -62,6 +62,15 @@ void test_ntp_server_process_packet(void)
     /* Verify invalid client mode rejection */
     req[0] = 0x24; /* Mode 4 Server packet, invalid as request */
     TEST_ASSERT_EQUAL(SYN_ERROR, syn_ntp_server_process_packet(&g_ntp_server, req, resp));
+
+    /* Verify symmetric active client request mode (mode = 1) */
+    req[0] = 0x21; /* Mode 1 */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ntp_server_process_packet(&g_ntp_server, req, resp));
+
+    /* Verify processing when get_epoch_sec_cb is NULL */
+    syn_ntp_server_init(&g_ntp_server, 1, NULL);
+    req[0] = 0x23;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ntp_server_process_packet(&g_ntp_server, req, resp));
 }
 
 void run_ntp_server_tests(void)

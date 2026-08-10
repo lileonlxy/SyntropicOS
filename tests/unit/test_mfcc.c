@@ -56,6 +56,15 @@ void test_mfcc_process_sine_wave(void)
     /* Test FFT error branch */
     mfcc64.fft_size = 15; /* Not a power of 2 */
     TEST_ASSERT_EQUAL(SYN_ERROR, syn_mfcc_process_frame(&mfcc64, pcm, coeffs));
+
+    /* High amplitude sine wave to trigger log_val > 127 saturation clamp (Line 70) */
+    int16_t max_pcm[128];
+    for (int i = 0; i < 128; i++) {
+        max_pcm[i] = 32767;
+    }
+    SYN_MFCC mfcc_sat;
+    syn_mfcc_init(&mfcc_sat, 16000, 128);
+    TEST_ASSERT_EQUAL(SYN_OK, syn_mfcc_process_frame(&mfcc_sat, max_pcm, coeffs));
 }
 
 void run_mfcc_tests(void)

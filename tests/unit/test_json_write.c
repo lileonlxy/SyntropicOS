@@ -193,6 +193,18 @@ static void test_json_write_control_character_escaping(void)
     TEST_ASSERT_NOT_NULL(strstr(out, "\\\\")); /* escaped backslash */
     TEST_ASSERT_NOT_NULL(strstr(out, "\\r"));  /* escaped CR */
     TEST_ASSERT_NOT_NULL(strstr(out, "\\t"));  /* escaped TAB */
+
+    /* Test null string values and ASCII control char skipping (< 0x20) */
+    reset();
+    syn_json_obj_open(&w);
+    syn_json_key_str(&w, "null_val", NULL);
+    syn_json_key(&w, "arr");
+    syn_json_arr_open(&w);
+    syn_json_val_str(&w, NULL);
+    syn_json_val_str(&w, "ctrl\x01test");
+    syn_json_arr_close(&w);
+    syn_json_obj_close(&w);
+    TEST_ASSERT_EQUAL_STRING("{\"null_val\":\"\",\"arr\":[\"\",\"ctrltest\"]}", syn_json_str(&w));
 }
 
 /** jw_puts overflow mid-string — exercises lines 45-46 */

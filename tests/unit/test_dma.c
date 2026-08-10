@@ -200,6 +200,21 @@ static void test_dma_ringbuf(void)
     TEST_ASSERT_EQUAL(0, syn_dma_ringbuf_read(&rbuf, out, 5));
 }
 
+static void test_dma_ringbuf_counter_overflow_guard(void)
+{
+    SYN_DMA dma;
+    SYN_DMA_Config cfg = {.channel_id = 1, .data_size = SYN_DMA_SIZE_8BIT};
+    syn_dma_init(&dma, &cfg);
+
+    uint8_t rx_buf[16] = {0};
+    SYN_DMA_RingBuf rbuf;
+    syn_dma_ringbuf_init(&rbuf, &dma, rx_buf, 16);
+
+    /* Test remaining > capacity -> head returns 0 */
+    mock_dma[1].remaining = 999;
+    TEST_ASSERT_EQUAL(0, syn_dma_ringbuf_bytes_available(&rbuf));
+}
+
 void run_dma_tests(void)
 {
     dma_test_setup();
@@ -209,4 +224,5 @@ void run_dma_tests(void)
     RUN_TEST(test_dma_isr_handler_events);
     RUN_TEST(test_dma_stop_and_null_checks);
     RUN_TEST(test_dma_ringbuf);
+    RUN_TEST(test_dma_ringbuf_counter_overflow_guard);
 }

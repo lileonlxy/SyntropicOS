@@ -626,7 +626,7 @@ static void test_motor_ctrl_errors_and_setters(void)
 
     syn_motor_ctrl_init(&ctrl, &cfg);
 
-    /* 1. Test limits error logging */
+    /* 1. Test limits error logging (min limit) */
     syn_motor_ctrl_set_position(&ctrl, 500);
     ctrl.target_position = 50; // bypass clamp to force negative output
     mock_ctrl_position = 100;  // at min limit
@@ -635,6 +635,15 @@ static void test_motor_ctrl_errors_and_setters(void)
     TEST_ASSERT_EQUAL(SYN_MCTRL_LIMIT, st);
     TEST_ASSERT_EQUAL_UINT(1, syn_errlog_count(&elog));
     TEST_ASSERT_EQUAL_UINT(0x0101, entries[0].code); // SYN_MCTRL_ERR_LIMIT
+
+    /* 1b. Test upper position limit check (max limit) */
+    syn_motor_ctrl_init(&ctrl, &cfg);
+    syn_motor_ctrl_set_position(&ctrl, 500);
+    ctrl.target_position = 2000; // bypass clamp to force positive output
+    mock_ctrl_position = 1000;   // at max limit
+    mock_tick_advance(10);
+    st = syn_motor_ctrl_update(&ctrl);
+    TEST_ASSERT_EQUAL(SYN_MCTRL_LIMIT, st);
 
     /* 2. Test stall error logging */
     syn_errlog_init(&elog, entries, 4, 1);

@@ -48,8 +48,39 @@ void test_cart2sph_and_sph2cart(void)
     ASSERT_Q16_NEAR(z_in, z_out, Q16_TOL);
 }
 
+void test_transform_quadrants_and_negative(void)
+{
+    /* Test Quadrant 2 (-x, +y) */
+    q16_t r, theta, x, y;
+    syn_cart2pol(-Q16_FROM_INT(3), Q16_FROM_INT(4), &r, &theta);
+    syn_pol2cart(r, theta, &x, &y);
+    ASSERT_Q16_NEAR(-Q16_FROM_INT(3), x, Q16_TOL);
+    ASSERT_Q16_NEAR(Q16_FROM_INT(4), y, Q16_TOL);
+
+    /* Test Quadrant 3 (-x, -y) */
+    syn_cart2pol(-Q16_FROM_INT(3), -Q16_FROM_INT(4), &r, &theta);
+    syn_pol2cart(r, theta, &x, &y);
+    ASSERT_Q16_NEAR(-Q16_FROM_INT(3), x, Q16_TOL);
+    ASSERT_Q16_NEAR(-Q16_FROM_INT(4), y, Q16_TOL);
+
+    /* Test Quadrant 4 (+x, -y) */
+    syn_cart2pol(Q16_FROM_INT(3), -Q16_FROM_INT(4), &r, &theta);
+    syn_pol2cart(r, theta, &x, &y);
+    ASSERT_Q16_NEAR(Q16_FROM_INT(3), x, Q16_TOL);
+    ASSERT_Q16_NEAR(-Q16_FROM_INT(4), y, Q16_TOL);
+
+    /* Test 3D Spherical Negative Z */
+    q16_t phi, z;
+    syn_cart2sph(Q16_FROM_INT(1), Q16_FROM_INT(2), -Q16_FROM_INT(2), &r, &theta, &phi);
+    syn_sph2cart(r, theta, phi, &x, &y, &z);
+    ASSERT_Q16_NEAR(Q16_FROM_INT(1), x, Q16_TOL);
+    ASSERT_Q16_NEAR(Q16_FROM_INT(2), y, Q16_TOL);
+    ASSERT_Q16_NEAR(-Q16_FROM_INT(2), z, Q16_TOL);
+}
+
 void run_transform_tests(void)
 {
     RUN_TEST(test_cart2pol_and_pol2cart);
     RUN_TEST(test_cart2sph_and_sph2cart);
+    RUN_TEST(test_transform_quadrants_and_negative);
 }

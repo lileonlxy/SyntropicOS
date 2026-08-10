@@ -1789,6 +1789,10 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
                     ctx->status = SYN_WASM_TRAP_DIV_ZERO;
                     break;
                 }
+                if ((int32_t)a == (int32_t)0x80000000U && (int32_t)b == -1) {
+                    ctx->status = SYN_WASM_TRAP_DIV_ZERO;
+                    break;
+                }
                 res = (uint32_t)((int32_t)a / (int32_t)b);
                 break;
             case OP_I32_DIV_U:
@@ -1801,6 +1805,10 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             case OP_I32_REM_S:
                 if (b == 0) {
                     ctx->status = SYN_WASM_TRAP_DIV_ZERO;
+                    break;
+                }
+                if ((int32_t)a == (int32_t)0x80000000U && (int32_t)b == -1) {
+                    res = 0;
                     break;
                 }
                 res = (uint32_t)((int32_t)a % (int32_t)b);

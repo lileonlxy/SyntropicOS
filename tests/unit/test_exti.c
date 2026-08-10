@@ -114,9 +114,26 @@ static void test_exti_capacity_full(void)
     TEST_ASSERT_EQUAL(SYN_ERROR, overflow);
 }
 
+static void test_exti_unregistered_and_inactive_branches(void)
+{
+    syn_exti_init();
+
+    /* Unregister pin that was never registered */
+    syn_exti_unregister(42);
+    TEST_ASSERT_EQUAL_INT(0, syn_exti_count());
+
+    /* Register and unregister pin 5 */
+    syn_exti_register(5, SYN_EXTI_RISING, exti_callback, NULL);
+    syn_exti_unregister(5);
+
+    /* Try enabling inactive pin 5 -> e != NULL && !e->active branch */
+    syn_exti_enable(5);
+}
+
 void run_exti_tests(void)
 {
     RUN_TEST(test_exti);
     RUN_TEST(test_exti_enable_disable);
     RUN_TEST(test_exti_capacity_full);
+    RUN_TEST(test_exti_unregistered_and_inactive_branches);
 }

@@ -85,10 +85,45 @@ void test_soft_spi_transfer_bulk(void)
     syn_soft_spi_deselect(&spi);
 }
 
+static void test_soft_spi_cs_active_high_and_null_bulk(void)
+{
+    soft_spi_setUp();
+    /* Active HIGH CS on pin 15 */
+    syn_soft_spi_set_cs(&spi, 15, false);
+    TEST_ASSERT_EQUAL(SYN_GPIO_LOW, mock_gpio_states[15]); /* deasserted = LOW */
+
+    syn_soft_spi_select(&spi);
+    TEST_ASSERT_EQUAL(SYN_GPIO_HIGH, mock_gpio_states[15]); /* selected = HIGH */
+
+    syn_soft_spi_deselect(&spi);
+    TEST_ASSERT_EQUAL(SYN_GPIO_LOW, mock_gpio_states[15]); /* deselected = LOW */
+
+    /* Bulk transfer: tx = NULL (rx-only) */
+    uint8_t rx[2] = {0};
+    mock_gpio_read_overrides[PIN_MISO] = SYN_GPIO_HIGH;
+    syn_soft_spi_transfer_bulk(&spi, NULL, rx, 2);
+    TEST_ASSERT_EQUAL(0xFF, rx[0]);
+    TEST_ASSERT_EQUAL(0xFF, rx[1]);
+
+    /* Bulk transfer: rx = NULL (tx-only) */
+    uint8_t tx[2] = {0x12, 0x34};
+    syn_soft_spi_transfer_bulk(&spi, tx, NULL, 2);
+    mock_gpio_read_overrides[PIN_MISO] = -1;
+
+    /* Modes 1 & 2 */
+    SYN_SoftSPI spi1, spi2;
+    syn_soft_spi_init(&spi1, PIN_SCK, PIN_MOSI, PIN_MISO, SYN_SPI_MODE_1, 1);
+    TEST_ASSERT_EQUAL(SYN_GPIO_LOW, mock_gpio_states[PIN_SCK]);
+
+    syn_soft_spi_init(&spi2, PIN_SCK, PIN_MOSI, PIN_MISO, SYN_SPI_MODE_2, 1);
+    TEST_ASSERT_EQUAL(SYN_GPIO_HIGH, mock_gpio_states[PIN_SCK]);
+}
+
 void run_soft_spi_tests(void)
 {
     RUN_TEST(test_soft_spi_init);
     RUN_TEST(test_soft_spi_transfer_mode0);
     RUN_TEST(test_soft_spi_transfer_mode3);
     RUN_TEST(test_soft_spi_transfer_bulk);
+    RUN_TEST(test_soft_spi_cs_active_high_and_null_bulk);
 }

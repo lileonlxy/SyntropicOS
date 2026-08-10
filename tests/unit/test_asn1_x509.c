@@ -126,6 +126,10 @@ void test_ed25519_verify_basic(void)
         0xa0, 0x09, 0xc1, 0x01, 0xd2, 0x98, 0x48, 0x2c, 0x20, 0x62, 0x0e, 0x5c};
 
     TEST_ASSERT_FALSE(syn_ed25519_verify(NULL, NULL, 0, NULL));
+    TEST_ASSERT_FALSE(syn_ed25519_verify(sig, NULL, 5, pubkey));
+    TEST_ASSERT_FALSE(syn_ed25519_verify(sig, (const uint8_t *)"test", 4, NULL));
+    TEST_ASSERT_FALSE(syn_ed25519_verify(NULL, (const uint8_t *)"test", 4, pubkey));
+    (void)syn_ed25519_verify(sig, NULL, 0, pubkey);
 
     /* Corrupted scalar range top bits */
     uint8_t bad_scalar_sig[64];

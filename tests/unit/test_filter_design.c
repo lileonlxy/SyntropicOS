@@ -149,6 +149,17 @@ static void test_biquad_direct_methods(void)
     for (int i = 0; i < 10; i++) {
         syn_filter_biquad_update(&f, Q16_ONE);
     }
+
+    /* Test biquad cascade init bounds and functions */
+    SYN_FilterBiquadCascade cascade;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_filter_biquad_cascade_init(&cascade, 0));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_filter_biquad_cascade_init(&cascade, 99));
+
+    TEST_ASSERT_EQUAL(SYN_OK, syn_filter_biquad_cascade_init(&cascade, 2));
+    q16_t in_blk[4] = {Q16_ONE, Q16_ONE, Q16_ONE, Q16_ONE};
+    q16_t out_blk[4] = {0};
+    syn_filter_biquad_cascade_process_block(&cascade, in_blk, out_blk, 4);
+    syn_filter_biquad_cascade_reset(&cascade);
 }
 
 void run_filter_design_tests(void)

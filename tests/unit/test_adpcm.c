@@ -60,6 +60,16 @@ void test_adpcm_block_encode_decode(void)
 
     TEST_ASSERT_INT16_WITHIN(1500, pcm_in[0], pcm_out[0]);
     TEST_ASSERT_INT16_WITHIN(1500, pcm_in[31], pcm_out[31]);
+
+    /* Test odd sample count block encoding & decoding (e.g. 5 samples) */
+    syn_adpcm_init(&enc_state);
+    syn_adpcm_init(&dec_state);
+    uint8_t odd_adpcm[3] = {0};
+    int16_t odd_pcm_out[5] = {0};
+    size_t enc_odd = syn_adpcm_encode_block(&enc_state, pcm_in, odd_adpcm, 5);
+    TEST_ASSERT_EQUAL_UINT32(3, enc_odd);
+    size_t dec_odd = syn_adpcm_decode_block(&dec_state, odd_adpcm, odd_pcm_out, 5);
+    TEST_ASSERT_EQUAL_UINT32(5, dec_odd);
 }
 
 void test_adpcm_clamping_and_bounds(void)

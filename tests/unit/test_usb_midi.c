@@ -43,6 +43,11 @@ void test_usb_midi_init_and_null_checks(void)
     drv->data_out(&g_midi, 0x01, dummy_data, 4);
     TEST_ASSERT_EQUAL(4, g_midi.rx_len);
 
+    uint8_t oversized_data[128];
+    memset(oversized_data, 0x55, sizeof(oversized_data));
+    drv->data_out(&g_midi, 0x01, oversized_data, 128);
+    TEST_ASSERT_EQUAL(64, g_midi.rx_len);
+
     drv->data_in(NULL, 0x81);
     drv->data_in(&g_midi, 0x82);
     g_midi.tx_len = 4;
@@ -109,6 +114,7 @@ void test_usb_midi_send_events(void)
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_usb_midi_send_cc(&g_midi, 0, 128, 0));
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_usb_midi_send_pitch_bend(NULL, 0, 0));
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_usb_midi_send_pitch_bend(&g_midi, 0, 9000));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_usb_midi_send_pitch_bend(&g_midi, 0, -9000));
 }
 
 void test_usb_midi_buffer_overflow(void)

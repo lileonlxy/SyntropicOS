@@ -140,6 +140,7 @@ static void test_profiler_oob_guards(void)
     syn_profiler_task_begin(&prof, 5); /* OOB */
     mock_tick_advance(1);
     syn_profiler_task_end(&prof, 5); /* OOB */
+    TEST_ASSERT_NULL(syn_profiler_get(&prof, 99));
     /* No crash = pass */
 }
 

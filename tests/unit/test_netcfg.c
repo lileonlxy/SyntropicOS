@@ -85,6 +85,25 @@ void test_netcfg_link_events(void)
     TEST_ASSERT_EQUAL_INT(SYN_OK,
                           syn_netcfg_set_link_state(&auto_netcfg, &eth, SYN_NETCFG_LINK_UP));
     TEST_ASSERT_FALSE(auto_netcfg.is_bound);
+
+    /* Test set_static while LINK_DOWN */
+    syn_netcfg_set_link_state(&netcfg, &eth, SYN_NETCFG_LINK_DOWN);
+    syn_netcfg_set_static(&netcfg, &eth, 0xC0A80164, 0xFFFFFF00, 0xC0A80101);
+    TEST_ASSERT_FALSE(netcfg.is_bound);
+
+    /* Test LINK_UP with static_ip == 0 */
+    netcfg.static_ip = 0;
+    syn_netcfg_set_link_state(&netcfg, &eth, SYN_NETCFG_LINK_UP);
+    TEST_ASSERT_FALSE(netcfg.is_bound);
+
+    /* Test AutoIP fallback while LINK_DOWN */
+    syn_netcfg_set_link_state(&auto_netcfg, &eth, SYN_NETCFG_LINK_DOWN);
+    syn_netcfg_trigger_autoip_fallback(&auto_netcfg, &eth, MAC);
+    TEST_ASSERT_FALSE(auto_netcfg.is_bound);
+
+    /* Test invalid link state enum value */
+    TEST_ASSERT_EQUAL_INT(SYN_OK,
+                          syn_netcfg_set_link_state(&netcfg, &eth, (SYN_NETCFG_LinkState)99));
 }
 
 static SYN_PT_Status netcfg_coroutine_task(SYN_PT *pt, SYN_NETCFG *netcfg)

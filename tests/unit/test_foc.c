@@ -198,6 +198,14 @@ static void test_foc_deadtime_compensation(void)
 
     /* Test zero dt_offset guard */
     syn_foc_deadtime_comp(&duty_a, &duty_b, &duty_c, &i_abc, 0);
+
+    /* Negative threshold boundary current <= -0.1A */
+    SYN_FOC_ABC i_neg_thresh = {-Q16_FROM_FRAC(1, 10), -Q16_FROM_FRAC(2, 10), 0};
+    da = Q16_HALF;
+    db = Q16_HALF;
+    dc = Q16_HALF;
+    syn_foc_deadtime_comp(&da, &db, &dc, &i_neg_thresh, dt_offset);
+    TEST_ASSERT_EQUAL_INT32(Q16_HALF - dt_offset, da);
 }
 
 void run_foc_tests(void)

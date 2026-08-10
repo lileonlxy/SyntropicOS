@@ -83,6 +83,17 @@ static void test_errlog(void)
     TEST_ASSERT_EQUAL_INT(2, syn_errlog_count_severity(&elog, SYN_ERR_WARNING));
     TEST_ASSERT_EQUAL_INT(2, syn_errlog_count_severity(&elog, SYN_ERR_ERROR));
     TEST_ASSERT_FALSE(syn_errlog_read(&elog, 4, &e)); /* index >= avail (4) */
+
+    /* Test syn_errlog_latest when head wraps exactly to 0 */
+    syn_errlog_clear(&elog);
+    syn_errlog_record(&elog, 0x0001, SYN_ERR_INFO, 1);
+    syn_errlog_record(&elog, 0x0002, SYN_ERR_INFO, 2);
+    syn_errlog_record(&elog, 0x0003, SYN_ERR_INFO, 3);
+    syn_errlog_record(&elog, 0x0004, SYN_ERR_INFO, 4); /* head becomes 4 -> wraps to 0 */
+    TEST_ASSERT_EQUAL_INT(0, elog.head);
+    const SYN_ErrEntry *latest_wrapped = syn_errlog_latest(&elog);
+    TEST_ASSERT_NOT_NULL(latest_wrapped);
+    TEST_ASSERT_EQUAL_HEX16(0x0004, latest_wrapped->code);
 }
 
 void run_errlog_tests(void)

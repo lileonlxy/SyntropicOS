@@ -486,6 +486,29 @@ static void test_coap_serialization_overflow_and_socket_failures(void)
     TEST_ASSERT_EQUAL(SYN_TIMEOUT, req.status);
 }
 
+static void test_coap_large_delta_and_length_2byte_ext(void)
+{
+    SYN_CoapMsg msg = {.type = COAP_TYPE_CON, .code = COAP_CODE_GET, .msg_id = 0x1234};
+    SYN_CoapOption opt;
+    static uint8_t val[300];
+    memset(val, 0x55, sizeof(val));
+    opt.num = 300; /* delta = 300 >= 269 -> delta_ext_len = 2 */
+    opt.val = val;
+    opt.len = 300; /* opt_len = 300 >= 269 -> len_ext_len = 2 */
+
+    static uint8_t buf[1024];
+    size_t len = syn_coap_serialize(&msg, &opt, 1, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(len > 0);
+
+    SYN_CoapMsg resp;
+    SYN_CoapOption parsed_opt[2];
+    size_t opt_cnt = 0;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_coap_parse(&resp, parsed_opt, 2, &opt_cnt, buf, len));
+    TEST_ASSERT_EQUAL_INT(1, opt_cnt);
+    TEST_ASSERT_EQUAL_UINT16(300, parsed_opt[0].num);
+    TEST_ASSERT_EQUAL_INT(300, parsed_opt[0].len);
+}
+
 void run_coap_tests(void)
 {
     RUN_TEST(test_coap_serialization);
@@ -495,4 +518,5 @@ void run_coap_tests(void)
     RUN_TEST(test_coap_request_task_failures);
     RUN_TEST(test_coap_malformed_parsing);
     RUN_TEST(test_coap_serialization_overflow_and_socket_failures);
+    RUN_TEST(test_coap_large_delta_and_length_2byte_ext);
 }

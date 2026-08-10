@@ -57,6 +57,15 @@ static void test_filters(void)
     v = syn_filter_median_update(&med, 9999);
     /* sorted: 100,100,9999 -> median = 100 */
     TEST_ASSERT_EQUAL_INT(100, v);
+
+    /* Boundary initialization checks */
+    SYN_FilterMA ma_bad;
+    syn_filter_ma_init(&ma_bad, 0);
+    syn_filter_ma_init(&ma_bad, SYN_FILTER_MAX_WINDOW + 1);
+
+    SYN_FilterMedian med_bad;
+    syn_filter_median_init(&med_bad, 0);
+    syn_filter_median_init(&med_bad, SYN_FILTER_MAX_WINDOW + 1);
 }
 
 /** EMA reset — preserves alpha, clears value and primed state */
@@ -120,6 +129,15 @@ static void test_filter_fir(void)
     syn_filter_fir_update(&fir, Q16_ONE);
     syn_filter_fir_reset(&fir);
     TEST_ASSERT_EQUAL(0, syn_filter_fir_update(&fir, 0));
+
+    /* Test 2-tap FIR filter wrap-around (idx == 0 branch) */
+    q16_t taps2[2] = {Q16_ONE, Q16_ONE};
+    q16_t history2[2];
+    SYN_FilterFIR fir2;
+    syn_filter_fir_init(&fir2, taps2, history2, 2);
+    for (int i = 0; i < 5; i++) {
+        (void)syn_filter_fir_update(&fir2, Q16_FROM_INT(i));
+    }
 }
 
 static void test_biquad_process_block(void)
@@ -171,6 +189,42 @@ static void test_filter_biquad_allpass_and_peaking_eq(void)
     TEST_ASSERT_NOT_EQUAL(0, eq_neg_out);
 }
 
+static void test_biquad_cascade_and_edge_cases(void)
+{
+    SYN_FilterBiquadCascade c;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_filter_biquad_cascade_init(&c, 0));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_filter_biquad_cascade_init(&c, 10));
+
+    TEST_ASSERT_EQUAL(SYN_OK, syn_filter_biquad_cascade_init(&c, 2));
+
+    /* Configure 2 lowpass stages */
+    syn_filter_biquad_lowpass(&c.stages[0], Q16_FROM_INT(100), Q16_FROM_INT(1000));
+    syn_filter_biquad_lowpass(&c.stages[1], Q16_FROM_INT(100), Q16_FROM_INT(1000));
+
+    q16_t sample_out = syn_filter_biquad_cascade_update(&c, Q16_ONE);
+    TEST_ASSERT_NOT_EQUAL(0, sample_out);
+
+    syn_filter_biquad_cascade_reset(&c);
+
+    q16_t in_buf[4] = {Q16_ONE, Q16_ONE, Q16_ONE, Q16_ONE};
+    q16_t out_buf[4] = {0};
+    syn_filter_biquad_cascade_process_block(&c, in_buf, out_buf, 4);
+    TEST_ASSERT_NOT_EQUAL(0, out_buf[0]);
+}
+
+static void test_filter_biquad_bandpass_and_notch(void)
+{
+    SYN_FilterBiquad bp, notch;
+    syn_filter_biquad_bandpass(&bp, Q16_FROM_INT(100), Q16_FROM_INT(1000), Q16_FROM_FLOAT(1.414));
+    syn_filter_biquad_notch(&notch, Q16_FROM_INT(100), Q16_FROM_INT(1000), Q16_FROM_FLOAT(1.414));
+
+    q16_t bp_out = syn_filter_biquad_update(&bp, Q16_ONE);
+    q16_t notch_out = syn_filter_biquad_update(&notch, Q16_ONE);
+
+    TEST_ASSERT_NOT_EQUAL(0, bp_out);
+    TEST_ASSERT_NOT_EQUAL(0, notch_out);
+}
+
 void run_filter_tests(void)
 {
     RUN_TEST(test_filters);
@@ -180,4 +234,6 @@ void run_filter_tests(void)
     RUN_TEST(test_biquad_process_block);
     RUN_TEST(test_filter_biquad_highpass);
     RUN_TEST(test_filter_biquad_allpass_and_peaking_eq);
+    RUN_TEST(test_biquad_cascade_and_edge_cases);
+    RUN_TEST(test_filter_biquad_bandpass_and_notch);
 }
