@@ -85,6 +85,8 @@ nav:
     - Control & Motor: modules/control.md
     - DSP & Filters: modules/dsp.md
     - Communication: modules/communication.md
+    - Bluetooth Low Energy: modules/ble.md
+    - Audio & Codecs: modules/audio.md
     - Crypto & VPN: modules/crypto.md
     - Storage: modules/storage.md
     - System: modules/system.md
