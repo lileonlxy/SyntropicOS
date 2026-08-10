@@ -500,6 +500,15 @@ extern "C" {
 #include "net/syn_eth.h"
 #endif
 
+#if !defined(SYN_USE_BLE) || SYN_USE_BLE
+#include "ble/syn_ble_att.h"
+#include "ble/syn_ble_gap.h"
+#include "ble/syn_ble_gatt.h"
+#include "ble/syn_ble_hci.h"
+#include "ble/syn_ble_l2cap.h"
+#include "port/syn_port_ble_hci.h"
+#endif
+
 #if !defined(SYN_USE_DHCP) || SYN_USE_DHCP
 #include "net/syn_dhcp.h"
 #endif

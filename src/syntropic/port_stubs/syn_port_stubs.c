@@ -731,3 +731,19 @@ SYN_WEAK uint32_t syn_port_hpclock_freq_hz(void)
     syn_assert_failed(__FILE__, __LINE__);
     return 0; /* unreachable */
 }
+
+/* ── BLE HCI stubs ──────────────────────────────────────────────────────── */
+
+SYN_WEAK SYN_Status syn_port_ble_hci_tx(const uint8_t *data, uint16_t len)
+{
+    (void)data;
+    (void)len;
+    syn_assert_failed(__FILE__, __LINE__);
+    return SYN_NOT_IMPLEMENTED;
+}
+
+SYN_WEAK SYN_Status syn_port_ble_hci_reset(void)
+{
+    syn_assert_failed(__FILE__, __LINE__);
+    return SYN_NOT_IMPLEMENTED;
+}

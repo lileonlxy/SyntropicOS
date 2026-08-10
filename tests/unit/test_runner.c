@@ -813,6 +813,26 @@ int main(void)
     extern void run_usb_msc_tests(void);
     extern void run_ntp_server_tests(void);
     extern void run_protobuf_tests(void);
+    extern void test_ble_hci_null_params(void);
+    extern void test_ble_hci_encode_command(void);
+    extern void test_ble_hci_encode_acl(void);
+    extern void test_ble_hci_rx_event_dispatch(void);
+    extern void test_ble_hci_rx_acl_dispatch(void);
+    extern void test_ble_hci_rx_overflow_and_invalid(void);
+    extern void test_ble_gap_null_params(void);
+    extern void test_ble_gap_adv_data_encoding(void);
+    extern void test_ble_gap_process_events(void);
+    extern void test_ble_gatt_null_params(void);
+    extern void test_ble_gatt_read_request(void);
+    extern void test_ble_gatt_write_request(void);
+    extern void test_ble_gatt_notification(void);
+    extern void test_ble_l2cap_null_and_init(void);
+    extern void test_ble_l2cap_connect_disconnect_pool(void);
+    extern void test_ble_l2cap_single_and_fragmented_acl(void);
+    extern void test_ble_l2cap_errors_and_edge_cases(void);
+    extern void test_ble_l2cap_encode_pdu(void);
+    extern void test_ble_att_encoders(void);
+
     run_adpcm_tests();
     run_sbc_tests();
     run_audio_tests();
@@ -825,6 +845,26 @@ int main(void)
     run_usb_msc_tests();
     run_ntp_server_tests();
     run_protobuf_tests();
+
+    RUN_TEST(test_ble_hci_null_params);
+    RUN_TEST(test_ble_hci_encode_command);
+    RUN_TEST(test_ble_hci_encode_acl);
+    RUN_TEST(test_ble_hci_rx_event_dispatch);
+    RUN_TEST(test_ble_hci_rx_acl_dispatch);
+    RUN_TEST(test_ble_hci_rx_overflow_and_invalid);
+    RUN_TEST(test_ble_gap_null_params);
+    RUN_TEST(test_ble_gap_adv_data_encoding);
+    RUN_TEST(test_ble_gap_process_events);
+    RUN_TEST(test_ble_gatt_null_params);
+    RUN_TEST(test_ble_gatt_read_request);
+    RUN_TEST(test_ble_gatt_write_request);
+    RUN_TEST(test_ble_gatt_notification);
+    RUN_TEST(test_ble_l2cap_null_and_init);
+    RUN_TEST(test_ble_l2cap_connect_disconnect_pool);
+    RUN_TEST(test_ble_l2cap_single_and_fragmented_acl);
+    RUN_TEST(test_ble_l2cap_errors_and_edge_cases);
+    RUN_TEST(test_ble_l2cap_encode_pdu);
+    RUN_TEST(test_ble_att_encoders);
 
     return UNITY_END();
 }

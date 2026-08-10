@@ -1,0 +1,167 @@
+#include "syntropic/ble/syn_ble_gap.h"
+#include "unity/unity.h"
+
+#include <string.h>
+
+static SYN_BLE_GAP_EventType last_gap_evt;
+static bool gap_evt_called;
+static int8_t last_rssi;
+
+static void test_gap_cb(SYN_BLE_GAP *gap, SYN_BLE_GAP_EventType evt_type, const void *evt_data,
+                        void *user_data)
+{
+    (void)gap;
+    (void)user_data;
+    last_gap_evt = evt_type;
+    gap_evt_called = true;
+    if (evt_type == SYN_BLE_GAP_EVT_ADV_REPORT && evt_data != NULL) {
+        const SYN_BLE_GAP_AdvReport *rep = (const SYN_BLE_GAP_AdvReport *)evt_data;
+        last_rssi = rep->rssi;
+    }
+}
+
+void test_ble_gap_null_params(void)
+{
+    SYN_BLE_HCI hci;
+    syn_ble_hci_init(&hci, NULL);
+
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ble_gap_init(NULL, NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ble_gap_init(NULL, &hci, NULL, NULL));
+
+    SYN_BLE_GAP gap;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_init(&gap, &hci, NULL, NULL));
+
+    uint8_t buf[64];
+    uint16_t len = 0;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ble_gap_set_adv_data(NULL, NULL, 0, buf, &len));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ble_gap_set_adv_data(&gap, buf, 32, buf, &len));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ble_gap_set_adv_enable(NULL, true, buf, &len));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ble_gap_process_hci_evt(NULL, 0, NULL, 0));
+}
+
+void test_ble_gap_adv_data_encoding(void)
+{
+    SYN_BLE_HCI hci;
+    syn_ble_hci_init(&hci, NULL);
+    SYN_BLE_GAP gap;
+    syn_ble_gap_init(&gap, &hci, test_gap_cb, NULL);
+
+    uint8_t adv_payload[] = {0x02, 0x01, 0x06, 0x05, 0x09, 'T', 'e', 's', 't'};
+    uint8_t tx_buf[64];
+    uint16_t tx_len = 0;
+
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_ble_gap_set_adv_data(&gap, adv_payload, sizeof(adv_payload), tx_buf, &tx_len));
+    TEST_ASSERT_EQUAL_UINT16(36, tx_len);
+    TEST_ASSERT_EQUAL_UINT8(SYN_BLE_HCI_PKT_CMD, tx_buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x08, tx_buf[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x20, tx_buf[2]);
+    TEST_ASSERT_EQUAL_UINT8(32, tx_buf[3]);
+    TEST_ASSERT_EQUAL_UINT8(sizeof(adv_payload), tx_buf[4]);
+    TEST_ASSERT_EQUAL_UINT8('T', tx_buf[10]);
+
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_set_adv_enable(&gap, true, tx_buf, &tx_len));
+    TEST_ASSERT_TRUE(gap.advertising);
+    TEST_ASSERT_EQUAL_UINT8(0x01, tx_buf[4]);
+
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_set_adv_enable(&gap, false, tx_buf, &tx_len));
+    TEST_ASSERT_FALSE(gap.advertising);
+    TEST_ASSERT_EQUAL_UINT8(0x00, tx_buf[4]);
+}
+
+void test_ble_gap_process_events(void)
+{
+    SYN_BLE_HCI hci;
+    syn_ble_hci_init(&hci, NULL);
+    SYN_BLE_GAP gap;
+    syn_ble_gap_init(&gap, &hci, test_gap_cb, NULL);
+
+    /* Disconnect Complete Event */
+    gap_evt_called = false;
+    uint8_t disconn_evt[] = {0x00, 0x01, 0x00, 0x13};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_process_hci_evt(&gap, SYN_BLE_HCI_EVT_DISCONN_COMPLETE,
+                                                          disconn_evt, sizeof(disconn_evt)));
+    TEST_ASSERT_TRUE(gap_evt_called);
+    TEST_ASSERT_EQUAL(SYN_BLE_GAP_EVT_DISCONNECTED, last_gap_evt);
+
+    /* LE Connection Complete Meta Event */
+    gap_evt_called = false;
+    uint8_t conn_complete_evt[] = {SYN_BLE_HCI_LE_SUBEVT_CONN_COMPLETE,
+                                   0x00,
+                                   0x01,
+                                   0x00,
+                                   0x00,
+                                   0x00,
+                                   0xAA,
+                                   0xBB,
+                                   0xCC,
+                                   0xDD,
+                                   0xEE,
+                                   0xFF,
+                                   0x18,
+                                   0x00,
+                                   0x00,
+                                   0x00,
+                                   0x40,
+                                   0x00,
+                                   0x00};
+
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_ble_gap_process_hci_evt(&gap, SYN_BLE_HCI_EVT_LE_META, conn_complete_evt,
+                                                  sizeof(conn_complete_evt)));
+    TEST_ASSERT_TRUE(gap_evt_called);
+    TEST_ASSERT_EQUAL(SYN_BLE_GAP_EVT_CONNECTED, last_gap_evt);
+
+    /* LE Advertising Report Meta Event with RSSI */
+    gap_evt_called = false;
+    last_rssi = 0;
+    uint8_t adv_report_evt[] = {
+        SYN_BLE_HCI_LE_SUBEVT_ADV_REPORT,
+        0x01, /* num_reports */
+        0x00, /* evt_type */
+        0x00, /* addr_type */
+        0x11,
+        0x22,
+        0x33,
+        0x44,
+        0x55,
+        0x66,
+        0x03, /* data_len */
+        0x02,
+        0x01,
+        0x06,
+        0xCE /* rssi (-50) */
+    };
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_process_hci_evt(&gap, SYN_BLE_HCI_EVT_LE_META,
+                                                          adv_report_evt, sizeof(adv_report_evt)));
+    TEST_ASSERT_TRUE(gap_evt_called);
+    TEST_ASSERT_EQUAL_INT8(-50, last_rssi);
+
+    /* Truncated Advertising Report (missing RSSI byte -> triggers fallback rssi=0) */
+    gap_evt_called = false;
+    last_rssi = -50;
+    uint8_t trunc_adv_report[] = {SYN_BLE_HCI_LE_SUBEVT_ADV_REPORT,
+                                  0x01,
+                                  0x00,
+                                  0x00,
+                                  0x11,
+                                  0x22,
+                                  0x33,
+                                  0x44,
+                                  0x55,
+                                  0x66,
+                                  0x03, /* data_len = 3 (claims 3B payload, but total len only 13B
+                                           -> 11 + 3 = 14 > 13 -> rssi=0) */
+                                  0x02,
+                                  0x01};
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_ble_gap_process_hci_evt(&gap, SYN_BLE_HCI_EVT_LE_META, trunc_adv_report,
+                                                  sizeof(trunc_adv_report)));
+    TEST_ASSERT_TRUE(gap_evt_called);
+    TEST_ASSERT_EQUAL_INT8(0, last_rssi);
+
+    /* Unknown event code with non-null payload */
+    uint8_t dummy_evt[] = {0x00};
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_ble_gap_process_hci_evt(&gap, 0xFF, dummy_evt, sizeof(dummy_evt)));
+}

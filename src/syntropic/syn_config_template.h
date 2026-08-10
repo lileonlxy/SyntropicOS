@@ -103,6 +103,14 @@
 #define SYN_USE_CHACHA20POLY1305 1 /**< ChaCha20-Poly1305 AEAD (RFC 8439)  */
 #define SYN_USE_X25519 1           /**< X25519 Diffie-Hellman (RFC 7748)   */
 
+/* ── Bluetooth Low Energy ───────────────────────────────────────────────── */
+
+#define SYN_USE_BLE 1                /**< BLE Host Stack (HCI/GAP/GATT)       */
+#define SYN_BLE_MAX_CONNECTIONS 2U   /**< Max simultaneous BLE connections   */
+#define SYN_BLE_MAX_ATTRIBUTES 32U   /**< Max GATT attribute table capacity   */
+#define SYN_BLE_HCI_RX_BUF_SIZE 256U /**< HCI RX packet capacity              */
+#define SYN_BLE_HCI_TX_BUF_SIZE 256U /**< HCI TX packet capacity              */
+
 /* ── Communication / Protocols ──────────────────────────────────────────── */
 
 #define SYN_USE_COBS 1           /**< COBS packet framing                 */
