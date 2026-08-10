@@ -10,6 +10,50 @@ SyntropicOS is a zero-overhead, production-grade C99 framework designed for deep
 
 ---
 
+## Why SyntropicOS? (Design Rationale & Philosophy)
+
+Deeply embedded systems present a fundamental architectural choice:
+
+1. **Bare-Metal Super-Loops (`while(1)`)**: Simple to start and zero memory overhead. However, managing timers, state machines, protocol decoders, and non-blocking I/O in a single main loop quickly results in unmaintainable code. Any blocking call halts the entire microcontroller.
+2. **Preemptive RTOS (FreeRTOS, Zephyr)**: Multi-tasking where every task requires an allocated stack (512 B to 4 KB RAM per task). On microcontrollers with 2 KB to 16 KB total RAM, allocating thread stacks severely constrains memory. Preemptive switches also introduce race conditions, mutex contention, context-switch overhead, and potential stack overflows.
+3. **The SyntropicOS Approach**: A cooperative OS built around **stackless coroutines (protothreads `syn_pt`)**. Tasks execute sequentially on a single system stack while syntax macros handle yielding and resumption. Continuation state costs **2 bytes of RAM per thread** (`uint16_t lc`). Memory allocation is **100% static** (zero `malloc()`), preventing runtime heap fragmentation.
+
+SyntropicOS is not the first system to use protothreads — Contiki OS (Adam Dunkels, who invented protothreads) and RIOT OS both employ them. The difference is that **every SyntropicOS module is built from the ground up with the cooperative model in mind**. All 70+ drivers, protocol stacks, and subsystems expose non-blocking `_poll()`, `_update()`, or `_process()` APIs that yield cooperatively. There are no blocking wrappers around third-party libraries or hidden busy-waits inside module code.
+
+---
+
+## Architecture & Framework Comparison
+
+| Feature | Bare-Metal Super-Loop | Preemptive RTOS (FreeRTOS / Zephyr) | SyntropicOS |
+|---|---|---|---|
+| **RAM per Thread** | 0 B | 512 B – 4 KB per task (stack pointer) | **2 B per thread** (`uint16_t lc`) |
+| **Concurrency Model** | Manual state machines in main loop | Preemptive multi-threading | Cooperative protothreads (`syn_pt`) |
+| **Memory Allocation** | Static | Dynamic heap or static pool allocation | **100% Zero-Heap / Static** |
+| **Context Switch Cost** | Zero | CPU register push/pop & stack frame swap | **Zero** (C99 `switch` continuation jump) |
+| **Race Conditions** | None (single thread execution) | High (requires mutexes, semaphores, spinlocks) | None across yield points |
+| **Execution Safety** | Low (blocking functions freeze system) | Stack overflow risk | High (no thread stack overflow risk) |
+| **Target Hardware** | 8-bit to 32-bit MCUs | 32-bit MCUs (typically >32 KB RAM) | **8-bit to 32-bit MCUs (2 KB+ RAM)** |
+
+---
+
+## Core Concepts Explained
+
+### 1. Stackless Protothreads (`syn_pt`)
+Protothreads provide sequential, non-blocking flow control inside standard C functions without requiring separate stacks.
+- **Continuation via Duff's Device**: `PT_BEGIN()` expands to a `switch(pt->lc)` statement. When yielding (`PT_WAIT_UNTIL` or `PT_TASK_DELAY_MS`), `pt->lc` records `__LINE__` and returns `PT_WAITING`. Upon re-invocation, the switch jumps directly to the saved line.
+- **RAM Footprint**: Stores only a `uint16_t` continuation variable (2 bytes RAM).
+- **Variable Lifetime**: Local variables inside a protothread function do not persist across yields. Persistent state must be stored in `static` variables, global contexts, or a struct passed via `user_data`.
+
+### 2. Cooperative Task Scheduler (`syn_sched`)
+The scheduler runs an array of `SYN_Task` descriptors. On each tick, it executes the highest-priority ready task (priority `0` highest). Equal-priority tasks execute round-robin.
+- **Zero Dynamic Allocation**: The application owns and allocates the `SYN_Task` array statically.
+- **Tickless Idle**: Includes low-power sleep support (`syn_sched_run_tickless()`) when no tasks are ready.
+
+### 3. Ground-Up Non-Blocking Module Ecosystem
+Every driver and protocol module in SyntropicOS is written from scratch as a cooperative, non-blocking state machine. Modules expose `_poll()`, `_update()`, or `_process()` entry points (e.g. `syn_modbus_poll()`, `syn_button_update()`, `syn_ble_gatt_process_att_pdu()`) that do a bounded unit of work and return immediately. No module internally blocks, busy-waits, or calls `delay()`.
+
+---
+
 ## Technical Specifications At-a-Glance
 
 | Feature | Design Specification |

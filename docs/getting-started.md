@@ -1,6 +1,81 @@
-# Getting Started
+# Getting Started with SyntropicOS
 
-## Adding SyntropicOS to Your Project
+SyntropicOS is a cooperative C99 framework designed to deliver multi-tasking and structured software architecture for resource-constrained microcontrollers without the memory overhead of a preemptive RTOS.
+
+---
+
+## 1. Understanding the Core Architecture
+
+Before adding SyntropicOS to your codebase, understand three core concepts:
+
+### Stackless Protothreads (`syn_pt`)
+Traditional RTOS tasks require separate hardware stacks (512 B to 4 KB RAM per thread). SyntropicOS uses **protothreads** — stackless C coroutines that run on the system's single main stack.
+- **RAM Cost**: Exactly **2 bytes** per thread (`uint16_t lc` continuation variable).
+- **Execution Mechanism**: `PT_BEGIN()` and `PT_END()` implement a Duff's device continuation (`switch(pt->lc)`). When yielding (`PT_WAIT_UNTIL` or `PT_TASK_DELAY_MS`), execution returns to the caller and resumes at the saved line on the next invocation.
+- **Variable Lifetime Rule**: Local function variables do **not** persist across yield points. Persistent variables must be declared as `static`, allocated globally, or stored in a task context structure passed to `syn_task_create()`.
+
+### Zero-Heap Allocation
+SyntropicOS requires **zero dynamic memory** (`malloc()` / `free()`). Task structures (`SYN_Task`), queues (`SYN_RingBuf`), software timers (`SYN_Timer`), and protocol handles are allocated statically by the application at build time.
+
+### Ground-Up Non-Blocking Drivers & Protocol Stacks
+Every peripheral driver (GPIO, UART, SPI, I2C, CAN) and protocol stack (Modbus, BACnet, DALI, M-Bus, COBS, BLE) is written from scratch as a cooperative, non-blocking state machine. Modules expose `_poll()`, `_update()`, or `_process()` entry points that do a bounded unit of work and return immediately. No module internally blocks, busy-waits, or calls `delay()`.
+
+---
+
+## 2. First 5 Minutes: Minimal Application Tutorial
+
+A complete two-task example: a non-blocking LED blink task and a periodic system status log task.
+
+```c
+#include "syntropic/syntropic.h"
+
+#define LED_PIN  13
+#define LOG_TAG  "APP"
+
+/* Task 1: Non-blocking LED blink protothread */
+static SYN_PT_Status blink_task(SYN_PT *pt, SYN_Task *task) {
+    PT_BEGIN(pt);
+    for (;;) {
+        syn_gpio_toggle(LED_PIN);
+        PT_TASK_DELAY_MS(pt, task, 500); /* Yields CPU for 500 ms without blocking */
+    }
+    PT_END(pt);
+}
+
+/* Task 2: Periodic heartbeat status log task */
+static SYN_PT_Status log_task(SYN_PT *pt, SYN_Task *task) {
+    PT_BEGIN(pt);
+    for (;;) {
+        SYN_LOG_I(LOG_TAG, "System tick: %lu ms", (unsigned long)syn_port_get_tick_ms());
+        PT_TASK_DELAY_MS(pt, task, 2000); /* Log every 2 seconds */
+    }
+    PT_END(pt);
+}
+
+int main(void) {
+    /* 1. Initialize hardware via HAL port interface */
+    syn_gpio_init(LED_PIN, SYN_GPIO_OUTPUT);
+    syn_log_init(NULL, SYN_LOG_INFO); /* Console serial output */
+
+    /* 2. Statically allocate tasks and scheduler control block */
+    static SYN_Task tasks[2];
+    static SYN_Sched sched;
+
+    /* 3. Initialize task descriptors (Priority 0 = highest priority) */
+    syn_task_create(&tasks[0], "blink", blink_task, 0, NULL);
+    syn_task_create(&tasks[1], "log",   log_task,   1, NULL);
+
+    /* 4. Pass static task array to scheduler */
+    syn_sched_init(&sched, tasks, 2);
+
+    /* 5. Start cooperative execution loop */
+    syn_sched_run_forever(&sched);
+}
+```
+
+---
+
+## 3. Adding SyntropicOS to Your Project
 
 ### As a Git Submodule
 
@@ -20,7 +95,7 @@ git submodule update --init
     add_subdirectory(lib/SyntropicOS)
     target_link_libraries(your_target PRIVATE syntropic)
 
-    # Optional: include weak port stubs for development
+    # Optional: include weak port stubs for initial prototyping
     target_link_libraries(your_target PRIVATE syn_stubs)
     ```
 
@@ -53,7 +128,7 @@ git submodule update --init
 
 ---
 
-## Configuration
+## 4. Configuration
 
 SyntropicOS is configured through a single header file, `syn_config.h`, placed on your include path.
 
@@ -156,52 +231,6 @@ SyntropicOS uses `SYN_ASSERT()` throughout for runtime safety checks. To strip a
 ```c
 #define SYN_DISABLE_ASSERT
 ```
-
----
-
-## Quick Example
-
-A minimal blink task using the cooperative scheduler:
-
-```c
-#include "syntropic/syntropic.h"
-
-#define TAG "main"
-
-static SYN_PT_Status blink_task(SYN_PT *pt, SYN_Task *task)
-{
-    PT_BEGIN(pt);
-    for (;;) {
-        syn_gpio_toggle(LED_PIN);
-        SYN_LOG_D(TAG, "blink");
-        PT_TASK_DELAY_MS(pt, task, 500);
-    }
-    PT_END(pt);
-}
-
-int main(void)
-{
-    syn_gpio_init(LED_PIN, SYN_GPIO_OUTPUT);
-    syn_log_init(my_uart_output, SYN_LOG_DEBUG);
-
-    static SYN_Task tasks[1];
-    static SYN_Sched sched;
-
-    syn_task_create(&tasks[0], "blink", blink_task, 0, NULL);
-    syn_sched_init(&sched, tasks, 1);
-    syn_sched_run_forever(&sched);
-}
-```
-
-**What's happening here:**
-
-1. `PT_BEGIN` / `PT_END` wrap the protothread body. The `SYN_PT` struct costs **2 bytes of RAM** — it stores a `uint16_t` line continuation using Duff's device (`switch`/`__LINE__`).
-2. `PT_TASK_DELAY_MS` saves a deadline tick in `task->delay_until` and yields. On each subsequent scheduler tick, the protothread resumes at this line and checks if `syn_port_get_tick_ms() >= deadline`. No blocking, no busy-wait.
-3. `syn_task_create` sets priority `0` (highest). Each call to `syn_sched_run()` selects and runs the single highest-priority ready task, with round-robin among equal priorities.
-4. `syn_sched_run_forever` loops forever calling `syn_sched_run()`. The scheduler does **not** own the task array — you allocate it, keeping everything on the stack or in static memory.
-
-!!! tip "Local variables in protothreads"
-    Local variables are **not preserved** across yield/wait points (because there's no stack save). Store persistent state in `static` variables or in a struct passed via `task->user_data`.
 
 ---
 
