@@ -32,7 +32,7 @@ extern "C" {
 #define SYN_ICMP_HEADER_LEN 8U /**< Standard ICMP header length in bytes (8) */
 
 /** ICMP Engine Context Descriptor. */
-typedef struct {
+typedef struct SYN_ICMP {
     uint32_t echo_requests_rx; /**< Echo requests received counter */
     uint32_t echo_replies_tx;  /**< Echo replies transmitted counter */
     uint32_t echo_requests_tx; /**< Outbound echo requests transmitted counter */
