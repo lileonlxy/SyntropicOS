@@ -32,14 +32,24 @@ This directory contains MCU HAL and bare-metal C example projects demonstrating 
 - **[`stm32_lin_bus`](stm32_lin_bus)** `[STM32 Bare-Metal]` — LIN 2.1 Automotive Single-Wire Bus Master & Slave state machine.
 - **[`stm32_nmea2k`](stm32_nmea2k)** `[STM32 Bare-Metal]` — NMEA 2000 (IEC 61162-3) Marine CAN PGN encoder & decoder.
 
+- **[`stm32_cannm_demo`](stm32_cannm_demo)** `[STM32 Bare-Metal]` — AUTOSAR CAN Network Management (CanNm) 5-state FSM demo.
+- **[`stm32_kwp2000_diag`](stm32_kwp2000_diag)** `[STM32 Bare-Metal]` — ISO 14230-3 KWP2000 diagnostic service stack demo.
+
 ### Smart Energy & Power Management
+- **[`stm32_ocpp_evse`](stm32_ocpp_evse)** `[STM32 Bare-Metal]` — OCPP 2.1 / 1.6-J EVSE Charging Station protocol controller.
 - **[`stm32_mbus_meter`](stm32_mbus_meter)** `[STM32 Bare-Metal]` — M-Bus (Meter-Bus EN 13757) Utility Meter Reader (Water, Gas, Heat).
 - **[`stm32_pmbus_power`](stm32_pmbus_power)** `[STM32 Bare-Metal]` — PMBus 1.2/1.3 Digital Power Supply Telemetry & Linear11/16 format decoding.
 - **[`stm32_smbus_battery`](stm32_smbus_battery)** `[STM32 Bare-Metal]` — SMBus 2.0 / SBS 1.1 Smart Battery System Telemetry & Alert Handler.
 - **[`PmbusTelemetry`](PmbusTelemetry)** `[Arduino / Portable C]` — Generic PMBus power telemetry converter.
 - **[`stm32_dlt645_meter`](stm32_dlt645_meter)** `[STM32 Bare-Metal]` — DLT645 Smart Electricity Meter protocol parser.
 
+### Wireless & Audio Processing
+- **[`stm32_ble_sensor`](stm32_ble_sensor)** `[STM32 Bare-Metal]` — BLE Host Stack (HCI H:4 UART) GAP/GATT sensor server.
+- **[`stm32_audio_player`](stm32_audio_player)** `[STM32 Bare-Metal]` — Software audio player with WAV parsing, IMA-ADPCM, and SBC decoding.
+
 ### Microcontroller Peripheral HAL & CLI Shell
+- **[`stm32f7_uds_bootloader`](stm32f7_uds_bootloader)** `[STM32 Bare-Metal]` — ISO 14229-1 UDS 17-step secure bootloader with A/B dual-bank swap architecture.
+- **[`stm32_ymodem_bootloader`](stm32_ymodem_bootloader)** `[STM32 Bare-Metal]` — Serial YMODEM / XMODEM-1K firmware update bootloader.
 - **[`stm32_usb_cdc_device`](stm32_usb_cdc_device)** `[STM32 Bare-Metal]` — USB 2.0 CDC ACM Virtual COM Port Device & coroutine echo task.
 - **[`stm32_usb_host_cdc`](stm32_usb_host_cdc)** `[STM32 Bare-Metal]` — USB 2.0 Host Core enumeration state machine & CDC ACM serial host driver.
 - **[`stm32_multitask_demo`](stm32_multitask_demo)** `[STM32 Bare-Metal]` — Integrated 4-task protothreads (`SYN_PT`) demo (LED, USART CLI, Button Gestures, Global IPC).

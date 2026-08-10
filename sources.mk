@@ -93,7 +93,31 @@ SYN_SRCS := \
 	$(SYN_DIR)/src/syntropic/sensor/syn_scale.c \
 	$(SYN_DIR)/src/syntropic/sensor/syn_lux.c \
 	$(SYN_DIR)/src/syntropic/drivers/syn_rfid.c \
-	$(SYN_DIR)/src/syntropic/sensor/syn_biometric.c
+	$(SYN_DIR)/src/syntropic/sensor/syn_biometric.c \
+	$(SYN_DIR)/src/syntropic/audio/syn_adpcm.c \
+	$(SYN_DIR)/src/syntropic/audio/syn_audio.c \
+	$(SYN_DIR)/src/syntropic/audio/syn_audio_mixer.c \
+	$(SYN_DIR)/src/syntropic/audio/syn_sbc.c \
+	$(SYN_DIR)/src/syntropic/audio/syn_wav.c \
+	$(SYN_DIR)/src/syntropic/ble/syn_ble_att.c \
+	$(SYN_DIR)/src/syntropic/ble/syn_ble_gap.c \
+	$(SYN_DIR)/src/syntropic/ble/syn_ble_gatt.c \
+	$(SYN_DIR)/src/syntropic/ble/syn_ble_hci.c \
+	$(SYN_DIR)/src/syntropic/ble/syn_ble_l2cap.c \
+	$(SYN_DIR)/src/syntropic/drivers/syn_usb_midi.c \
+	$(SYN_DIR)/src/syntropic/drivers/syn_usb_msc.c \
+	$(SYN_DIR)/src/syntropic/dsp/syn_goertzel.c \
+	$(SYN_DIR)/src/syntropic/dsp/syn_mfcc.c \
+	$(SYN_DIR)/src/syntropic/motor/syn_foc_encoder.c \
+	$(SYN_DIR)/src/syntropic/net/syn_ntp_server.c \
+	$(SYN_DIR)/src/syntropic/proto/syn_ccp.c \
+	$(SYN_DIR)/src/syntropic/proto/syn_devicenet.c \
+	$(SYN_DIR)/src/syntropic/proto/syn_kwp2000.c \
+	$(SYN_DIR)/src/syntropic/proto/syn_ocpp.c \
+	$(SYN_DIR)/src/syntropic/proto/syn_ymodem.c \
+	$(SYN_DIR)/src/syntropic/sensor/syn_sensor_fusion.c \
+	$(SYN_DIR)/src/syntropic/util/syn_lz4.c \
+	$(SYN_DIR)/src/syntropic/util/syn_protobuf.c
 
 SYN_STUB_SRCS := \
 	$(SYN_DIR)/src/syntropic/port_stubs/syn_port_stubs.c

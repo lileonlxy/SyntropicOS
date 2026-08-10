@@ -9,10 +9,20 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (`YYYY.M.
 
 ## [Unreleased]
 
+---
+
+## [2026.8.0] - 2026-08-10
+
 ### Added
-- **ISO 14229-1 UDS Service Registrations & Handlers**: Extended `syn_uds` with service transition policies (`0x10`), deferred post-TX ECU reset handlers (`0x11`), CommunicationControl (`0x28`), ControlDTCSetting (`0x85`), TesterPresent S3 timer management (`0x3E`), and WriteDataByIdentifier (`0x2E` DID `0xF190`).
-- **STM32F767 Production UDS Bootloader Example**: Added ISO 14229-1 / AUTOSAR 17-step 3-phase Non-Volatile Server Memory Programming architecture example with concrete STM32 HAL Flash erase and programming drivers (`examples/stm32f7_uds_bootloader`).
-- **Documentation & Unit Tests**: Added zero-warning Doxygen annotations across `syn_cannm` and `syn_lintp`, and expanded unit test coverage in `test_workqueue.c`.
+- **Bluetooth Low Energy (BLE) Host Stack (`syn_ble`)**: Zero-heap Tier 2 BLE Host Stack including H:4 UART transport (`syn_ble_hci`), L2CAP channel demuxing & ACL reassembly (`syn_ble_l2cap`), ATT protocol encoders/decoders (`syn_ble_att`), GAP advertising/connection engine (`syn_ble_gap`), and static attribute GATT server (`syn_ble_gatt`).
+- **Audio & Signal Processing Subsystem (`syn_audio`)**: Pure C zero-heap audio pipeline featuring 16-channel audio mixer (`syn_audio_mixer`), RIFF/WAV header parser (`syn_wav`), IMA-ADPCM codec (`syn_adpcm`), Bluetooth Subband Codec (`syn_sbc`), and MFCC speech feature extraction (`syn_mfcc`).
+- **OCPP 2.1 Edition 1 & OCPP-J 1.6 Protocol Engine (`syn_ocpp`)**: Full dual-role EVSE Client & CSMS Server protocol stack supporting JSON RPC 2.0 framing, ISO 15118-20 V2G data structures, DisplayMessage payloads, and automated CSMS integration tests.
+- **USB Device Drivers (`syn_usb_midi`, `syn_usb_msc`)**: USB 2.0 MIDI Class driver (jack parsing, event packets) and USB Mass Storage Class (MSC) Bulk-Only Transport (BOT) / SCSI command block wrapper decoder.
+- **ISO 14230-3 KWP2000 Diagnostic Stack (`syn_kwp2000`)**: K-Line / CAN diagnostic protocol engine with Session Control, ReadDataByLocalIdentifier, SecurityAccess, RoutineControl, and RequestDownload/TransferData.
+- **ISO 14229-1 UDS Bootloader & Enhancements**: Extended `syn_uds` with multi-DID reading (`0x22`), post-TX ECU reset handlers (`0x11`), CommunicationControl (`0x28`), ControlDTCSetting (`0x85`), and added STM32F767 production A/B dual-bank swap bootloader example (`examples/stm32f7_uds_bootloader`).
+- **Sensored FOC & Motor Control (`syn_foc_encoder`)**: Sensored FOC speed estimation, quadrature encoder feedback integration, 6-sector SVPWM dead-time compensation, and inverse Clarke/Park transforms.
+- **Data Utilities & Security (`syn_lz4`, `syn_protobuf`, `syn_ymodem`, `syn_goertzel`, `syn_ntp_server`)**: Zero-heap LZ4 frame compression/decompression, Google Protocol Buffers varint/wire format encoder, YMODEM / XMODEM-1K serial file receiver, Goertzel DTMF tone detector, and NTP time server.
+- **PlatformIO & Arduino Packaging Audit**: Updated `library.json`, `library.properties`, `sources.mk`, `CMakeLists.txt`, and header manifests for seamless cross-platform IDE integration.
 
 ---
 
