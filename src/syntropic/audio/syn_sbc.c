@@ -244,7 +244,7 @@ SYN_Status syn_sbc_decode_frame(SYN_SBC_Decoder *dec, const uint8_t *in, size_t 
             }
 
             /* Perform IDCT synthesis matrixing into V[ch][0..2*subbands-1] */
-            for (uint8_t i = 0U; i < 2U * sbs; i++) {
+            for (uint16_t i = 0U; i < 2U * sbs; i++) {
                 int32_t sum = 0;
                 for (uint8_t sb = 0U; sb < sbs; sb++) {
                     int32_t cos_val = (sbs == 4U) ? syn_cos4[i][sb] : proto8_80[i * 8 + sb];
