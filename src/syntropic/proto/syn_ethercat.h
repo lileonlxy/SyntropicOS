@@ -15,6 +15,7 @@
 #define SYN_ETHERCAT_H
 
 #include "../common/syn_defs.h"
+#include "../pt/syn_pt.h"
 #include "syn_canopen.h"
 
 #include <stdbool.h>
@@ -165,6 +166,373 @@ SYN_Status syn_ecat_set_state(SYN_EcatNode *node, SYN_EcatState new_state);
  */
 void syn_ecat_update(SYN_EcatNode *node);
 
+/* ── EtherCAT Master & Configuration Structs ────────────────────────────── */
+
+#ifndef SYN_ECAT_MAX_SLAVES
+#define SYN_ECAT_MAX_SLAVES 16U /**< Maximum connected EtherCAT slaves supported */
+#endif
+
+/**
+ * @brief EtherCAT SyncManager Configuration.
+ */
+typedef struct {
+    uint16_t start_addr; /**< Physical start address in slave DPRAM */
+    uint16_t length;     /**< Buffer length in bytes */
+    uint8_t control;     /**< Direction, mode, interrupt control byte */
+    uint8_t enable;      /**< SM enable byte (0x01 = enable) */
+} SYN_EcatSMConfig;
+
+/**
+ * @brief EtherCAT FMMU Configuration.
+ */
+typedef struct {
+    uint32_t logical_start;    /**< Logical start address */
+    uint16_t length;           /**< Mapping byte length */
+    uint8_t logical_start_bit; /**< Logical start bit offset (0..7) */
+    uint8_t logical_end_bit;   /**< Logical end bit (0..7) */
+    uint16_t phys_start_addr;  /**< Physical start address in slave DPRAM */
+    uint8_t phys_start_bit;    /**< Physical start bit offset (0..7) */
+    uint8_t type;              /**< Read (0x01), Write (0x02), or ReadWrite (0x03) */
+    bool enable;               /**< FMMU active flag */
+} SYN_EcatFMMUConfig;
+
+/**
+ * @brief EtherCAT Slave Information Entry.
+ */
+typedef struct {
+    uint16_t station_addr;   /**< Assigned configured station address */
+    uint16_t auto_inc_addr;  /**< Auto-increment ring position */
+    uint32_t vendor_id;      /**< Vendor ID read from SII EEPROM */
+    uint32_t product_code;   /**< Product code read from SII EEPROM */
+    uint32_t revision;       /**< Revision number read from SII EEPROM */
+    SYN_EcatState state;     /**< Current AL State */
+    uint16_t al_status_code; /**< Last AL status error code */
+    uint8_t sm_count;        /**< Configured SyncManager count */
+    uint8_t fmmu_count;      /**< Configured FMMU count */
+} SYN_EcatSlaveInfo;
+
+/**
+ * @brief EtherCAT Master Instance Context (Zero-Heap).
+ */
+typedef struct {
+    SYN_EcatSlaveInfo slaves[SYN_ECAT_MAX_SLAVES]; /**< Slave descriptor table */
+    uint8_t slave_count;                           /**< Discovered slave count */
+
+    uint8_t *output_image; /**< Master -> Slaves cyclic process output buffer */
+    uint8_t *input_image;  /**< Slaves -> Master cyclic process input buffer */
+    uint16_t output_size;  /**< Cyclic process output size in bytes */
+    uint16_t input_size;   /**< Cyclic process input size in bytes */
+    uint32_t logical_addr; /**< Logical base address for LRW process exchange */
+
+    uint16_t wkc_expected; /**< Expected Working Counter for cyclic frame */
+    uint16_t wkc_last;     /**< Last received Working Counter */
+    uint32_t cycle_count;  /**< Completed cyclic process exchange counter */
+    uint32_t wkc_errors;   /**< Working Counter error accumulator */
+
+    uint8_t *tx_buf;      /**< Pointer to static transmit frame buffer */
+    uint8_t *rx_buf;      /**< Pointer to static receive frame buffer */
+    uint16_t tx_buf_size; /**< Transmit buffer capacity */
+    uint16_t rx_buf_size; /**< Receive buffer capacity */
+
+    /* Transport & Protothread Task State */
+    SYN_EcatState master_state; /**< Current Master bus state */
+    uint8_t current_slave_idx;  /**< Iteration index for multi-step slave tasks */
+    uint16_t tx_frame_len;      /**< Current pending transmit frame length */
+    uint16_t rx_frame_len;      /**< Current received frame length */
+    bool frame_tx_pending;      /**< Transmit frame ready for PHY */
+    bool frame_rx_ready;        /**< Receive frame ready from PHY */
+
+    /* Scratch state for non-blocking task drivers & hardware polling */
+    SYN_PT sub_pt;          /**< Sub-protothread handle for nested tasks */
+    uint8_t pdo_count;      /**< Scratch PDO count for discovery */
+    uint8_t pdo_entry_idx;  /**< Scratch PDO entry loop index */
+    uint16_t pdo_map_idx;   /**< Scratch PDO mapping index */
+    uint32_t pdo_sdo_val;   /**< Scratch SDO read value */
+    size_t pdo_read_len;    /**< Scratch SDO read length */
+    uint32_t total_rx_bits; /**< Accumulated RxPDO bits */
+    uint32_t total_tx_bits; /**< Accumulated TxPDO bits */
+    uint16_t poll_retries;  /**< Retry counter for hardware status polling loops */
+} SYN_EcatMaster;
+
+/* ── EtherCAT Master Transport & Protothread Tasks ─────────────────────── */
+
+#include "../sched/syn_task.h"
+
+/**
+ * @brief Feed received Ethernet frame into Master context.
+ *
+ * @param m Pointer to master handle.
+ * @param frame Pointer to raw frame payload bytes.
+ * @param len Frame length in bytes.
+ * @return SYN_OK on success.
+ */
+SYN_Status syn_ecat_master_set_rx_frame(SYN_EcatMaster *m, const uint8_t *frame, size_t len);
+
+/**
+ * @brief Pop pending transmit frame for Ethernet PHY driver.
+ *
+ * @param m Pointer to master handle.
+ * @param out_frame [out] Pointer to receive frame location.
+ * @param out_len [out] Pointer to receive frame length.
+ * @return true if frame was popped, false if no frame pending.
+ */
+bool syn_ecat_master_pop_tx_frame(SYN_EcatMaster *m, const uint8_t **out_frame, size_t *out_len);
+
+/**
+ * @brief Protothread Task: Scan EtherCAT bus and assign station addresses.
+ *
+ * @param pt Protothread state handle.
+ * @param m Pointer to master handle.
+ * @return PT_WAITING if waiting for frames, PT_ENDED when scan complete.
+ */
+SYN_PT_Status syn_ecat_master_scan_task(SYN_PT *pt, SYN_EcatMaster *m);
+
+/**
+ * @brief Protothread Task: Drive EtherCAT slaves through state transition.
+ *
+ * @param pt Protothread state handle.
+ * @param m Pointer to master handle.
+ * @param target_state Target ESM state (INIT, PREOP, SAFEOP, OP).
+ * @return PT_WAITING if waiting for frames, PT_ENDED when transition complete.
+ */
+SYN_PT_Status syn_ecat_master_transition_task(SYN_PT *pt, SYN_EcatMaster *m,
+                                              SYN_EcatState target_state);
+
+/**
+ * @brief Protothread Task: Execute single cyclic process exchange cycle.
+ *
+ * @param pt Protothread state handle.
+ * @param m Pointer to master handle.
+ * @return PT_WAITING if waiting for frames, PT_ENDED when cycle complete.
+ */
+SYN_PT_Status syn_ecat_master_cyclic_task(SYN_PT *pt, SYN_EcatMaster *m);
+
+/**
+ * @brief Encode FPRD to read register @p reg_addr from slave @p station_addr.
+ */
+size_t syn_ecat_encode_read_reg(SYN_EcatMaster *m, uint16_t station_addr, uint16_t reg_addr,
+                                uint16_t len);
+
+/**
+ * @brief Encode FPWR to write register @p reg_addr to slave @p station_addr.
+ */
+size_t syn_ecat_encode_write_reg(SYN_EcatMaster *m, uint16_t station_addr, uint16_t reg_addr,
+                                 const void *data, uint16_t len);
+
+/**
+ * @brief Decode FPRD response datagram for register read.
+ */
+SYN_Status syn_ecat_decode_read_reg(SYN_EcatMaster *m, size_t rx_len, void *out_data, uint16_t len);
+
+/**
+ * @brief Protothread Task: Read 32-bit word from slave SII EEPROM via hardware status polling.
+ */
+SYN_PT_Status syn_ecat_master_read_sii_task(SYN_PT *pt, SYN_EcatMaster *m, uint16_t station_addr,
+                                            uint16_t word_offset, uint32_t *out_data);
+
+/**
+ * @brief Protothread Task: CoE SDO read from slave Object Dictionary with SM1 polling.
+ */
+SYN_PT_Status syn_ecat_master_sdo_read_task(SYN_PT *pt, SYN_EcatMaster *m, uint16_t station_addr,
+                                            uint16_t index, uint8_t subindex, void *out_data,
+                                            size_t max_len, size_t *out_len);
+
+/**
+ * @brief Protothread Task: Read CoE Object Dictionary 0x1C12/0x1C13 to calculate slave Rx/Tx PDO
+ * byte lengths.
+ */
+SYN_PT_Status syn_ecat_master_discover_pdo_mapping_task(SYN_PT *pt, SYN_EcatMaster *m,
+                                                        uint16_t station_addr,
+                                                        uint16_t *out_rx_bytes,
+                                                        uint16_t *out_tx_bytes);
+
+/* ── EtherCAT Master API ────────────────────────────────────────────────── */
+
+/**
+ * @brief Initialize EtherCAT Master instance context.
+ *
+ * @param m Pointer to master handle.
+ * @param tx_buf Pointer to static transmit frame buffer.
+ * @param tx_buf_size Capacity of transmit frame buffer.
+ * @param rx_buf Pointer to static receive frame buffer.
+ * @param rx_buf_size Capacity of receive frame buffer.
+ * @param output_image Output process image buffer pointer.
+ * @param output_size Output process image byte size.
+ * @param input_image Input process image buffer pointer.
+ * @param input_size Input process image byte size.
+ * @return SYN_OK on success, SYN_INVALID_PARAM if parameters null/invalid.
+ */
+SYN_Status syn_ecat_master_init(SYN_EcatMaster *m, uint8_t *tx_buf, uint16_t tx_buf_size,
+                                uint8_t *rx_buf, uint16_t rx_buf_size, uint8_t *output_image,
+                                uint16_t output_size, uint8_t *input_image, uint16_t input_size);
+
+/**
+ * @brief Encode Broadcast Read (BRD) to scan bus slave count into master tx_buf.
+ *
+ * @param m Pointer to master handle.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_scan_bus(SYN_EcatMaster *m);
+
+/**
+ * @brief Decode slave count from scan_bus response frame in rx_buf.
+ *
+ * @param m Pointer to master handle.
+ * @param rx_len Received frame byte length.
+ * @return Discovered slave count.
+ */
+uint8_t syn_ecat_decode_scan_bus(SYN_EcatMaster *m, size_t rx_len);
+
+/**
+ * @brief Encode Auto-Increment Write (APWR) to assign station address.
+ *
+ * @param m Pointer to master handle.
+ * @param position Ring position index (0..slave_count-1).
+ * @param station_addr Configured station address to set (e.g. 0x1001).
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_assign_addr(SYN_EcatMaster *m, uint16_t position, uint16_t station_addr);
+
+/**
+ * @brief Encode Configured Read (FPRD) to read SII EEPROM word.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @param word_offset SII EEPROM word offset.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_read_sii(SYN_EcatMaster *m, uint16_t station_addr, uint16_t word_offset);
+
+/**
+ * @brief Decode 32-bit word from SII EEPROM read response.
+ *
+ * @param m Pointer to master handle.
+ * @param rx_len Received frame length.
+ * @param out_val Pointer to receive parsed 32-bit SII value.
+ * @return SYN_OK on success.
+ */
+SYN_Status syn_ecat_decode_read_sii(SYN_EcatMaster *m, size_t rx_len, uint32_t *out_val);
+
+/**
+ * @brief Encode Configured Write (FPWR) to configure a SyncManager register block.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @param sm_index SyncManager index (0..3).
+ * @param cfg Pointer to SyncManager configuration settings.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_write_sm(SYN_EcatMaster *m, uint16_t station_addr, uint8_t sm_index,
+                                const SYN_EcatSMConfig *cfg);
+
+/**
+ * @brief Encode Configured Write (FPWR) to configure an FMMU register block.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @param fmmu_index FMMU index (0..3).
+ * @param cfg Pointer to FMMU configuration settings.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_write_fmmu(SYN_EcatMaster *m, uint16_t station_addr, uint8_t fmmu_index,
+                                  const SYN_EcatFMMUConfig *cfg);
+
+/**
+ * @brief Encode Configured Read (FPRD) to read slave Application Layer (AL) Status.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_read_al_status(SYN_EcatMaster *m, uint16_t station_addr);
+
+/**
+ * @brief Decode Application Layer (AL) Status and Status Code from response.
+ *
+ * @param m Pointer to master handle.
+ * @param rx_len Received frame length.
+ * @param state [out] Output location for current ESM state.
+ * @param status_code [out] Output location for AL status error code.
+ * @return SYN_OK on success.
+ */
+SYN_Status syn_ecat_decode_read_al_status(SYN_EcatMaster *m, size_t rx_len, SYN_EcatState *state,
+                                          uint16_t *status_code);
+
+/* ── Multi-Datagram Frame Builder & Parser ─────────────────────────────── */
+
+#define SYN_ESC_REG_TYPE 0x0000U             /**< ESC Type/Build */
+#define SYN_ESC_REG_STATION_ADDR 0x0010U     /**< Configured Station Address */
+#define SYN_ESC_REG_STATION_ALIAS 0x0012U    /**< Configured Station Alias */
+#define SYN_ESC_REG_AL_CONTROL 0x0120U       /**< Application Layer Control */
+#define SYN_ESC_REG_AL_STATUS 0x0130U        /**< Application Layer Status */
+#define SYN_ESC_REG_AL_STATUS_CODE 0x0134U   /**< Application Layer Status Code */
+#define SYN_ESC_REG_PDI_CONTROL 0x0140U      /**< Process Data Interface Control */
+#define SYN_ESC_REG_SII_EEPROM_CTRL 0x0502U  /**< SII EEPROM Control/Status */
+#define SYN_ESC_REG_FMMU0 0x0600U            /**< FMMU 0 Base (16 bytes per FMMU) */
+#define SYN_ESC_REG_SM0 0x0800U              /**< SyncManager 0 Base (8 bytes per SM) */
+#define SYN_ESC_REG_DC_SYSTEM_TIME 0x0900U   /**< DC System Time (64-bit) */
+#define SYN_ESC_REG_DC_SYSTEM_OFFSET 0x0920U /**< DC System Time Offset */
+#define SYN_ESC_REG_DC_SYNC0_CYCLE 0x09A0U   /**< DC SYNC0 Cycle Time */
+
+/* ── Multi-Datagram Frame Builder & Parser ─────────────────────────────── */
+
+/**
+ * @brief Parsed datagram item from frame iteration.
+ */
+typedef struct {
+    uint8_t cmd;         /**< Datagram command code (SYN_EcatCmd) */
+    uint8_t idx;         /**< Datagram index */
+    uint32_t addr;       /**< Datagram address field */
+    const uint8_t *data; /**< Pointer to datagram payload bytes */
+    uint16_t data_len;   /**< Datagram payload length */
+    uint16_t wkc;        /**< Working Counter */
+} SYN_EcatDatagramResult;
+
+/**
+ * @brief Initialize an EtherCAT frame buffer header.
+ *
+ * @param buf Target output buffer.
+ * @param buf_size Total capacity of output buffer.
+ */
+void syn_ecat_frame_begin(uint8_t *buf, size_t buf_size);
+
+/**
+ * @brief Add a datagram payload to an in-progress EtherCAT frame.
+ *
+ * @param buf Target output buffer.
+ * @param buf_size Total capacity of output buffer.
+ * @param cmd Datagram command type.
+ * @param idx Datagram index.
+ * @param addr 32-bit address field.
+ * @param data Payload data bytes (or NULL if data_len is 0).
+ * @param data_len Payload data length in bytes.
+ * @param circ True if circulating datagram flag set.
+ * @return Output byte offset after added datagram, or 0 on error / insufficient space.
+ */
+size_t syn_ecat_frame_add_datagram(uint8_t *buf, size_t buf_size, SYN_EcatCmd cmd, uint8_t idx,
+                                   uint32_t addr, const uint8_t *data, uint16_t data_len,
+                                   bool circ);
+
+/**
+ * @brief Finalize EtherCAT frame header length field.
+ *
+ * @param buf Target output buffer.
+ * @return Total frame size in bytes (including 2-byte EtherCAT header).
+ */
+size_t syn_ecat_frame_finalize(uint8_t *buf);
+
+/**
+ * @brief Parse the next datagram from an EtherCAT frame buffer.
+ *
+ * @param frame Pointer to raw EtherCAT frame bytes (starts with 2-byte EtherCAT header).
+ * @param frame_len Total byte length of frame buffer.
+ * @param offset In/out byte offset into frame buffer. Set *offset = 2 to start.
+ * @param out [out] Result struct to receive parsed datagram details.
+ * @return true if datagram parsed successfully, false if no more datagrams or malformed.
+ */
+bool syn_ecat_frame_parse_next(const uint8_t *frame, size_t frame_len, size_t *offset,
+                               SYN_EcatDatagramResult *out);
+
 /**
  * @brief Encode a CoE SDO Download (Write) request into a mailbox buffer.
  * @param buf       Output buffer.
@@ -188,6 +556,101 @@ size_t syn_ecat_coe_encode_sdo_download(uint8_t *buf, size_t buf_len, uint16_t i
  */
 size_t syn_ecat_coe_encode_sdo_upload(uint8_t *buf, size_t buf_len, uint16_t index,
                                       uint8_t subindex);
+
+/* ── Phase 3: Mailbox & CoE SDO API ─────────────────────────────────────── */
+
+/**
+ * @brief Encode a complete Mailbox-wrapped CoE SDO Download request frame into tx_buf.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @param index Object Dictionary Index.
+ * @param subindex Subindex.
+ * @param data Pointer to payload bytes (<=4 bytes for expedited SDO).
+ * @param data_len Payload byte length.
+ * @return Transmit frame byte length, or 0 on error.
+ */
+size_t syn_ecat_encode_coe_sdo_write(SYN_EcatMaster *m, uint16_t station_addr, uint16_t index,
+                                     uint8_t subindex, const void *data, size_t data_len);
+
+/**
+ * @brief Encode a complete Mailbox-wrapped CoE SDO Upload request frame into tx_buf.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @param index Object Dictionary Index.
+ * @param subindex Subindex.
+ * @return Transmit frame byte length, or 0 on error.
+ */
+size_t syn_ecat_encode_coe_sdo_read(SYN_EcatMaster *m, uint16_t station_addr, uint16_t index,
+                                    uint8_t subindex);
+
+/**
+ * @brief Decode SDO Upload response payload from rx_buf.
+ *
+ * @param m Pointer to master handle.
+ * @param rx_len Received frame length.
+ * @param out_data Output destination buffer.
+ * @param max_len Maximum output buffer capacity.
+ * @param out_len Pointer to receive read byte count.
+ * @return SYN_OK on success.
+ */
+SYN_Status syn_ecat_decode_coe_sdo_response(SYN_EcatMaster *m, size_t rx_len, void *out_data,
+                                            size_t max_len, size_t *out_len);
+
+/* ── Phase 4: Cyclic Process Data Exchange API ──────────────────────────── */
+
+/**
+ * @brief Encode LRW (Logical Read Write) cyclic process exchange frame into tx_buf.
+ *
+ * @param m Pointer to master handle.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_cyclic(SYN_EcatMaster *m);
+
+/**
+ * @brief Parse LRW cyclic process exchange response from rx_buf and copy inputs to input_image.
+ *
+ * @param m Pointer to master handle.
+ * @param rx_len Received frame byte length.
+ * @return SYN_OK if WKC >= wkc_expected, SYN_ERROR on WKC mismatch or parsing error.
+ */
+SYN_Status syn_ecat_decode_cyclic(SYN_EcatMaster *m, size_t rx_len);
+
+/* ── Phase 5: ESM State Transitions ─────────────────────────────────────── */
+
+/**
+ * @brief Encode Configured Write (FPWR) to set slave Application Layer (AL) Control register.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @param state Requested ESM State (INIT, PREOP, SAFEOP, OP).
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_set_al_control(SYN_EcatMaster *m, uint16_t station_addr,
+                                      SYN_EcatState state);
+
+/* ── Phase 6: Distributed Clocks (DC) API ───────────────────────────────── */
+
+/**
+ * @brief Encode Auto-Increment Read Multiple Write (ARMW) for DC System Time propagation.
+ *
+ * @param m Pointer to master handle.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_dc_read_system_time(SYN_EcatMaster *m);
+
+/**
+ * @brief Encode FPWR to configure DC SYNC0 cycle time and shift for a slave.
+ *
+ * @param m Pointer to master handle.
+ * @param station_addr Target slave station address.
+ * @param sync0_cycle_ns SYNC0 cycle time in nanoseconds.
+ * @param sync0_shift_ns SYNC0 shift time in nanoseconds.
+ * @return Transmit frame length in bytes, or 0 on error.
+ */
+size_t syn_ecat_encode_dc_configure(SYN_EcatMaster *m, uint16_t station_addr,
+                                    uint32_t sync0_cycle_ns, int32_t sync0_shift_ns);
 
 #ifdef __cplusplus
 }
