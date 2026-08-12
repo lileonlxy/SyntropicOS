@@ -28,6 +28,12 @@ void tearDown(void)
 /* ── Per-module test declarations ───────────────────────────────────────── */
 
 /* Each test_*.c file exposes a run_*_tests() function */
+void run_tcp_tests(void);
+void run_udp_tests(void);
+void run_net_transport_udp_tests(void);
+void run_ocpp_tests(void);
+void run_kwp2000_tests(void);
+void run_uds_util_tests(void);
 void run_ringbuf_tests(void);
 void run_crc_tests(void);
 void run_pid_tests(void);
@@ -203,10 +209,20 @@ void run_modbus_tcp_tests(void);
 void run_nmea_tests(void);
 void run_interpolator_tests(void);
 
+#define RUN_TEST_GROUP(file, fn)                           \
+    do {                                                   \
+        printf("\n=== [Test Group Start] %s ===\n", file); \
+        fflush(stdout);                                    \
+        fn();                                              \
+        printf("=== [Test Group End] %s ===\n", file);     \
+        fflush(stdout);                                    \
+    } while (0)
+
 /* ── Main ───────────────────────────────────────────────────────────────── */
 
 int main(void)
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
     UNITY_BEGIN();
 
     /* Utilities */
@@ -257,9 +273,9 @@ int main(void)
     /* Modbus & CANopen */
     run_modbus_tests();
     run_modbus_master_tests();
-    run_canopen_tests();
+    RUN_TEST_GROUP("test_canopen.c", run_canopen_tests);
     run_cia402_tests();
-    run_ethercat_tests();
+    RUN_TEST_GROUP("test_ethercat.c", run_ethercat_tests);
     run_lss_tests();
     run_cia401_tests();
     run_canopen_mgr_tests();
@@ -281,7 +297,6 @@ int main(void)
     run_dc_motor_tests();
 
     /* Drivers */
-    run_adc_tests();
     run_sensor_tests();
     run_exti_tests();
     run_can_tests();
@@ -402,7 +417,6 @@ int main(void)
     run_filter_design_tests();
 
     /* Modbus Master & TCP */
-    run_modbus_master_tests();
     run_modbus_tcp_tests();
 
     /* NMEA 0183 Navigation */
@@ -418,14 +432,13 @@ int main(void)
     run_random_tests();
 
     /* CLI Shell */
-    void run_cli_tests(void);
-    run_cli_tests();
+    /* (run_cli_tests called above) */
 
     /* DMA Driver Engine */
-    run_dma_tests();
+    /* (run_dma_tests called above) */
 
     /* SAE J1939 Heavy Duty Vehicle Protocol */
-    run_j1939_tests();
+    /* (run_j1939_tests called above) */
 
     /* NMEA 2000 Marine CAN Protocol */
     run_n2k_tests();
@@ -586,6 +599,8 @@ int main(void)
     extern void test_igmp_join_and_leave(void);
     extern void test_igmp_process_query(void);
     extern void test_igmp_null_checks(void);
+    extern void test_igmp_group_overflow_and_leaving_unjoined(void);
+    extern void test_igmp_non_igmp_packets(void);
 
     RUN_TEST(test_q7_math_boundaries_and_saturation);
     RUN_TEST(test_q15_math_boundaries_and_saturation);
@@ -748,29 +763,12 @@ int main(void)
     RUN_TEST(test_netcfg_autoip_fallback);
     RUN_TEST(test_netcfg_link_events);
     RUN_TEST(test_netcfg_coroutine_pt);
-    extern void test_igmp_group_overflow_and_leaving_unjoined(void);
-    extern void test_igmp_non_igmp_packets(void);
-    extern void run_bacnet_tests(void);
-    extern void run_ocpp_tests(void);
-    extern void run_modbus_master_tests(void);
-    extern void run_lut_tests(void);
-    extern void run_uds_tests(void);
-    extern void run_kwp2000_tests(void);
-    extern void run_uds_util_tests(void);
-    extern void run_tcp_tests(void);
-    extern void run_udp_tests(void);
-    extern void run_net_transport_udp_tests(void);
-    extern void run_uds_util_tests(void);
-    run_uds_tests();
-    run_uds_util_tests();
-
     RUN_TEST(test_igmp_init);
     RUN_TEST(test_igmp_join_and_leave);
     RUN_TEST(test_igmp_process_query);
     RUN_TEST(test_igmp_null_checks);
     RUN_TEST(test_igmp_group_overflow_and_leaving_unjoined);
     RUN_TEST(test_igmp_non_igmp_packets);
-
     extern void run_hkdf_tests(void);
     extern void run_asn1_x509_tests(void);
     extern void run_tls_tests(void);
@@ -784,11 +782,7 @@ int main(void)
     run_tcp_tests();
     run_udp_tests();
     run_net_transport_udp_tests();
-    run_bacnet_tests();
     run_ocpp_tests();
-    run_modbus_master_tests();
-    run_lut_tests();
-    run_uds_tests();
     run_kwp2000_tests();
     run_uds_util_tests();
     run_hkdf_tests();

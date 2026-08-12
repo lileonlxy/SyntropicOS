@@ -935,10 +935,13 @@ SYN_PT_Status syn_ecat_master_read_sii_task(SYN_PT *pt, SYN_EcatMaster *m, uint1
                 break; /* EEPROM operation complete */
             }
         }
-        if (--m->poll_retries == 0) {
+        if (m->poll_retries > 0) {
+            m->poll_retries--;
+        }
+        if (m->poll_retries == 0) {
             PT_EXIT(pt);
         }
-    } while (1);
+    } while (m->poll_retries > 0);
 
     /* 4. Read 32-bit EEPROM data from reg 0x0508 */
     m->tx_frame_len = (uint16_t)syn_ecat_encode_read_reg(m, station_addr, 0x0508, 4);
@@ -984,10 +987,13 @@ SYN_PT_Status syn_ecat_master_sdo_read_task(SYN_PT *pt, SYN_EcatMaster *m, uint1
                 break; /* Mailbox response ready */
             }
         }
-        if (--m->poll_retries == 0) {
+        if (m->poll_retries > 0) {
+            m->poll_retries--;
+        }
+        if (m->poll_retries == 0) {
             PT_EXIT(pt);
         }
-    } while (1);
+    } while (m->poll_retries > 0);
 
     /* 3. Read SDO response from SM1 Mailbox buffer (address 0x1080) */
     m->tx_frame_len = (uint16_t)syn_ecat_encode_read_reg(m, station_addr, 0x1080, 16);

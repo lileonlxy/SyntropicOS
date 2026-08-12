@@ -257,6 +257,17 @@ static SYN_PT_Status app_dtc_monitor_task(SYN_PT *pt)
     PT_END(pt);
 }
 
+static uint32_t get_confirmed_dtc_count(void)
+{
+    uint32_t count = 0;
+    for (uint8_t i = 0; i < g_dtc_count; i++) {
+        if ((g_dtc_db[i].status_byte & SYN_UDS_DTC_STATUS_CONFIRMED_DTC) != 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
 /* ── Main Entry Point ────────────────────────────────────────────────────── */
 
 int main(void)
@@ -268,10 +279,12 @@ int main(void)
     syn_uds_register_dtc_handler(&g_uds_server, on_read_dtc_info, NULL);
 
     /* Register application DTCs with UDS server core */
-    syn_uds_dtc_register(&g_uds_server, DTC_CODE_CAN_BUS_OFF,
+    syn_uds_register_dtc(&g_uds_server, DTC_CODE_CAN_BUS_OFF, 0x00,
                          SYN_UDS_DTC_SEVERITY_CHECK_IMMEDIATELY);
-    syn_uds_dtc_register(&g_uds_server, DTC_CODE_VOLTAGE_HIGH,
+    syn_uds_register_dtc(&g_uds_server, DTC_CODE_VOLTAGE_HIGH, 0x00,
                          SYN_UDS_DTC_SEVERITY_MAINTENANCE_REQUIRED);
+    add_dtc_record(DTC_CODE_CAN_BUS_OFF);
+    add_dtc_record(DTC_CODE_VOLTAGE_HIGH);
 
     /* Initialize Protothread for periodic DTC monitoring */
     SYN_PT monitor_pt;
@@ -279,7 +292,7 @@ int main(void)
 
     printf("Step 1: Running normal operation (no faults active)...\n");
     app_dtc_monitor_task(&monitor_pt);
-    printf("Confirmed DTC count: %u\n", (unsigned)syn_uds_dtc_get_confirmed_count(&g_uds_server));
+    printf("Confirmed DTC count: %u\n", (unsigned)get_confirmed_dtc_count());
 
     printf("Step 2: Simulating CAN Bus-Off fault (Cycle 1 -> Pending)...\n");
     g_sim_can_bus_off = true;
@@ -289,7 +302,7 @@ int main(void)
     printf("Step 3: Simulating CAN Bus-Off fault (Cycle 2 -> Confirmed + Freeze Frame)...\n");
     PT_INIT(&monitor_pt);
     app_dtc_monitor_task(&monitor_pt);
-    printf("Confirmed DTC count: %u\n", (unsigned)syn_uds_dtc_get_confirmed_count(&g_uds_server));
+    printf("Confirmed DTC count: %u\n", (unsigned)get_confirmed_dtc_count());
 
     /* Query UDS Service 0x19 0x02 (Report DTC by Status Mask = 0x08 Confirmed) */
     uint8_t s19_req[1] = {SYN_UDS_DTC_STATUS_CONFIRMED_DTC};
@@ -302,12 +315,14 @@ int main(void)
     }
 
     printf("Step 4: Clearing DTCs via UDS Service 0x14...\n");
-    syn_uds_clear_dtc(&g_uds_server, 0xFFFFFFU);
+    for (uint8_t i = 0; i < g_dtc_count; i++) {
+        syn_uds_register_dtc(&g_uds_server, g_dtc_db[i].dtc_code, 0x00, 0x00);
+    }
     memset(g_dtc_db, 0, sizeof(g_dtc_db));
     g_dtc_count = 0;
     g_sim_can_bus_off = false;
 
-    printf("Confirmed DTC count after clear: %u\n", (unsigned)syn_uds_dtc_get_confirmed_count(&g_uds_server));
+    printf("Confirmed DTC count after clear: %u\n", (unsigned)get_confirmed_dtc_count());
     printf("Application DTC Manager Example Complete.\n");
 
     return 0;

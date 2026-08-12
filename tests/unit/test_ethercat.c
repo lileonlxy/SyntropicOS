@@ -423,7 +423,8 @@ static void test_ecat_master_protothread_tasks(void)
     TEST_ASSERT_EQUAL(PT_WAITING, status);
 
     /* Process pending TX frames for SM0, SM1, AL Control, AL Status */
-    while (status == PT_WAITING) {
+    int guard1 = 0;
+    while (status == PT_WAITING && guard1++ < 1000) {
         if (syn_ecat_master_pop_tx_frame(&m, &tx_ptr, &tx_len)) {
             memcpy(rx, tx_ptr, tx_len);
             /* If AL status read datagram (4B response), set AL status = PREOP 0x02 */
@@ -771,21 +772,22 @@ static void test_ecat_pdo_mapping_discovery_task(void)
 
     const uint8_t *tx_ptr = NULL;
     size_t tx_len = 0;
-    static uint16_t req_idx = 0;
-    static uint8_t req_sub = 0;
+    uint16_t req_idx = 0;
+    uint8_t req_sub = 0;
 
-    while (status == PT_WAITING) {
+    int guard2 = 0;
+    while (status == PT_WAITING && guard2++ < 1000) {
         if (syn_ecat_master_pop_tx_frame(&m, &tx_ptr, &tx_len)) {
             memcpy(rx, tx_ptr, tx_len);
             /* If writing SM0 request, capture index/subindex */
             if (tx_len >= 24 && rx[2] == SYN_ECAT_CMD_FPWR &&
-                ecat_test_load16_le(&rx[6]) == 0x1000) {
+                ecat_test_load16_le(&rx[4]) == 0x1000) {
                 req_idx = ecat_test_load16_le(&rx[21]);
                 req_sub = rx[23];
             }
             /* If reading SM1 mailbox status (0x080D), return SM1 full (0x08) */
-            else if (tx_len >= 18 && rx[2] == SYN_ECAT_CMD_FPRD &&
-                     ecat_test_load16_le(&rx[6]) == 0x080D) {
+            else if (tx_len >= 15 && rx[2] == SYN_ECAT_CMD_FPRD &&
+                     ecat_test_load16_le(&rx[4]) == 0x080D) {
                 syn_ecat_frame_begin(rx, sizeof(rx));
                 uint8_t ready[1] = {0x08};
                 tx_len = syn_ecat_frame_add_datagram(rx, sizeof(rx), SYN_ECAT_CMD_FPRD, 0x01,
@@ -793,7 +795,7 @@ static void test_ecat_pdo_mapping_discovery_task(void)
             }
             /* If reading SM1 mailbox buffer (0x1080), return appropriate response */
             else if (tx_len >= 18 && rx[2] == SYN_ECAT_CMD_FPRD &&
-                     ecat_test_load16_le(&rx[6]) == 0x1080) {
+                     ecat_test_load16_le(&rx[4]) == 0x1080) {
                 uint8_t payload[16] = {0};
                 ecat_test_store16_le(&payload[0], 0x000A);
                 ecat_test_store16_le(&payload[2], 0x1001);
@@ -913,6 +915,213 @@ static void test_ecat_task_poll_timeouts(void)
     TEST_ASSERT_EQUAL(PT_ENDED, status);
 }
 
+void test_ecat_null_and_bounds_coverage(void)
+{
+    uint8_t buf[64] = {0};
+    size_t offset = 0;
+    SYN_EcatDatagramResult res;
+
+    syn_ecat_frame_begin(NULL, 64);
+    syn_ecat_frame_begin(buf, 1);
+    TEST_ASSERT_EQUAL_size_t(
+        0, syn_ecat_frame_add_datagram(NULL, 64, SYN_ECAT_CMD_NOP, 0, 0, NULL, 0, false));
+    TEST_ASSERT_EQUAL_size_t(
+        0, syn_ecat_frame_add_datagram(buf, 10, SYN_ECAT_CMD_NOP, 0, 0, NULL, 0, false));
+
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_size_t(
+        0, syn_ecat_frame_add_datagram(buf, 14, SYN_ECAT_CMD_NOP, 0, 0, buf, 100, false));
+
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_frame_finalize(NULL));
+
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(NULL, 64, &offset, &res));
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 10, &offset, &res));
+
+    buf[0] = 0x00;
+    buf[1] = 0x10;
+    offset = 2;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 64, &offset, &res));
+
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    buf[0] = 0x20;
+    buf[1] = 0x00;
+    offset = 2;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 14, &offset, &res));
+
+    offset = 1;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 64, &offset, &res));
+    offset = 100;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 64, &offset, &res));
+
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    buf[0] = 0x05;
+    buf[1] = 0x00;
+    offset = 2;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 64, &offset, &res));
+
+    /* Null & size checks for scan_bus, assign_addr, read_sii */
+    SYN_EcatMaster m;
+    uint32_t val = 0;
+    syn_ecat_master_init(&m, buf, sizeof(buf), buf, sizeof(buf), buf, sizeof(buf), buf,
+                         sizeof(buf));
+
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_scan_bus(NULL));
+    TEST_ASSERT_EQUAL_UINT8(0, syn_ecat_decode_scan_bus(NULL, 64));
+    TEST_ASSERT_EQUAL_UINT8(0, syn_ecat_decode_scan_bus(&m, 10));
+
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_assign_addr(NULL, 0, 0));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_read_sii(NULL, 0, 0));
+
+    TEST_ASSERT_EQUAL_INT(SYN_INVALID_PARAM, syn_ecat_decode_read_sii(NULL, 64, NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_INVALID_PARAM, syn_ecat_decode_read_sii(&m, 10, &val));
+
+    /* Multiple datagram chain traversal (3 datagrams) */
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    syn_ecat_frame_add_datagram(buf, sizeof(buf), SYN_ECAT_CMD_NOP, 0, 0, NULL, 0, false);
+    syn_ecat_frame_add_datagram(buf, sizeof(buf), SYN_ECAT_CMD_NOP, 1, 0, NULL, 0, false);
+    syn_ecat_frame_add_datagram(buf, sizeof(buf), SYN_ECAT_CMD_NOP, 2, 0, NULL, 0, false);
+
+    /* Datagram length exceeds total datagram boundary */
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    buf[0] = 0x0E;
+    buf[1] = 0x00;
+    buf[2] = SYN_ECAT_CMD_NOP;
+    buf[3] = 0x00;
+    buf[4] = 0;
+    buf[5] = 0;
+    buf[6] = 0;
+    buf[7] = 0;
+    buf[8] = 0x64;
+    buf[9] = 0x00;
+    offset = 2;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 64, &offset, &res));
+
+    /* Null & parameter bounds checks for SM, FMMU, AL status, CoE SDO write */
+    SYN_EcatSMConfig sm_cfg = {0};
+    SYN_EcatFMMUConfig fmmu_cfg = {0};
+    SYN_EcatState state;
+    uint16_t status_code;
+
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_write_sm(NULL, 0, 0, NULL));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_write_sm(&m, 0, 5, &sm_cfg));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_write_fmmu(NULL, 0, 0, NULL));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_write_fmmu(&m, 0, 5, &fmmu_cfg));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_read_al_status(NULL, 0));
+    TEST_ASSERT_EQUAL_INT(SYN_INVALID_PARAM, syn_ecat_decode_read_al_status(NULL, 64, NULL, NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_INVALID_PARAM,
+                          syn_ecat_decode_read_al_status(&m, 10, &state, &status_code));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_coe_sdo_write(NULL, 0, 0, 0, NULL, 5));
+
+    /* Additional coverage for lines 154, 162, 172, 388, 394, 446, 524, 570, 601, 611, 630, 638 */
+    /* Line 154: frame_len < 2 + total_dg_len */
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    buf[0] = 0x14;
+    buf[1] = 0x00;
+    offset = 2;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 10, &offset, &res));
+
+    /* Line 162: *offset + 12 > 2 + total_dg_len */
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    buf[0] = 0x05;
+    buf[1] = 0x10;
+    offset = 2;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 20, &offset, &res));
+
+    /* Line 172: *offset + 12 + data_len > 2 + total_dg_len */
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    buf[0] = 0x0F;
+    buf[1] = 0x10;
+    buf[2] = SYN_ECAT_CMD_NOP;
+    buf[8] = 0x0A;
+    buf[9] = 0x00;
+    offset = 2;
+    TEST_ASSERT_FALSE(syn_ecat_frame_parse_next(buf, 30, &offset, &res));
+
+    /* Line 388: wkc > SYN_ECAT_MAX_SLAVES cap in scan_bus */
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    syn_ecat_frame_add_datagram(buf, sizeof(buf), SYN_ECAT_CMD_BRD, 0x01, SYN_ESC_REG_TYPE, buf, 2,
+                                false);
+    buf[14] = 0xFF;
+    buf[15] = 0x00;
+    size_t scan_len = syn_ecat_frame_finalize(buf);
+    syn_ecat_master_set_rx_frame(&m, buf, scan_len);
+    TEST_ASSERT_EQUAL_UINT8(SYN_ECAT_MAX_SLAVES, syn_ecat_decode_scan_bus(&m, scan_len));
+
+    /* Line 394: decode_scan_bus error return */
+    TEST_ASSERT_EQUAL_UINT8(0, syn_ecat_decode_scan_bus(&m, 14));
+
+    /* Line 446: decode_read_sii error return */
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_ecat_decode_read_sii(&m, 14, &val));
+
+    /* Line 524: decode_read_al_status error return */
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_ecat_decode_read_al_status(&m, 14, &state, &status_code));
+
+    /* Line 570: encode_coe_sdo_read null check */
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_coe_sdo_read(NULL, 0, 0, 0));
+
+    /* Line 601, 611, 630: decode_coe_sdo_response error branches */
+    size_t out_len = 0;
+    TEST_ASSERT_EQUAL_INT(SYN_INVALID_PARAM,
+                          syn_ecat_decode_coe_sdo_response(NULL, 0, NULL, 0, NULL));
+
+    /* mbox_type != 3 (line 611) */
+    uint8_t sdo_payload[16] = {0};
+    sdo_payload[5] = 0x01;
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    syn_ecat_frame_add_datagram(buf, sizeof(buf), SYN_ECAT_CMD_FPRD, 0x01, 0x10011080, sdo_payload,
+                                16, false);
+    size_t sdo_len = syn_ecat_frame_finalize(buf);
+    syn_ecat_master_set_rx_frame(&m, buf, sdo_len);
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_ecat_decode_coe_sdo_response(&m, sdo_len, &val, 4, &out_len));
+
+    /* sdo_hdr != 0x40 (line 630) */
+    sdo_payload[5] = 0x03;
+    sdo_payload[8] = 0x80;
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    syn_ecat_frame_add_datagram(buf, sizeof(buf), SYN_ECAT_CMD_FPRD, 0x01, 0x10011080, sdo_payload,
+                                16, false);
+    sdo_len = syn_ecat_frame_finalize(buf);
+    syn_ecat_master_set_rx_frame(&m, buf, sdo_len);
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_ecat_decode_coe_sdo_response(&m, sdo_len, &val, 4, &out_len));
+
+    /* Line 638: encode_cyclic null check */
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_cyclic(NULL));
+
+    /* Lines 649, 663, 664, 668: decode_cyclic null & wkc error */
+    TEST_ASSERT_EQUAL_INT(SYN_INVALID_PARAM, syn_ecat_decode_cyclic(NULL, 64));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_ecat_decode_cyclic(&m, 14));
+
+    /* wkc < wkc_expected */
+    m.wkc_expected = 1;
+    syn_ecat_frame_begin(buf, sizeof(buf));
+    syn_ecat_frame_add_datagram(buf, sizeof(buf), SYN_ECAT_CMD_LRW, 0x10, 0x10000, buf, 4, false);
+    size_t cyc_len = syn_ecat_frame_finalize(buf);
+    syn_ecat_master_set_rx_frame(&m, buf, cyc_len);
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_ecat_decode_cyclic(&m, cyc_len));
+
+    /* Lines 676, 691, 704: AL control & DC null checks */
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_set_al_control(NULL, 0, SYN_ECAT_STATE_INIT));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_dc_read_system_time(NULL));
+    TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_dc_configure(NULL, 0, 0, 0));
+
+    /* Lines 722, 734: set_rx_frame and pop_tx_frame null checks */
+    TEST_ASSERT_EQUAL_INT(SYN_INVALID_PARAM, syn_ecat_master_set_rx_frame(NULL, NULL, 0));
+    const uint8_t *dummy_ptr = NULL;
+    size_t dummy_len = 0;
+    TEST_ASSERT_FALSE(syn_ecat_master_pop_tx_frame(NULL, &dummy_ptr, &dummy_len));
+
+    /* Line 777: get_slave_station_addr with slave_idx >= 32 */
+    SYN_PT pt_trans;
+    PT_INIT(&pt_trans);
+    m.slave_count = 35;
+    m.frame_rx_ready = true;
+    while (syn_ecat_master_transition_task(&pt_trans, &m, SYN_ECAT_STATE_PREOP) == PT_WAITING) {
+        m.frame_rx_ready = true;
+    }
+}
+
 void run_ethercat_tests(void)
 {
     RUN_TEST(test_ecat_init_and_esm);
@@ -927,4 +1136,5 @@ void run_ethercat_tests(void)
     RUN_TEST(test_ecat_reg_and_task_edge_cases);
     RUN_TEST(test_ecat_pdo_mapping_discovery_task);
     RUN_TEST(test_ecat_task_poll_timeouts);
+    RUN_TEST(test_ecat_null_and_bounds_coverage);
 }
