@@ -33,6 +33,7 @@ This directory contains MCU HAL and bare-metal C example projects demonstrating 
 - **[`stm32_nmea2k`](stm32_nmea2k)** `[STM32 Bare-Metal]` — NMEA 2000 (IEC 61162-3) Marine CAN PGN encoder & decoder.
 
 - **[`stm32_cannm_demo`](stm32_cannm_demo)** `[STM32 Bare-Metal]` — AUTOSAR CAN Network Management (CanNm) 5-state FSM demo.
+- **[`stm32_dtc_manager_demo`](stm32_dtc_manager_demo)** `[STM32 Bare-Metal]` — ISO 14229-1 UDS Application-Layer DTC Manager & Freeze-Frame Demo.
 - **[`stm32_kwp2000_diag`](stm32_kwp2000_diag)** `[STM32 Bare-Metal]` — ISO 14230-3 KWP2000 diagnostic service stack demo.
 
 ### Smart Energy & Power Management
