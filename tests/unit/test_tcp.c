@@ -258,6 +258,7 @@ static void test_tcp_fin_close_handshake(void)
 static void test_tcp_null_params_and_non_tcp_proto(void)
 {
     SYN_TCP local_tcp;
+    memset(&local_tcp, 0, sizeof(local_tcp));
     uint8_t frame[64] = {0};
     uint8_t tx_out[64];
     size_t tx_len = 0;

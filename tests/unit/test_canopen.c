@@ -624,6 +624,7 @@ static void test_canopen_sdo_expedited_transfer_aborts(void)
     cfg_bad_tpdo.tpdo[0].od_index = 0x9999;
     cfg_bad_tpdo.tpdo[0].od_subindex = 0x01;
     SYN_CANOpenNode node_bad_tpdo;
+    memset(&node_bad_tpdo, 0, sizeof(node_bad_tpdo));
     syn_canopen_init(&node_bad_tpdo, &cfg_bad_tpdo, NULL, 0);
     uint8_t nmt_start[2] = {0x01, 0x05};
     syn_canopen_process_rx(&node_bad_tpdo, 0x000U, nmt_start, 2);

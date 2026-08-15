@@ -951,6 +951,7 @@ static void test_wg_valid_response_exchange(void)
     SYN_WG wg;
     SYN_WgConfig cfg;
     SYN_SNTP sntp;
+    memset(&sntp, 0, sizeof(sntp));
     uint8_t rx_buf[1600], tx_buf[1600];
 
     memset(&cfg, 0, sizeof(cfg));

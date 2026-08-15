@@ -247,6 +247,8 @@ test-cov: FORCE
 	$(MAKE) -f tests/Makefile.unity $(BUILD_DIR)/test_unity CFLAGS="$(CFLAGS) --coverage" LDFLAGS="$(LDFLAGS) --coverage"
 	./$(BUILD_DIR)/test_unity
 
+test_unity: $(BUILD_DIR)/test_unity
+
 test: $(BUILD_DIR)/test_unity
 	./$(BUILD_DIR)/test_unity
 

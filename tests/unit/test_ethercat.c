@@ -370,8 +370,8 @@ static void test_ecat_master_phases3_to_6(void)
 static void test_ecat_master_protothread_tasks(void)
 {
     SYN_EcatMaster m;
-    uint8_t tx[128];
-    uint8_t rx[128];
+    uint8_t tx[128] = {0};
+    uint8_t rx[128] = {0};
     uint8_t out_img[16] = {0x11, 0x22};
     uint8_t in_img[16] = {0};
 
@@ -962,7 +962,9 @@ void test_ecat_null_and_bounds_coverage(void)
     /* Null & size checks for scan_bus, assign_addr, read_sii */
     SYN_EcatMaster m;
     uint32_t val = 0;
-    syn_ecat_master_init(&m, buf, sizeof(buf), buf, sizeof(buf), buf, sizeof(buf), buf,
+    uint8_t tx_cov[128] = {0};
+    uint8_t rx_cov[128] = {0};
+    syn_ecat_master_init(&m, tx_cov, sizeof(tx_cov), rx_cov, sizeof(rx_cov), buf, sizeof(buf), buf,
                          sizeof(buf));
 
     TEST_ASSERT_EQUAL_size_t(0, syn_ecat_encode_scan_bus(NULL));
@@ -1115,9 +1117,19 @@ void test_ecat_null_and_bounds_coverage(void)
     /* Line 777: get_slave_station_addr with slave_idx >= 32 */
     SYN_PT pt_trans;
     PT_INIT(&pt_trans);
+    uint8_t trans_tx[256] = {0};
+    uint8_t trans_rx[256] = {0};
+    syn_ecat_master_init(&m, trans_tx, sizeof(trans_tx), trans_rx, sizeof(trans_rx), NULL, 0, NULL,
+                         0);
     m.slave_count = 35;
     m.frame_rx_ready = true;
     while (syn_ecat_master_transition_task(&pt_trans, &m, SYN_ECAT_STATE_PREOP) == PT_WAITING) {
+        syn_ecat_frame_begin(trans_rx, sizeof(trans_rx));
+        uint8_t al_resp[4] = {0x02, 0x00, 0x00, 0x00};
+        size_t tx_l = syn_ecat_frame_add_datagram(trans_rx, sizeof(trans_rx), SYN_ECAT_CMD_FPRD,
+                                                  0x05, 0x10010130, al_resp, 4, false);
+        trans_rx[tx_l - 2] = 0x01;
+        syn_ecat_master_set_rx_frame(&m, trans_rx, tx_l);
         m.frame_rx_ready = true;
     }
 }
