@@ -2296,7 +2296,9 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             } else if (subop == 8) {
                 (void)read_u32_leb128(mod->bytes, mod->size, &ctx->pc);
                 (void)read_u32_leb128(mod->bytes, mod->size, &ctx->pc);
-                uint32_t n = 0, src = 0, dst = 0;
+                uint32_t n = 0;
+                uint32_t src = 0;
+                uint32_t dst = 0;
                 pop_stack(ctx, &n);
                 pop_stack(ctx, &src);
                 pop_stack(ctx, &dst);
@@ -2305,7 +2307,9 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             } else if (subop == 10) {
                 (void)read_u32_leb128(mod->bytes, mod->size, &ctx->pc);
                 (void)read_u32_leb128(mod->bytes, mod->size, &ctx->pc);
-                uint32_t len = 0, src = 0, dst = 0;
+                uint32_t len = 0;
+                uint32_t src = 0;
+                uint32_t dst = 0;
                 if (pop_stack(ctx, &len) && pop_stack(ctx, &src) && pop_stack(ctx, &dst)) {
                     if (ctx->linear_mem && dst + len <= ctx->linear_mem_size &&
                         src + len <= ctx->linear_mem_size) {
@@ -2316,7 +2320,9 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
                 }
             } else if (subop == 11) {
                 (void)read_u32_leb128(mod->bytes, mod->size, &ctx->pc);
-                uint32_t len = 0, val = 0, dst = 0;
+                uint32_t len = 0;
+                uint32_t val = 0;
+                uint32_t dst = 0;
                 if (pop_stack(ctx, &len) && pop_stack(ctx, &val) && pop_stack(ctx, &dst)) {
                     if (ctx->linear_mem && dst + len <= ctx->linear_mem_size) {
                         memset(&ctx->linear_mem[dst], (uint8_t)val, len);
