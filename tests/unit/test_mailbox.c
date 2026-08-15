@@ -15,26 +15,28 @@ typedef struct {
 
 static void test_mailbox(void)
 {
-    /* Static definition */
+    /* Static definition with count = 4 -> can hold 4 messages */
     SYN_MAILBOX_DEFINE(mbox, TestMsg, 4);
 
     TEST_ASSERT_TRUE(syn_mailbox_empty(&mbox));
     TEST_ASSERT_FALSE(syn_mailbox_full(&mbox));
     TEST_ASSERT_EQUAL_INT(0, syn_mailbox_pending(&mbox));
-    TEST_ASSERT_EQUAL_INT(3, syn_mailbox_free(&mbox));
+    TEST_ASSERT_EQUAL_INT(4, syn_mailbox_free(&mbox));
 
-    /* Post messages */
+    /* Post 4 messages */
     TestMsg m1 = {.id = 1, .value = 100};
     TestMsg m2 = {.id = 2, .value = 200};
     TestMsg m3 = {.id = 3, .value = 300};
+    TestMsg m4 = {.id = 4, .value = 400};
 
     TEST_ASSERT_TRUE(syn_mailbox_post(&mbox, &m1));
     TEST_ASSERT_TRUE(syn_mailbox_post(&mbox, &m2));
     TEST_ASSERT_TRUE(syn_mailbox_post(&mbox, &m3));
+    TEST_ASSERT_TRUE(syn_mailbox_post(&mbox, &m4));
     TEST_ASSERT_FALSE(syn_mailbox_post(&mbox, &m1));
     TEST_ASSERT_EQUAL_INT(1, syn_mailbox_overflows(&mbox));
 
-    TEST_ASSERT_EQUAL_INT(3, syn_mailbox_pending(&mbox));
+    TEST_ASSERT_EQUAL_INT(4, syn_mailbox_pending(&mbox));
     TEST_ASSERT_TRUE(syn_mailbox_full(&mbox));
 
     /* Peek */
@@ -56,6 +58,10 @@ static void test_mailbox(void)
     TEST_ASSERT_EQUAL_INT(3, rx.id);
     TEST_ASSERT_EQUAL_INT(300, rx.value);
 
+    TEST_ASSERT_TRUE(syn_mailbox_receive(&mbox, &rx));
+    TEST_ASSERT_EQUAL_INT(4, rx.id);
+    TEST_ASSERT_EQUAL_INT(400, rx.value);
+
     TEST_ASSERT_FALSE(syn_mailbox_receive(&mbox, &rx));
     TEST_ASSERT_TRUE(syn_mailbox_empty(&mbox));
 
@@ -72,6 +78,28 @@ static void test_mailbox(void)
     /* Flush */
     syn_mailbox_flush(&mb2);
     TEST_ASSERT_TRUE(syn_mailbox_empty(&mb2));
+}
+
+static void test_mailbox_capacity_one(void)
+{
+    SYN_MAILBOX_DEFINE(mb1, TestMsg, 1);
+
+    TEST_ASSERT_TRUE(syn_mailbox_empty(&mb1));
+    TEST_ASSERT_FALSE(syn_mailbox_full(&mb1));
+    TEST_ASSERT_EQUAL_INT(1, syn_mailbox_free(&mb1));
+
+    TestMsg m = {.id = 42, .value = 1337};
+    TEST_ASSERT_TRUE(syn_mailbox_post(&mb1, &m));
+    TEST_ASSERT_TRUE(syn_mailbox_full(&mb1));
+    TEST_ASSERT_EQUAL_INT(0, syn_mailbox_free(&mb1));
+    TEST_ASSERT_FALSE(syn_mailbox_post(&mb1, &m));
+    TEST_ASSERT_EQUAL_INT(1, syn_mailbox_overflows(&mb1));
+
+    TestMsg rx;
+    TEST_ASSERT_TRUE(syn_mailbox_receive(&mb1, &rx));
+    TEST_ASSERT_EQUAL_UINT16(42, rx.id);
+    TEST_ASSERT_EQUAL_INT32(1337, rx.value);
+    TEST_ASSERT_TRUE(syn_mailbox_empty(&mb1));
 }
 
 static void test_mailbox_wraparound_and_notify(void)
@@ -109,5 +137,6 @@ static void test_mailbox_wraparound_and_notify(void)
 void run_mailbox_tests(void)
 {
     RUN_TEST(test_mailbox);
+    RUN_TEST(test_mailbox_capacity_one);
     RUN_TEST(test_mailbox_wraparound_and_notify);
 }

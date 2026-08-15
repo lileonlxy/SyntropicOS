@@ -371,24 +371,25 @@ typedef enum {
  * @param timeout_ms  Timeout duration in milliseconds.
  * @param out_flags   Pointer to uint32_t receiving matched flags (or 0 on timeout).
  */
-#define PT_BLOCK_EVENT_WITH_TIMEOUT(pt, task, grp, mask, timeout_ms, out_flags)            \
-    do {                                                                                   \
-        (task)->wait_event = (SYN_EventFlags *)(grp);                                      \
-        (task)->wait_mask = (mask);                                                        \
-        (task)->delay_until = syn_port_get_tick_ms() + (uint32_t)(timeout_ms);             \
-        if ((task)->delay_until == 0) {                                                    \
-            (task)->delay_until = 1; /* 0 is the no-deadline sentinel */                   \
-        }                                                                                  \
-        (task)->state = (uint8_t)SYN_TASK_BLOCKED;                                         \
-        PT_YIELD(pt);                                                                      \
-        (task)->delay_until = 0;                                                           \
-        uint32_t _syn_evt_matched = syn_event_flags_get((SYN_EventFlags *)(grp)) & (mask); \
-        if ((out_flags) != NULL) {                                                         \
-            *(out_flags) = _syn_evt_matched;                                               \
-        }                                                                                  \
-        if (_syn_evt_matched != 0) {                                                       \
-            syn_event_flags_clear((SYN_EventFlags *)(grp), _syn_evt_matched);              \
-        }                                                                                  \
+#define PT_BLOCK_EVENT_WITH_TIMEOUT(pt, task, grp, mask, timeout_ms, out_flags) \
+    do {                                                                        \
+        (task)->wait_event = (SYN_EventFlags *)(grp);                           \
+        (task)->wait_mask = (mask);                                             \
+        (task)->delay_until = syn_port_get_tick_ms() + (uint32_t)(timeout_ms);  \
+        if ((task)->delay_until == 0) {                                         \
+            (task)->delay_until = 1; /* 0 is the no-deadline sentinel */        \
+        }                                                                       \
+        (task)->state = (uint8_t)SYN_TASK_BLOCKED;                              \
+        PT_YIELD(pt);                                                           \
+        (task)->delay_until = 0;                                                \
+        uint32_t _syn_evt_matched = (task)->wait_mask;                          \
+        if ((out_flags) != NULL) {                                              \
+            *(out_flags) = _syn_evt_matched;                                    \
+        }                                                                       \
+        if (_syn_evt_matched != 0) {                                            \
+            syn_event_flags_clear((SYN_EventFlags *)(grp), _syn_evt_matched);   \
+        }                                                                       \
+        (task)->wait_mask = 0;                                                  \
     } while (0)
 
 /**

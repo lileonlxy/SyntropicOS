@@ -557,23 +557,14 @@ SYN_Status syn_wg_send(SYN_WG *wg, const uint8_t *ip_packet, size_t len)
  *  Transport: Receive + Decrypt
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/** @brief Anti-replay check using a sliding window bitmap.
+/** @brief Anti-replay check without state mutation.
  * @param s       Active session.
  * @param counter Received counter value.
  * @return true if counter is new and within window.
  */
-static bool wg_replay_check(SYN_WgSession *s, uint64_t counter)
+static bool wg_replay_test(const SYN_WgSession *s, uint64_t counter)
 {
     if (counter > s->recv_counter) {
-        /* New highest — shift window */
-        uint64_t diff = counter - s->recv_counter;
-        if (diff < 32) {
-            s->recv_bitmap <<= diff;
-            s->recv_bitmap |= 1;
-        } else {
-            s->recv_bitmap = 1;
-        }
-        s->recv_counter = counter;
         return true;
     }
 
@@ -585,7 +576,44 @@ static bool wg_replay_check(SYN_WgSession *s, uint64_t counter)
     if (s->recv_bitmap & bit)
         return false; /* Already seen */
 
-    s->recv_bitmap |= bit;
+    return true;
+}
+
+/** @brief Commit counter into anti-replay sliding window bitmap.
+ * @param s       Active session.
+ * @param counter Validated counter value.
+ */
+static void wg_replay_commit(SYN_WgSession *s, uint64_t counter)
+{
+    if (counter > s->recv_counter) {
+        uint64_t diff = counter - s->recv_counter;
+        if (diff < 32) {
+            s->recv_bitmap <<= diff;
+            s->recv_bitmap |= 1;
+        } else {
+            s->recv_bitmap = 1;
+        }
+        s->recv_counter = counter;
+        return;
+    }
+
+    uint64_t diff = s->recv_counter - counter;
+    if (diff < 32) {
+        s->recv_bitmap |= (1u << (uint32_t)diff);
+    }
+}
+
+/** @brief Anti-replay check and commit in one step (convenience / test helper).
+ * @param s       Active session.
+ * @param counter Received counter value.
+ * @return true if counter is new and within window.
+ */
+static bool wg_replay_check(SYN_WgSession *s, uint64_t counter)
+{
+    if (!wg_replay_test(s, counter)) {
+        return false;
+    }
+    wg_replay_commit(s, counter);
     return true;
 }
 
@@ -608,8 +636,8 @@ static bool wg_handle_transport(SYN_WG *wg, const uint8_t *msg, size_t len)
     /* Extract counter */
     uint64_t counter = load64_le(msg + 8);
 
-    /* Anti-replay */
-    if (!wg_replay_check(&wg->session, counter))
+    /* Anti-replay pre-check (non-mutating) */
+    if (!wg_replay_test(&wg->session, counter))
         return false; /* LCOV_EXCL_LINE: Defensive NULL check or invalid parameter fallback */
 
     /* Build nonce */
@@ -630,6 +658,9 @@ static bool wg_handle_transport(SYN_WG *wg, const uint8_t *msg, size_t len)
         SYN_METRIC_INC(wg_errors);
         return false;
     }
+
+    /* Only commit anti-replay counter after AEAD authentication succeeds */
+    wg_replay_commit(&wg->session, counter);
 
     wg->last_recv_ms = syn_port_get_tick_ms();
 

@@ -49,7 +49,7 @@ bool syn_asn1_parse_element(const uint8_t *buf, size_t len, SYN_ASN1_Element *el
     elem_out->header_len = cur;
     elem_out->value = buf + cur;
 
-    if (cur + elem_out->length > len) {
+    if (cur > len || elem_out->length > (len - cur)) {
         return false;
     }
 

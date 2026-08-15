@@ -946,6 +946,49 @@ static void test_mqtt_qos2_handshake_and_keepalive_ping(void)
     TEST_ASSERT_EQUAL(SYN_MQTT_DISCONNECTED, c.state);
 }
 
+void test_mqtt_subscribe_does_not_corrupt_retransmit_buffer(void)
+{
+    mock_port_reset();
+
+    SYN_MqttClient c;
+    uint8_t rx[256];
+    uint8_t tx[256];
+    syn_mqtt_init(&c, "broker.hivemq.com", 1883, "myclient", NULL, NULL, 60, rx, sizeof(rx), tx,
+                  sizeof(tx));
+    c.state = SYN_MQTT_CONNECTED;
+    c.sock = 11;
+    mock_sock_connected = true;
+
+    /* 1. Publish QoS 1 -> populates retransmit_buf with PUBLISH (0x32) */
+    const char *payload = "data";
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_mqtt_publish(&c, "sensors/temp", payload, strlen(payload), 1, false));
+    TEST_ASSERT_TRUE(c.retransmit_len > 0);
+    TEST_ASSERT_EQUAL_UINT8(0x32, c.retransmit_buf[0]);
+
+    /* 2. Subscribe with QoS 1 -> must NOT overwrite retransmit_buf */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_mqtt_subscribe(&c, "sensors/temp", 1));
+    TEST_ASSERT_EQUAL_UINT8(0x32, c.retransmit_buf[0]);
+
+    /* 3. Ingest SUBACK (0x90, 0x03, packet_id_hi, packet_id_lo, return_code) */
+    uint8_t suback[] = {0x90, 0x03, 0x00, 0x02, 0x01};
+    mock_sock_set_response(suback, sizeof(suback));
+
+    SYN_PT pt;
+    PT_INIT(&pt);
+    SYN_Task task = {.user_data = &c};
+    syn_mqtt_task(&pt, &task);
+    TEST_ASSERT_EQUAL(SYN_MQTT_CONNECTED, c.state);
+
+    /* 4. Ingest PUBACK (0x40, 0x02, packet_id_hi, packet_id_lo) -> clears retransmit_len */
+    uint8_t puback[] = {0x40, 0x02, (uint8_t)(c.pending_puback_id >> 8),
+                        (uint8_t)(c.pending_puback_id & 0xFF)};
+    mock_sock_set_response(puback, sizeof(puback));
+    syn_mqtt_task(&pt, &task);
+    TEST_ASSERT_EQUAL(0, c.pending_puback_id);
+    TEST_ASSERT_EQUAL(0, c.retransmit_len);
+}
+
 void run_mqtt_tests(void)
 {
     RUN_TEST(test_mqtt_connect);
@@ -969,4 +1012,5 @@ void run_mqtt_tests(void)
     RUN_TEST(test_mqtt_ping_send_failure_and_packet_id_wraparound);
     RUN_TEST(test_mqtt_disconnect);
     RUN_TEST(test_mqtt_qos2_handshake_and_keepalive_ping);
+    RUN_TEST(test_mqtt_subscribe_does_not_corrupt_retransmit_buffer);
 }

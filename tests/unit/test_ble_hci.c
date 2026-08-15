@@ -167,3 +167,24 @@ void test_ble_hci_rx_overflow_and_invalid(void)
     hci.rx_state = 99;
     TEST_ASSERT_EQUAL(SYN_OK, syn_ble_hci_rx_byte(&hci, 0x00));
 }
+
+void test_ble_hci_cmd_complete_short_params(void)
+{
+    SYN_BLE_HCI hci;
+    SYN_BLE_HCI_Config cfg = {.evt_cb = test_evt_cb, .acl_cb = NULL, .user_data = NULL};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_hci_init(&hci, &cfg));
+
+    /* Poison last_cmd_status to detect whether it gets safely set */
+    hci.last_cmd_status = 0xFFU;
+
+    /* Command Complete with param_len=3: Num_HCI_Command_Packets(1) + Opcode(2), no return params.
+     * Pre-fix: guard is param_len >= 3U but code reads payload[3] → 1 byte OOB. */
+    evt_called = false;
+    uint8_t short_cc[] = {
+        SYN_BLE_HCI_PKT_EVT, SYN_BLE_HCI_EVT_CMD_COMPLETE, 0x03, 0x01, 0x01, 0x0C};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_hci_rx_buf(&hci, short_cc, sizeof(short_cc)));
+    TEST_ASSERT_TRUE(evt_called);
+    TEST_ASSERT_EQUAL_UINT16(0x0C01, hci.last_cmd_opcode);
+    /* Status must default to 0 when no return params present, not garbage from OOB read */
+    TEST_ASSERT_EQUAL_UINT8(0x00, hci.last_cmd_status);
+}

@@ -99,7 +99,52 @@ void test_timer_wheel_add_step_cancel(void)
     syn_timer_wheel_cancel(&wheel, &t_rot);
 }
 
+void test_timer_wheel_exact_bucket_multiple(void)
+{
+    SYN_TimerWheel wheel;
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_timer_wheel_init(&wheel));
+
+    SYN_TimerWheelNode n_64, n_128;
+    memset(&n_64, 0, sizeof(n_64));
+    memset(&n_128, 0, sizeof(n_128));
+    s_timer1_fired = 0;
+    s_timer2_fired = 0;
+
+    /* Add timer 1 with delay = SYN_TIMER_WHEEL_BUCKETS (64 ticks) */
+    TEST_ASSERT_EQUAL_INT(
+        SYN_OK, syn_timer_wheel_add(&wheel, &n_64, SYN_TIMER_WHEEL_BUCKETS, timer1_cb, NULL));
+
+    /* Add timer 2 with delay = 2 * SYN_TIMER_WHEEL_BUCKETS (128 ticks) */
+    TEST_ASSERT_EQUAL_INT(
+        SYN_OK, syn_timer_wheel_add(&wheel, &n_128, 2 * SYN_TIMER_WHEEL_BUCKETS, timer2_cb, NULL));
+
+    /* Step ticks 1..63: neither should fire */
+    for (uint32_t i = 1; i < SYN_TIMER_WHEEL_BUCKETS; i++) {
+        TEST_ASSERT_EQUAL_UINT32(0, syn_timer_wheel_step(&wheel));
+        TEST_ASSERT_EQUAL_INT(0, s_timer1_fired);
+        TEST_ASSERT_EQUAL_INT(0, s_timer2_fired);
+    }
+
+    /* Step tick 64: timer 1 MUST fire! */
+    TEST_ASSERT_EQUAL_UINT32(1, syn_timer_wheel_step(&wheel));
+    TEST_ASSERT_EQUAL_INT(1, s_timer1_fired);
+    TEST_ASSERT_EQUAL_INT(0, s_timer2_fired);
+
+    /* Step ticks 65..127: neither should fire */
+    for (uint32_t i = SYN_TIMER_WHEEL_BUCKETS + 1; i < 2 * SYN_TIMER_WHEEL_BUCKETS; i++) {
+        TEST_ASSERT_EQUAL_UINT32(0, syn_timer_wheel_step(&wheel));
+        TEST_ASSERT_EQUAL_INT(1, s_timer1_fired);
+        TEST_ASSERT_EQUAL_INT(0, s_timer2_fired);
+    }
+
+    /* Step tick 128: timer 2 MUST fire! */
+    TEST_ASSERT_EQUAL_UINT32(1, syn_timer_wheel_step(&wheel));
+    TEST_ASSERT_EQUAL_INT(1, s_timer1_fired);
+    TEST_ASSERT_EQUAL_INT(1, s_timer2_fired);
+}
+
 void run_timer_wheel_tests(void)
 {
     RUN_TEST(test_timer_wheel_add_step_cancel);
+    RUN_TEST(test_timer_wheel_exact_bucket_multiple);
 }

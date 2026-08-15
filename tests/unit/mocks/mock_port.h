@@ -183,6 +183,7 @@ extern uint32_t mock_wdt_feed_count; /**< Number of times syn_port_wdt_feed was 
 
 extern uint16_t mock_dac_values[MOCK_DAC_MAX_CHANNELS]; /**< Last raw value written per channel */
 extern bool mock_dac_init_ok;                           /**< Controls syn_port_dac_init result  */
+extern uint16_t mock_dac_ref_mv;                        /**< Configurable DAC reference mV */
 
 /* ── DMA ────────────────────────────────────────────────────────────────── */
 

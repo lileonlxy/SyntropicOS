@@ -321,6 +321,10 @@ SYN_Status syn_sd_read(const SYN_SD *sd, uint32_t sector, uint8_t *buf)
     SYN_ASSERT(sd != NULL);
     SYN_ASSERT(buf != NULL);
     SYN_ASSERT(sd->initialized);
+    if (sd == NULL || buf == NULL || !sd->initialized ||
+        (sd->type == SYN_SD_SDSC && sector >= 0x00800000u)) {
+        return SYN_INVALID_PARAM;
+    }
 
     /* SDSC: byte address (sector * 512).  SDHC: sector address. */
     uint32_t addr = (sd->type == SYN_SD_SDSC) ? (sector * (uint32_t)SYN_SD_SECTOR_SIZE) : sector;
@@ -362,6 +366,10 @@ SYN_Status syn_sd_write(const SYN_SD *sd, uint32_t sector, const uint8_t *buf)
     SYN_ASSERT(sd != NULL);
     SYN_ASSERT(buf != NULL);
     SYN_ASSERT(sd->initialized);
+    if (sd == NULL || buf == NULL || !sd->initialized ||
+        (sd->type == SYN_SD_SDSC && sector >= 0x00800000u)) {
+        return SYN_INVALID_PARAM;
+    }
 
     uint32_t addr = (sd->type == SYN_SD_SDSC) ? (sector * (uint32_t)SYN_SD_SECTOR_SIZE) : sector;
 

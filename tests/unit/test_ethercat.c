@@ -1122,6 +1122,49 @@ void test_ecat_null_and_bounds_coverage(void)
     }
 }
 
+static void test_ecat_discover_pdo_mapping_sdo_timeout(void)
+{
+    SYN_EcatMaster m;
+    uint8_t tx[256];
+    uint8_t rx[256];
+    uint8_t out_img[16] = {0};
+    uint8_t in_img[16] = {0};
+    uint16_t rx_bytes = 99;
+    uint16_t tx_bytes = 99;
+
+    syn_ecat_master_init(&m, tx, sizeof(tx), rx, sizeof(rx), out_img, 2, in_img, 2);
+
+    SYN_PT pt;
+    PT_INIT(&pt);
+
+    /* Start discover PDO mapping task */
+    SYN_PT_Status status =
+        syn_ecat_master_discover_pdo_mapping_task(&pt, &m, 0x1001, &rx_bytes, &tx_bytes);
+
+    const uint8_t *tx_ptr = NULL;
+    size_t tx_len = 0;
+    int loop_guard = 0;
+
+    /* Loop until task completes — force immediate timeout on each poll step */
+    while (status == PT_WAITING && loop_guard++ < 50) {
+        if (syn_ecat_master_pop_tx_frame(&m, &tx_ptr, &tx_len)) {
+            memcpy(rx, tx_ptr, tx_len);
+            /* Clear payload so SM1 status byte is 0x00 (not ready) */
+            if (tx_len > 14) {
+                memset(&rx[12], 0, tx_len - 14);
+            }
+            rx[tx_len - 2] = 1;
+            syn_ecat_master_set_rx_frame(&m, rx, tx_len);
+            m.poll_retries = 1;
+        }
+        status = syn_ecat_master_discover_pdo_mapping_task(&pt, &m, 0x1001, &rx_bytes, &tx_bytes);
+    }
+
+    TEST_ASSERT_EQUAL(PT_EXITED, status);
+    TEST_ASSERT_EQUAL_UINT16(0, rx_bytes);
+    TEST_ASSERT_EQUAL_UINT16(0, tx_bytes);
+}
+
 void run_ethercat_tests(void)
 {
     RUN_TEST(test_ecat_init_and_esm);
@@ -1136,5 +1179,6 @@ void run_ethercat_tests(void)
     RUN_TEST(test_ecat_reg_and_task_edge_cases);
     RUN_TEST(test_ecat_pdo_mapping_discovery_task);
     RUN_TEST(test_ecat_task_poll_timeouts);
+    RUN_TEST(test_ecat_discover_pdo_mapping_sdo_timeout);
     RUN_TEST(test_ecat_null_and_bounds_coverage);
 }

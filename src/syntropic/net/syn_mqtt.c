@@ -221,8 +221,11 @@ static void process_packet(SYN_MqttClient *c)
             uint16_t pid = syn_peek_u16(c->rx_buf, 0);
             if (pid == c->pending_puback_id) {
                 c->pending_puback_id = 0;
+                c->retransmit_len = 0;
             }
         }
+    } else if (type == 0x90) {
+        /* SUBACK */
     } else if (type == 0xD0) {
         /* PINGRESP — reset keep alive activity timer */
     }
@@ -486,15 +489,6 @@ SYN_Status syn_mqtt_subscribe(SYN_MqttClient *client, const char *topic, uint8_t
     pos += t_len;
 
     tx[pos++] = qos;
-
-    if (qos > 0) {
-        if (pos <= sizeof(client->retransmit_buf)) {
-            memcpy(client->retransmit_buf, tx, pos);
-            client->retransmit_len = pos;
-        } else {
-            client->retransmit_len = 0;
-        }
-    }
 
     int sent = syn_port_sock_send_all(client->sock, tx, pos);
     return (sent == (int)pos) ? SYN_OK : SYN_ERROR;

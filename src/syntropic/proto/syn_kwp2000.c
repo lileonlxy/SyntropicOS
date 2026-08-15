@@ -298,6 +298,10 @@ SYN_Status syn_kwp2000_process_request(SYN_KWP2000_Server *server, const uint8_t
 
             resp_buf[0] = sid + 0x40U;
             resp_buf[1] = sub_func;
+            if (2U + seed_len > max_resp_len) {
+                make_nrc(sid, SYN_KWP2000_NRC_INCORRECT_MESSAGE_LENGTH, resp_buf, resp_len);
+                return SYN_OK;
+            }
             memcpy(&resp_buf[2], seed_buf, seed_len);
             *resp_len = 2U + seed_len;
             return SYN_OK;
@@ -355,6 +359,10 @@ SYN_Status syn_kwp2000_process_request(SYN_KWP2000_Server *server, const uint8_t
         resp_buf[0] = sid + 0x40U;
         resp_buf[1] = routine_id;
         if (out_len > 0U) {
+            if (2U + out_len > max_resp_len) {
+                make_nrc(sid, SYN_KWP2000_NRC_INCORRECT_MESSAGE_LENGTH, resp_buf, resp_len);
+                return SYN_OK;
+            }
             memcpy(&resp_buf[2], routine_out, out_len);
         }
         *resp_len = 2U + out_len;
@@ -438,6 +446,17 @@ void syn_kwp2000_tick(SYN_KWP2000_Server *server, uint32_t dt_ms)
     if (server == NULL)
         return;
     server->s3_timer_ms += dt_ms;
+
+    /* S3 session inactivity timeout (ISO 14230-3 §5.3) */
+    if (server->current_session != SYN_KWP2000_SESSION_DEFAULT) {
+        if (server->s3_timer_ms >= SYN_KWP2000_S3_TIMEOUT_MS) {
+            server->current_session = SYN_KWP2000_SESSION_DEFAULT;
+            server->security_unlocked = false;
+            server->s3_timer_ms = 0U;
+        }
+    } else {
+        server->s3_timer_ms = 0U;
+    }
 
     if (server->pending_reset_type != 0U) {
         if (server->reset_wait_ms > dt_ms) {

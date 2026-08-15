@@ -424,6 +424,10 @@ static void test_json_read_string_escape_sequences(void)
     char bad_esc[] = "{\"k\":\"val\\";
     TEST_ASSERT_FALSE(syn_json_parse(&r, bad_esc, strlen(bad_esc)));
 
+    /* Unterminated string with trailing backslash inside nested array (line 130) */
+    char bad_nested_esc[] = "{\"k\":[\"val\\";
+    TEST_ASSERT_FALSE(syn_json_parse(&r, bad_nested_esc, strlen(bad_nested_esc)));
+
     /* Non-object root (line 167) */
     char non_obj[] = "123";
     TEST_ASSERT_FALSE(syn_json_parse(&r, non_obj, strlen(non_obj)));

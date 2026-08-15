@@ -2387,6 +2387,100 @@ static void test_modbus_fc17_on_write_rejection_and_broadcast_exception(void)
     TEST_ASSERT_EQUAL(SYN_MB_EX_ILLEGAL_VALUE, mock_uart_tx_buf[2]);
 }
 
+static void test_modbus_truncated_payload_exceptions(void)
+{
+    static uint16_t holding[16] = {0};
+    static uint8_t mb_buf[256];
+    mock_port_reset();
+
+    SYN_Modbus mb;
+    SYN_Modbus_Config cfg = {
+        .slave_addr = 1,
+        .holding_regs = holding,
+        .holding_count = 16,
+    };
+    syn_modbus_init(&mb, &cfg, mb_buf, sizeof(mb_buf));
+
+    /* 1. FC 0x17 Read/Write Multiple with write_count = 2 (write_bytes = 4), but frame only 13
+     * bytes instead of 17 */
+    uint8_t req_fc17[13] = {1, 0x17, 0, 0, 0, 1, 0, 0, 0, 2, 4, 0, 0};
+    uint16_t crc = syn_crc16_modbus(req_fc17, 11);
+    req_fc17[11] = (uint8_t)(crc & 0xFF);
+    req_fc17[12] = (uint8_t)(crc >> 8);
+    memcpy(mb.buf, req_fc17, 13);
+    mb.rx_len = 13;
+
+    mock_port_reset();
+    TEST_ASSERT_TRUE(syn_modbus_process(&mb));
+    TEST_ASSERT_EQUAL(0x97, mock_uart_tx_buf[1]);
+    TEST_ASSERT_EQUAL(SYN_MB_EX_ILLEGAL_VALUE, mock_uart_tx_buf[2]);
+
+    /* 1b. FC 0x17 with out of bounds address */
+    uint8_t req_fc17_addr[15] = {1, 0x17, 0, 20, 0, 1, 0, 0, 0, 1, 2, 0, 0, 0, 0};
+    crc = syn_crc16_modbus(req_fc17_addr, 13);
+    req_fc17_addr[13] = (uint8_t)(crc & 0xFF);
+    req_fc17_addr[14] = (uint8_t)(crc >> 8);
+    memcpy(mb.buf, req_fc17_addr, 15);
+    mb.rx_len = 15;
+
+    mock_port_reset();
+    TEST_ASSERT_TRUE(syn_modbus_process(&mb));
+    TEST_ASSERT_EQUAL(0x97, mock_uart_tx_buf[1]);
+    TEST_ASSERT_EQUAL(SYN_MB_EX_ILLEGAL_ADDR, mock_uart_tx_buf[2]);
+
+    /* 2. FC 0x18 Read FIFO Queue with short frame < 6 */
+    uint8_t req_fc18[5] = {1, 0x18, 0, 0, 0};
+    crc = syn_crc16_modbus(req_fc18, 3);
+    req_fc18[3] = (uint8_t)(crc & 0xFF);
+    req_fc18[4] = (uint8_t)(crc >> 8);
+    memcpy(mb.buf, req_fc18, 5);
+    mb.rx_len = 5;
+
+    mock_port_reset();
+    TEST_ASSERT_TRUE(syn_modbus_process(&mb));
+    TEST_ASSERT_EQUAL(0x98, mock_uart_tx_buf[1]);
+    TEST_ASSERT_EQUAL(SYN_MB_EX_ILLEGAL_VALUE, mock_uart_tx_buf[2]);
+
+    /* 3. FC 0x2B with wrong MEI type */
+    uint8_t req_fc2b[7] = {1, 0x2B, 0x01, 0x01, 0x00, 0, 0};
+    crc = syn_crc16_modbus(req_fc2b, 5);
+    req_fc2b[5] = (uint8_t)(crc & 0xFF);
+    req_fc2b[6] = (uint8_t)(crc >> 8);
+    memcpy(mb.buf, req_fc2b, 7);
+    mb.rx_len = 7;
+
+    mock_port_reset();
+    TEST_ASSERT_TRUE(syn_modbus_process(&mb));
+    TEST_ASSERT_EQUAL(0xAB, mock_uart_tx_buf[1]);
+    TEST_ASSERT_EQUAL(SYN_MB_EX_ILLEGAL_VALUE, mock_uart_tx_buf[2]);
+
+    /* 4. FC 0x14 with short frame < 5 */
+    uint8_t req_fc14[4] = {1, 0x14, 0x00, 0x00};
+    crc = syn_crc16_modbus(req_fc14, 2);
+    req_fc14[2] = (uint8_t)(crc & 0xFF);
+    req_fc14[3] = (uint8_t)(crc >> 8);
+    memcpy(mb.buf, req_fc14, 4);
+    mb.rx_len = 4;
+
+    mock_port_reset();
+    TEST_ASSERT_TRUE(syn_modbus_process(&mb));
+    TEST_ASSERT_EQUAL(0x94, mock_uart_tx_buf[1]);
+    TEST_ASSERT_EQUAL(SYN_MB_EX_ILLEGAL_VALUE, mock_uart_tx_buf[2]);
+
+    /* 5. FC 0x15 with short frame < 5 */
+    uint8_t req_fc15[4] = {1, 0x15, 0x00, 0x00};
+    crc = syn_crc16_modbus(req_fc15, 2);
+    req_fc15[2] = (uint8_t)(crc & 0xFF);
+    req_fc15[3] = (uint8_t)(crc >> 8);
+    memcpy(mb.buf, req_fc15, 4);
+    mb.rx_len = 4;
+
+    mock_port_reset();
+    TEST_ASSERT_TRUE(syn_modbus_process(&mb));
+    TEST_ASSERT_EQUAL(0x95, mock_uart_tx_buf[1]);
+    TEST_ASSERT_EQUAL(SYN_MB_EX_ILLEGAL_VALUE, mock_uart_tx_buf[2]);
+}
+
 void run_modbus_tests(void)
 {
     RUN_TEST(test_modbus_basic);
@@ -2411,4 +2505,5 @@ void run_modbus_tests(void)
     RUN_TEST(test_modbus_write_multiple_short_frame_exception);
     RUN_TEST(test_modbus_fc17_on_write_rejection_and_broadcast_exception);
     RUN_TEST(test_modbus_rtu_frame_crc_and_runt_buffer);
+    RUN_TEST(test_modbus_truncated_payload_exceptions);
 }

@@ -74,6 +74,10 @@ SYN_Status syn_wav_parse_header(const uint8_t *buffer, size_t buffer_size, SYN_W
             break; /* Found data payload */
         }
 
+        if (chunk_size > buffer_size - offset - 8U) {
+            break;
+        }
+
         offset += 8U + chunk_size;
         /* Word align chunk padding */
         if ((chunk_size & 1U) != 0U) {
@@ -87,9 +91,9 @@ SYN_Status syn_wav_parse_header(const uint8_t *buffer, size_t buffer_size, SYN_W
 
     /* Calculate total sample count */
     if (info->audio_format == SYN_WAV_FORMAT_PCM) {
-        if ((info->num_channels > 0U) && (info->bits_per_sample > 0U)) {
-            info->total_samples =
-                info->data_size / (info->num_channels * (info->bits_per_sample / 8U));
+        uint32_t bytes_per_sample = info->bits_per_sample / 8U;
+        if ((info->num_channels > 0U) && (bytes_per_sample > 0U)) {
+            info->total_samples = info->data_size / (info->num_channels * bytes_per_sample);
         }
     } else if (info->audio_format == SYN_WAV_FORMAT_IMA_ADPCM) {
         /* 4 bits per sample mono = 2 samples per byte */

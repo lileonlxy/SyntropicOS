@@ -105,6 +105,24 @@ void test_wav_parse_invalid_magics_and_truncated(void)
                                'd',  'a',  't', 'a', 10,   0,    0, 0, 0,   0,   0,   0};
     TEST_ASSERT_EQUAL(SYN_OK, syn_wav_parse_header(zero_chan_wav, sizeof(zero_chan_wav), &info));
     TEST_ASSERT_EQUAL_UINT32(0, info.total_samples);
+
+    /* 4-bit PCM bits_per_sample test (division-by-zero protection when bits_per_sample < 8) */
+    uint8_t four_bit_pcm_wav[] = {'R',  'I',  'F', 'F', 44,   0,    0, 0, 'W', 'A', 'V', 'E',
+                                  'f',  'm',  't', ' ', 16,   0,    0, 0, 1,   0,   1,   0,
+                                  0x80, 0x3E, 0,   0,   0x00, 0x7D, 0, 0, 1,   0,   4,   0,
+                                  'd',  'a',  't', 'a', 10,   0,    0, 0, 0,   0,   0,   0};
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_wav_parse_header(four_bit_pcm_wav, sizeof(four_bit_pcm_wav), &info));
+    TEST_ASSERT_EQUAL_UINT32(0, info.total_samples);
+
+    /* Oversized chunk size (0xFFFFFFFF) loop break test */
+    uint8_t huge_chunk_wav[] = {'R',  'I',  'F', 'F', 44,   0,    0,    0,    'W', 'A', 'V', 'E',
+                                'J',  'U',  'N', 'K', 0xFF, 0xFF, 0xFF, 0xFF, 0,   0,   0,   0,
+                                'f',  'm',  't', ' ', 16,   0,    0,    0,    1,   0,   1,   0,
+                                0x80, 0x3E, 0,   0,   0x00, 0x7D, 0,    0,    2,   0,   16,  0,
+                                'd',  'a',  't', 'a', 10,   0,    0,    0,    0,   0,   0,   0};
+    TEST_ASSERT_EQUAL(SYN_ERROR,
+                      syn_wav_parse_header(huge_chunk_wav, sizeof(huge_chunk_wav), &info));
 }
 
 void run_wav_tests(void)

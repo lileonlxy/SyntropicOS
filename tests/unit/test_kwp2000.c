@@ -508,6 +508,93 @@ void test_kwp2000_remaining_coverage_branches(void)
     TEST_ASSERT_EQUAL(SYN_KWP2000_NRC_SERVICE_NOT_SUPPORTED, resp[2]);
 }
 
+void test_kwp2000_security_access_resp_overflow(void)
+{
+    syn_kwp2000_init(&g_kwp_server);
+    /* Enter extended session first */
+    uint8_t session_req[] = {0x10, SYN_KWP2000_SESSION_EXTENDED};
+    uint8_t resp[4]; /* Intentionally small: only 4 bytes */
+    uint16_t resp_len = 0;
+    syn_kwp2000_process_request(&g_kwp_server, session_req, sizeof(session_req), resp, sizeof(resp),
+                                &resp_len);
+
+    /* SecurityAccess seed request (SID 0x27, subfunc 0x01)
+     * Default seed is 2 bytes → response is 4 bytes (SID+0x40, subfunc, seed[2]).
+     * With max_resp_len=4, this fits. But a custom seed_cb returning 16 bytes
+     * would produce 18-byte response → overflow. Use default seed (2 bytes)
+     * with max_resp_len=3 to trigger the guard. */
+    uint8_t sec_req[] = {0x27, 0x01};
+    uint8_t tiny_resp[3];
+    resp_len = 0;
+    SYN_Status st = syn_kwp2000_process_request(&g_kwp_server, sec_req, sizeof(sec_req), tiny_resp,
+                                                sizeof(tiny_resp), &resp_len);
+    TEST_ASSERT_EQUAL(SYN_OK, st);
+    /* Must return NRC instead of overflowing the 3-byte buffer */
+    TEST_ASSERT_EQUAL(0x7F, tiny_resp[0]);
+    TEST_ASSERT_EQUAL(SYN_KWP2000_NRC_INCORRECT_MESSAGE_LENGTH, tiny_resp[2]);
+}
+
+static bool test_kwp_routine_overflow_cb(uint8_t routine_id, const uint8_t *in_data,
+                                         uint16_t in_len, uint8_t *out_buf, uint16_t max_out_len,
+                                         uint16_t *out_len, void *ctx)
+{
+    (void)routine_id;
+    (void)in_data;
+    (void)in_len;
+    (void)max_out_len;
+    (void)ctx;
+    out_buf[0] = 0xAA;
+    out_buf[1] = 0xBB;
+    out_buf[2] = 0xCC;
+    out_buf[3] = 0xDD;
+    *out_len = 4;
+    return true;
+}
+
+void test_kwp2000_routine_control_resp_overflow(void)
+{
+    syn_kwp2000_init(&g_kwp_server);
+    syn_kwp2000_set_routine_handler(&g_kwp_server, test_kwp_routine_overflow_cb, NULL);
+
+    uint8_t req[] = {0x31, 0x01};
+    uint8_t tiny_resp[4]; /* 2 + 4 = 6 bytes needed, only 4 available */
+    uint16_t resp_len = 0;
+    SYN_Status st = syn_kwp2000_process_request(&g_kwp_server, req, sizeof(req), tiny_resp,
+                                                sizeof(tiny_resp), &resp_len);
+    TEST_ASSERT_EQUAL(SYN_OK, st);
+    TEST_ASSERT_EQUAL(0x7F, tiny_resp[0]);
+    TEST_ASSERT_EQUAL(SYN_KWP2000_NRC_INCORRECT_MESSAGE_LENGTH, tiny_resp[2]);
+}
+
+void test_kwp2000_s3_session_timeout(void)
+{
+    syn_kwp2000_init(&g_kwp_server);
+
+    /* Enter extended session */
+    uint8_t req[] = {0x10, SYN_KWP2000_SESSION_EXTENDED};
+    uint8_t resp[16];
+    uint16_t resp_len = 0;
+    syn_kwp2000_process_request(&g_kwp_server, req, sizeof(req), resp, sizeof(resp), &resp_len);
+    TEST_ASSERT_EQUAL(SYN_KWP2000_SESSION_EXTENDED, g_kwp_server.current_session);
+
+    /* Unlock security */
+    g_kwp_server.security_unlocked = true;
+
+    /* Tick 4999ms — should NOT timeout */
+    syn_kwp2000_tick(&g_kwp_server, 4999U);
+    TEST_ASSERT_EQUAL(SYN_KWP2000_SESSION_EXTENDED, g_kwp_server.current_session);
+    TEST_ASSERT_TRUE(g_kwp_server.security_unlocked);
+
+    /* Tick 1 more ms — total 5000ms → S3 timeout must fire */
+    syn_kwp2000_tick(&g_kwp_server, 1U);
+    TEST_ASSERT_EQUAL(SYN_KWP2000_SESSION_DEFAULT, g_kwp_server.current_session);
+    TEST_ASSERT_FALSE(g_kwp_server.security_unlocked);
+
+    /* Already in DEFAULT — subsequent ticks should be no-ops */
+    syn_kwp2000_tick(&g_kwp_server, 10000U);
+    TEST_ASSERT_EQUAL(SYN_KWP2000_SESSION_DEFAULT, g_kwp_server.current_session);
+}
+
 void run_kwp2000_tests(void)
 {
     RUN_TEST(test_kwp2000_init_and_null_checks);
@@ -523,4 +610,7 @@ void run_kwp2000_tests(void)
     RUN_TEST(test_kwp2000_edge_cases_and_overflow);
     RUN_TEST(test_kwp2000_rejections_and_nrc_branches);
     RUN_TEST(test_kwp2000_remaining_coverage_branches);
+    RUN_TEST(test_kwp2000_security_access_resp_overflow);
+    RUN_TEST(test_kwp2000_routine_control_resp_overflow);
+    RUN_TEST(test_kwp2000_s3_session_timeout);
 }

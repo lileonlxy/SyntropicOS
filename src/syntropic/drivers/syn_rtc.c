@@ -78,6 +78,9 @@ SYN_Status syn_rtc_init(void)
 
 void syn_rtc_set_drift_ppm(int32_t drift_ppm)
 {
+    if (drift_ppm <= -1000000 || drift_ppm > 1000000) {
+        return;
+    }
     s_drift_ppm = drift_ppm;
     /* Forward to port layer if port provides hardware calibration support */
 #if defined(SYN_PORT_HAS_RTC_DRIFT)
@@ -92,7 +95,7 @@ SYN_Status syn_rtc_get(SYN_RTC_DateTime *dt)
     if (status != SYN_OK)
         return status;
 
-    if (s_drift_ppm != 0) {
+    if (s_drift_ppm != 0 && (1000000LL + (int64_t)s_drift_ppm) > 0) {
         uint32_t epoch = syn_rtc_to_epoch(dt);
         /* Apply cross-platform PPM scaling formula */
         int64_t comp_s = (int64_t)epoch * 1000000LL / (1000000LL + (int64_t)s_drift_ppm);

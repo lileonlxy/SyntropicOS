@@ -104,7 +104,7 @@ SYN_Status syn_pb_encode_bytes(SYN_PB_Encoder *enc, uint32_t field_number, const
     if (syn_pb_encode_varint(enc, len) != SYN_OK) {
         return SYN_ERROR; /* LCOV_EXCL_LINE: Defensive varint guard */
     }
-    if (enc->offset + len > enc->capacity) {
+    if (len > enc->capacity - enc->offset) {
         return SYN_ERROR; /* LCOV_EXCL_LINE: Defensive capacity guard */
     }
     memcpy(&enc->buf[enc->offset], bytes, len);
@@ -196,7 +196,7 @@ SYN_Status syn_pb_decode_bytes(SYN_PB_Decoder *dec, const uint8_t **bytes, size_
     if (syn_pb_decode_varint(dec, &l) != SYN_OK) {
         return SYN_ERROR;
     }
-    if (dec->offset + (size_t)l > dec->size) {
+    if ((size_t)l > dec->size - dec->offset) {
         return SYN_ERROR;
     }
     *bytes = &dec->buf[dec->offset];

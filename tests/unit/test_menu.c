@@ -189,6 +189,20 @@ static void test_menu_null_item_pointers(void)
     syn_menu_down(&menu);
     syn_menu_back(&menu);
     TEST_ASSERT_FALSE(menu.editing);
+
+    /* Empty submenu handling */
+    static const SYN_MenuItem empty_items[1] = {SYN_MENU_TOGGLE("Dummy", NULL)};
+    SYN_MenuItem empty_root = {
+        .label = "Empty",
+        .action = SYN_MENU_ACTION_SUBMENU,
+        .u.submenu = {.children = empty_items, .count = 0},
+    };
+    SYN_Menu empty_menu;
+    syn_menu_init(&empty_menu, &empty_root, NULL, NULL);
+    syn_menu_up(&empty_menu);
+    syn_menu_down(&empty_menu);
+    syn_menu_enter(&empty_menu);
+    TEST_ASSERT_NULL(syn_menu_selected_item(&empty_menu));
 }
 
 void run_menu_tests(void)

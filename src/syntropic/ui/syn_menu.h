@@ -210,6 +210,9 @@ static inline uint8_t syn_menu_item_count(const SYN_Menu *menu)
  */
 static inline const SYN_MenuItem *syn_menu_selected_item(const SYN_Menu *menu)
 {
+    if (menu == NULL || menu->current == NULL || menu->selected >= menu->current->u.submenu.count) {
+        return NULL;
+    }
     return &menu->current->u.submenu.children[menu->selected];
 }
 

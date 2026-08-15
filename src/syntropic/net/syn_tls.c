@@ -433,18 +433,18 @@ bool syn_tls_recv(SYN_TLS_Context *ctx, uint8_t *data, size_t max_len, size_t *o
     uint8_t nonce[12];
     construct_tls13_nonce(ctx->server_app_iv, ctx->server_seq_num, nonce);
 
-    bool ok = syn_aead_decrypt(ctx->server_app_key, nonce, NULL, 0,
-                               ctx->rx_buf + TLS_RECORD_HEADER_LEN, full_payload_len,
-                               ctx->rx_buf + TLS_RECORD_HEADER_LEN + full_payload_len, data);
+    uint8_t *decrypted_buf = ctx->rx_buf + TLS_RECORD_HEADER_LEN;
+
+    bool ok = syn_aead_decrypt(ctx->server_app_key, nonce, NULL, 0, decrypted_buf, full_payload_len,
+                               decrypted_buf + full_payload_len, decrypted_buf);
     if (!ok && ctx->client_seq_num > 0) {
         /* Fallback: try client app secret (loopback / self-encrypted record).
          * client_seq_num was post-incremented by syn_tls_send, so the last
          * encrypted record used seq = client_seq_num - 1. Guard against zero
          * to prevent uint64 underflow wrap. */
         construct_tls13_nonce(ctx->client_app_iv, ctx->client_seq_num - 1, nonce);
-        ok = syn_aead_decrypt(ctx->client_app_key, nonce, NULL, 0,
-                              ctx->rx_buf + TLS_RECORD_HEADER_LEN, full_payload_len,
-                              ctx->rx_buf + TLS_RECORD_HEADER_LEN + full_payload_len, data);
+        ok = syn_aead_decrypt(ctx->client_app_key, nonce, NULL, 0, decrypted_buf, full_payload_len,
+                              decrypted_buf + full_payload_len, decrypted_buf);
     }
 
     syn_secure_zero(nonce, sizeof(nonce));
@@ -453,13 +453,14 @@ bool syn_tls_recv(SYN_TLS_Context *ctx, uint8_t *data, size_t max_len, size_t *o
     if (ok) {
         ctx->server_seq_num++;
         *out_len = copy_len;
+        memcpy(data, decrypted_buf, copy_len);
 
         /* If the decrypted record is larger than the caller's buffer, spill the
          * remainder into the app_rx ring buffer for the next recv call. */
         if (full_payload_len > max_len) {
             size_t overflow = full_payload_len - max_len;
             if (overflow <= sizeof(ctx->app_rx_buf)) {
-                memcpy(ctx->app_rx_buf, data + max_len, overflow);
+                memcpy(ctx->app_rx_buf, decrypted_buf + max_len, overflow);
                 ctx->app_rx_head = 0;
                 ctx->app_rx_tail = overflow;
             }

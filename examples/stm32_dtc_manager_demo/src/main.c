@@ -254,7 +254,6 @@ static bool on_read_dtc_info(uint8_t subfunction, const uint8_t *in_data, uint16
     case 0x03: { /* reportDTCSnapshotIdentification */
         if (max_out_len < 1) return false;
         uint16_t offset = 0;
-        out_buf[offset++] = SYN_UDS_DTC_STATUS_AVAILABILITY_MASK;
 
         for (uint8_t i = 0; i < g_dtc_count; i++) {
             for (uint8_t s = 0; s < DTC_MAX_SNAPSHOT_RECORDS; s++) {
@@ -424,7 +423,7 @@ int main(void)
     /* Query UDS Service 0x19 0x03 (Report DTC Snapshot Identification) */
     if (on_read_dtc_info(0x03, NULL, 0, s19_resp, sizeof(s19_resp), &resp_len, NULL)) {
         printf("UDS $19 0x03 Response (Len=%u): DTC 0x%02X%02X%02X Record=%u\n",
-               resp_len, s19_resp[1], s19_resp[2], s19_resp[3], s19_resp[4]);
+               resp_len, s19_resp[0], s19_resp[1], s19_resp[2], s19_resp[3]);
     }
 
     /* Query UDS Service 0x19 0x0A (Report Supported DTCs) */

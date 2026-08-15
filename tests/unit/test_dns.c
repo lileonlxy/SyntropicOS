@@ -834,6 +834,97 @@ static void test_mdns_fqdn_hostname(void)
     TEST_ASSERT_EQUAL_MEMORY("local", &mock_udp_tx_buf[22], 5);
 }
 
+void test_dns_parse_truncated_compression_pointer(void)
+{
+    mock_port_reset();
+
+    /* Craft a DNS response where the answer QNAME is a compression pointer
+     * (0xC0 0x0C) but the packet is truncated after the 0xC0 byte.
+     * The parser must reject this instead of reading past buffer end. */
+    uint8_t truncated_resp[] = {
+        0x00,
+        0x00, /* ID (will be patched) */
+        0x81,
+        0x80, /* Flags: response */
+        0x00,
+        0x01, /* Questions: 1 */
+        0x00,
+        0x01, /* Answers: 1 */
+        0x00,
+        0x00,
+        0x00,
+        0x00, /* Authority, Additional */
+        /* Question: "a.b" */
+        1,
+        'a',
+        1,
+        'b',
+        0,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        /* Answer: truncated compression pointer — only 0xC0, missing 2nd byte */
+        0xC0,
+    };
+
+    SYN_SockAddr from = {{8, 8, 8, 8}, 53};
+    mock_udp_set_response(truncated_resp, sizeof(truncated_resp), &from);
+
+    SYN_SockAddr resolved;
+    SYN_DnsResolver r;
+    r.dns_server = NULL;
+    r.hostname = "a.b";
+    r.addr_out = &resolved;
+    r.timeout_ms = 500;
+
+    SYN_PT pt;
+    PT_INIT(&pt);
+    SYN_Task task;
+    task.user_data = &r;
+
+    while (syn_dns_resolve_task(&pt, &task) == PT_WAITING) {
+        syn_port_delay_ms(1);
+    }
+
+    /* Must not succeed — truncated packet should be rejected */
+    TEST_ASSERT_NOT_EQUAL(SYN_OK, r.status);
+}
+
+void test_dns_resolve_hostname_too_long(void)
+{
+    mock_port_reset();
+
+    /* Build a hostname that exceeds the 256-byte resolver buffer.
+     * 240 chars of "a" + ".com" = 244 chars → QNAME ≈ 246 bytes + 12 header + 4 footer = 262.
+     * encode_qname should return 0, and resolve should fail with SYN_ERROR. */
+    char long_hostname[256];
+    memset(long_hostname, 'a', 240);
+    long_hostname[240] = '.';
+    long_hostname[241] = 'c';
+    long_hostname[242] = 'o';
+    long_hostname[243] = 'm';
+    long_hostname[244] = '\0';
+
+    SYN_SockAddr resolved;
+    SYN_DnsResolver r;
+    r.dns_server = NULL;
+    r.hostname = long_hostname;
+    r.addr_out = &resolved;
+    r.timeout_ms = 500;
+
+    SYN_PT pt;
+    PT_INIT(&pt);
+    SYN_Task task;
+    task.user_data = &r;
+
+    while (syn_dns_resolve_task(&pt, &task) == PT_WAITING) {
+        syn_port_delay_ms(1);
+    }
+
+    TEST_ASSERT_EQUAL(SYN_ERROR, r.status);
+}
+
 void run_dns_tests(void)
 {
     RUN_TEST(test_dns_resolve);
@@ -857,4 +948,6 @@ void run_dns_tests(void)
     RUN_TEST(test_dns_mdns_init_open_failure_and_truncated_records);
     RUN_TEST(test_dns_resolve_bad_packet_header);
     RUN_TEST(test_mdns_fqdn_hostname);
+    RUN_TEST(test_dns_parse_truncated_compression_pointer);
+    RUN_TEST(test_dns_resolve_hostname_too_long);
 }

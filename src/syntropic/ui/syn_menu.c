@@ -43,7 +43,7 @@ void syn_menu_up(SYN_Menu *menu)
             if (*val > item->u.value_cfg.max)
                 *val = item->u.value_cfg.max;
         }
-    } else {
+    } else if (menu->current != NULL && menu->current->u.submenu.count > 0) {
         /* Move selection up (with wrap) */
         if (menu->selected == 0) {
             menu->selected = menu->current->u.submenu.count - 1;
@@ -69,7 +69,7 @@ void syn_menu_down(SYN_Menu *menu)
             if (*val < item->u.value_cfg.min)
                 *val = item->u.value_cfg.min;
         }
-    } else {
+    } else if (menu->current != NULL && menu->current->u.submenu.count > 0) {
         /* Move selection down (with wrap) */
         menu->selected++;
         if (menu->selected >= menu->current->u.submenu.count) {
@@ -92,6 +92,9 @@ void syn_menu_enter(SYN_Menu *menu)
     }
 
     const SYN_MenuItem *item = syn_menu_selected_item(menu);
+    if (item == NULL) {
+        return;
+    }
 
     switch ((SYN_MenuAction)item->action) {
     case SYN_MENU_ACTION_SUBMENU:

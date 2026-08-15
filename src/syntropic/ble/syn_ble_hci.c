@@ -83,7 +83,7 @@ static void parse_and_dispatch(SYN_BLE_HCI *hci)
 
         if (evt_code == SYN_BLE_HCI_EVT_CMD_COMPLETE && param_len >= 3U) {
             hci->last_cmd_opcode = (uint16_t)(payload[1] | (payload[2] << 8U));
-            hci->last_cmd_status = payload[3];
+            hci->last_cmd_status = (param_len >= 4U) ? payload[3] : 0U;
             hci->cmd_pending = false;
         } else if (evt_code == SYN_BLE_HCI_EVT_CMD_STATUS && param_len >= 4U) {
             hci->last_cmd_status = payload[0];

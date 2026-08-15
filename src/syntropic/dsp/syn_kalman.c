@@ -25,6 +25,15 @@ SYN_Status syn_kalman_init(SYN_Kalman *kf, const SYN_Kalman_Config *cfg)
     uint8_t ns = cfg->n_state;
     uint8_t nm = cfg->n_meas;
 
+    if (ns == 0 || ns > SYN_KALMAN_MAX_STATE || nm == 0 || nm > SYN_KALMAN_MAX_MEAS) {
+        return SYN_INVALID_PARAM;
+    }
+
+    if (cfg->x == NULL || cfg->P == NULL || cfg->F == NULL || cfg->Q == NULL || cfg->H == NULL ||
+        cfg->R == NULL) {
+        return SYN_INVALID_PARAM;
+    }
+
     /* Validate dimensions */
     if (cfg->x->rows != ns || cfg->x->cols != 1)
         return SYN_INVALID_PARAM;

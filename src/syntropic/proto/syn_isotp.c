@@ -415,6 +415,8 @@ void syn_isotp_process_rx_frame(SYN_ISOTP_Link *link, const SYN_CAN_Frame *frame
                 link->tx_st_timer_us = 0;
                 link->tx_timeout_timer_us = 0;
                 link->tx_state = SYN_ISOTP_TX_SEND_CF;
+            } else if (fc_status == SYN_ISOTP_FC_WAIT) {
+                link->tx_timeout_timer_us = link->n_bs_timeout_us;
             } else if (fc_status == SYN_ISOTP_FC_OVERFLOW) {
                 link->tx_state = SYN_ISOTP_TX_IDLE;
                 link->tx_timeout_timer_us = 0;

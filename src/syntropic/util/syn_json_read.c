@@ -125,8 +125,12 @@ static char *skip_value(char *p, const char *end)
             if (*p == '"') {
                 p++;
                 while (p < end && *p != '"') {
-                    if (*p == '\\')
+                    if (*p == '\\') {
                         p++;
+                        if (p < end)
+                            p++;
+                        continue;
+                    }
                     p++;
                 }
                 if (p < end)

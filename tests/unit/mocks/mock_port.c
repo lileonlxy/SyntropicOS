@@ -672,9 +672,10 @@ uint8_t syn_port_dac_resolution(void)
 {
     return 12u;
 }
+uint16_t mock_dac_ref_mv = 3300u;
 uint16_t syn_port_dac_reference_mv(void)
 {
-    return 3300u;
+    return mock_dac_ref_mv;
 }
 
 /* ── SPI port (mock for SD card driver) ─────────────────────────────────── */
@@ -1034,6 +1035,7 @@ void mock_port_reset(void)
     /* DAC */
     memset(mock_dac_values, 0, sizeof(mock_dac_values));
     mock_dac_init_ok = true;
+    mock_dac_ref_mv = 3300u;
 
     /* Socket */
     memset(mock_sock_rx_buf, 0, sizeof(mock_sock_rx_buf));

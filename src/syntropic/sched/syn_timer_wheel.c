@@ -32,7 +32,7 @@ SYN_Status syn_timer_wheel_add(SYN_TimerWheel *wheel, SYN_TimerWheelNode *node,
 
     uint32_t target_tick = wheel->current_tick + delay_ticks;
     uint32_t bucket_idx = target_tick % SYN_TIMER_WHEEL_BUCKETS;
-    uint32_t rotations = delay_ticks / SYN_TIMER_WHEEL_BUCKETS;
+    uint32_t rotations = (delay_ticks - 1U) / SYN_TIMER_WHEEL_BUCKETS;
 
     node->expires_tick = target_tick;
     node->rotation_count = rotations;

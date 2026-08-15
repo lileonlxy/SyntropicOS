@@ -295,10 +295,75 @@ void test_tls_null_and_bounds_checks(void)
     TEST_ASSERT_TRUE(syn_transport_has_data(&no_tr_bound));
 }
 
+void test_tls_recv_small_caller_buffer_does_not_overflow(void)
+{
+    LoopbackTransport wire = {0};
+    SYN_Transport tr = {.send = loopback_send, .recv = loopback_recv, .ctx = &wire};
+
+    static const uint8_t psk[32] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                                    0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00,
+                                    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                                    0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00};
+
+    SYN_TLS_Config config = {.mode = SYN_TLS_AUTH_MODE_PSK,
+                             .server_name = "device.local",
+                             .psk_identity = (const uint8_t *)"device_01",
+                             .psk_identity_len = 9,
+                             .psk_secret = psk,
+                             .psk_secret_len = sizeof(psk)};
+
+    uint8_t rx_record_buf[2560];
+    uint8_t tx_record_buf[2560];
+    SYN_TLS_Context tls;
+    TEST_ASSERT_TRUE(syn_tls_init(&tls, &config, &tr, rx_record_buf, sizeof(rx_record_buf),
+                                  tx_record_buf, sizeof(tx_record_buf)));
+    TEST_ASSERT_TRUE(syn_tls_handshake(&tls));
+
+    /* Send 64-byte payload */
+    uint8_t large_payload[64];
+    for (size_t i = 0; i < sizeof(large_payload); i++) {
+        large_payload[i] = (uint8_t)(i + 0x20);
+    }
+    TEST_ASSERT_TRUE(syn_tls_send(&tls, large_payload, sizeof(large_payload)));
+
+    /* Prepare caller buffer with redzone canary bytes before and after 16-byte target buffer */
+    struct {
+        uint8_t pre_canary[16];
+        uint8_t target[16];
+        uint8_t post_canary[16];
+    } memory_layout;
+
+    memset(memory_layout.pre_canary, 0xAA, sizeof(memory_layout.pre_canary));
+    memset(memory_layout.target, 0x00, sizeof(memory_layout.target));
+    memset(memory_layout.post_canary, 0x55, sizeof(memory_layout.post_canary));
+
+    size_t rx_len = 0;
+    /* Receive with max_len = 16 (smaller than 64-byte decrypted payload) */
+    TEST_ASSERT_TRUE(
+        syn_tls_recv(&tls, memory_layout.target, sizeof(memory_layout.target), &rx_len));
+    TEST_ASSERT_EQUAL(16, rx_len);
+    TEST_ASSERT_EQUAL_MEMORY(large_payload, memory_layout.target, 16);
+
+    /* Verify canaries were NOT corrupted */
+    uint8_t expected_pre[16], expected_post[16];
+    memset(expected_pre, 0xAA, sizeof(expected_pre));
+    memset(expected_post, 0x55, sizeof(expected_post));
+    TEST_ASSERT_EQUAL_MEMORY(expected_pre, memory_layout.pre_canary, 16);
+    TEST_ASSERT_EQUAL_MEMORY(expected_post, memory_layout.post_canary, 16);
+
+    /* Drain remaining 48 bytes from internal app_rx_buf */
+    uint8_t remainder[64];
+    size_t rem_len = 0;
+    TEST_ASSERT_TRUE(syn_tls_recv(&tls, remainder, sizeof(remainder), &rem_len));
+    TEST_ASSERT_EQUAL(48, rem_len);
+    TEST_ASSERT_EQUAL_MEMORY(large_payload + 16, remainder, 48);
+}
+
 void run_tls_tests(void)
 {
     RUN_TEST(test_tls_psk_mode_handshake_and_record_crypto);
     RUN_TEST(test_tls_transport_binding_interface);
     RUN_TEST(test_tls_task_protothread);
     RUN_TEST(test_tls_null_and_bounds_checks);
+    RUN_TEST(test_tls_recv_small_caller_buffer_does_not_overflow);
 }

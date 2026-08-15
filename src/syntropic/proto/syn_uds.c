@@ -1990,7 +1990,7 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
         for (uint8_t i = 0U; i < size_len && i < 4U; i++) {
             size = (size << 8U) | req[2U + addr_len + i];
         }
-        if (1U + size > max_resp_len) {
+        if (max_resp_len < 1U || size > (uint32_t)(max_resp_len - 1U)) {
             return make_negative_response(sid, SYN_UDS_NRC_RESPONSE_TOO_LONG, resp_buf, resp_len,
                                           addr_mode);
         }
@@ -2217,7 +2217,7 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
             size = (size << 8U) | req[2U + addr_len + i];
         }
         uint16_t header_len = 2U + addr_len + size_len;
-        if (req_len < header_len + size) {
+        if (req_len < header_len || size > (uint32_t)(req_len - header_len)) {
             /* LCOV_EXCL_START: UDS negative response NRC return */
             return make_negative_response(sid, SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH, resp_buf,
                                           resp_len, addr_mode);

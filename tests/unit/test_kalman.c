@@ -126,6 +126,22 @@ static void test_kalman_init_bad_dims(void)
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kalman_init(&kf, &cfg));
     cfg.R = &R_bad_cols;
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kalman_init(&kf, &cfg));
+    cfg.R = &R;
+
+    /* 7. Max dimensions exceeded */
+    cfg.n_state = SYN_KALMAN_MAX_STATE + 1;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kalman_init(&kf, &cfg));
+    cfg.n_state = 2;
+    cfg.n_meas = SYN_KALMAN_MAX_MEAS + 1;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kalman_init(&kf, &cfg));
+    cfg.n_meas = 0;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kalman_init(&kf, &cfg));
+    cfg.n_meas = 1;
+
+    /* 8. NULL matrix pointer in config */
+    cfg.x = NULL;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kalman_init(&kf, &cfg));
+    cfg.x = &x;
 }
 
 /* ── Test: constant value converges ────────────────────────────────────── */

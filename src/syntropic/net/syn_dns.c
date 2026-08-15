@@ -22,14 +22,18 @@
  * @param src   Dot-separated hostname.
  * @return Total bytes written.
  */
-static size_t encode_qname(uint8_t *dest, const char *src)
+static size_t encode_qname(uint8_t *dest, size_t dest_capacity, const char *src)
 {
+    if (dest_capacity < 2U)
+        return 0U; /* LCOV_EXCL_LINE: Defensive destination buffer capacity check */
     uint8_t *len_ptr = dest;
     size_t total = 0;
     dest++;
     total++;
     uint8_t label_len = 0;
     while (*src) {
+        if (total + 1 >= dest_capacity)
+            return 0U;
         if (*src == '.') {
             *len_ptr = label_len;
             len_ptr = dest;
@@ -64,7 +68,9 @@ static bool parse_qname(const uint8_t *buf, size_t buf_len, size_t *pos)
             return false;
         uint8_t len = buf[p];
         if ((len & 0xC0) == 0xC0) {
-            /* Pointer */
+            /* Pointer — 2 bytes total */
+            if (p + 1 >= buf_len)
+                return false;
             p += 2;
             break;
         } else if (len == 0) {
@@ -180,7 +186,14 @@ SYN_PT_Status syn_dns_resolve_task(SYN_PT *pt, SYN_Task *task)
 
     {
         size_t pos = 12;
-        pos += encode_qname(r->buf + pos, r->hostname);
+        size_t qname_len = encode_qname(r->buf + pos, sizeof(r->buf) - pos - 4U, r->hostname);
+        if (qname_len == 0U) {
+            syn_port_sock_close(r->sock);
+            r->sock = SYN_SOCKET_INVALID;
+            r->status = SYN_ERROR;
+            PT_EXIT(pt);
+        }
+        pos += qname_len;
         syn_poke_u16(0x0001, r->buf, pos);
         pos += 2; /* QTYPE = A */
         syn_poke_u16(0x0001, r->buf, pos);
@@ -363,6 +376,10 @@ SYN_PT_Status syn_mdns_task(SYN_PT *pt, SYN_Task *task)
 
                         size_t rpos = 12;
                         size_t base_len = get_base_hostname_len(mdns->hostname);
+                        /* Response needs: 12 + 1 + base_len + 1 + 5 + 1 + 10 + 4 = 34 + base_len */
+                        if (34U + base_len > sizeof(resp))
+                            break; /* LCOV_EXCL_LINE: Defensive mDNS response buffer capacity guard
+                                    */
                         resp[rpos++] = (uint8_t)base_len;
                         memcpy(resp + rpos, mdns->hostname, base_len);
                         rpos += base_len;

@@ -103,6 +103,11 @@ static void test_dac_write_percent_clamp(void)
     syn_dac_init(&dac, DAC_CH);
     TEST_ASSERT_EQUAL(SYN_OK, syn_dac_write_percent(&dac, 150u));
     TEST_ASSERT_EQUAL_UINT16(4095u, mock_dac_values[DAC_CH]);
+
+    /* ref_mv == 0 error guard */
+    mock_dac_ref_mv = 0;
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_dac_write_mv(&dac, 100));
+    mock_dac_ref_mv = 3300u;
 }
 
 /* ── Registration ────────────────────────────────────────────────────────── */

@@ -147,7 +147,8 @@ bool syn_doip_process_msg(SYN_DoIP_Server *server, SYN_UDS_Server *uds, const ui
         return build_generic_nack(SYN_DOIP_NACK_INCORRECT_PATTERN, tx_buf, max_tx_len, tx_len);
     }
 
-    if (rx_len < SYN_DOIP_HEADER_SIZE + hdr.payload_length) {
+    if ((size_t)rx_len < SYN_DOIP_HEADER_SIZE ||
+        (size_t)hdr.payload_length > (size_t)(rx_len - SYN_DOIP_HEADER_SIZE)) {
         return build_generic_nack(SYN_DOIP_NACK_INVALID_PAYLOAD_LENGTH, tx_buf, max_tx_len, tx_len);
     }
 

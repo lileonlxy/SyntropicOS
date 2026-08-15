@@ -672,6 +672,49 @@ static void test_wg_transport_error_branches(void)
     TEST_ASSERT_FALSE(wg_handle_transport(&s_wg, msg, 64));
 }
 
+static void test_wg_transport_corrupt_tag_does_not_advance_replay_window(void)
+{
+    wg_state_setup();
+    s_wg.state = SYN_WG_ESTABLISHED;
+    s_wg.session.sender_index = 100;
+    s_wg.session.receiver_index = 200;
+    memset(s_wg.session.send_key, 0x11, 32);
+    memset(s_wg.session.recv_key, 0x22, 32);
+    s_wg.session.recv_counter = 0;
+    s_wg.session.recv_bitmap = 0;
+
+    /* 1. Receive unauthenticated forged packet with large counter = 100 and garbage payload/tag */
+    uint8_t forged_msg[64] = {0};
+    store32_le(forged_msg, SYN_WG_MSG_TRANSPORT);
+    store32_le(forged_msg + 4, 100);
+    store64_le(forged_msg + 8, 100);
+    TEST_ASSERT_FALSE(wg_handle_transport(&s_wg, forged_msg, 64));
+
+    /* Anti-replay window must NOT have been updated */
+    TEST_ASSERT_EQUAL_UINT64(0, s_wg.session.recv_counter);
+    TEST_ASSERT_EQUAL_UINT32(0, s_wg.session.recv_bitmap);
+
+    /* 2. Legitimate packet with counter = 1 must now succeed */
+    uint8_t valid_msg[64];
+    uint8_t payload[8] = {'o', 'k', 'd', 'a', 't', 'a', '1', '!'};
+    uint8_t nonce[12] = {0};
+    store64_le(nonce + 4, 1);
+
+    store32_le(valid_msg, SYN_WG_MSG_TRANSPORT);
+    store32_le(valid_msg + 4, 100);
+    store64_le(valid_msg + 8, 1);
+
+    syn_aead_encrypt(s_wg.session.recv_key, nonce, NULL, 0, payload, sizeof(payload),
+                     valid_msg + 16, valid_msg + 16 + sizeof(payload));
+
+    size_t valid_len = 16 + sizeof(payload) + 16;
+    TEST_ASSERT_TRUE(wg_handle_transport(&s_wg, valid_msg, valid_len));
+
+    /* Replay window now committed */
+    TEST_ASSERT_EQUAL_UINT64(1, s_wg.session.recv_counter);
+    TEST_ASSERT_EQUAL_UINT32(1, s_wg.session.recv_bitmap);
+}
+
 static void test_wg_reject_after_time_expiry(void)
 {
     test_wg_init_state();
@@ -1198,6 +1241,7 @@ void run_wg_tests(void)
     RUN_TEST(test_wg_established_transport_and_keepalive);
     RUN_TEST(test_wg_send_disconnected_or_null);
     RUN_TEST(test_wg_transport_error_branches);
+    RUN_TEST(test_wg_transport_corrupt_tag_does_not_advance_replay_window);
     RUN_TEST(test_wg_reject_after_time_expiry);
     RUN_TEST(test_wg_cookie_packet_handling);
     RUN_TEST(test_wg_rekey_after_time);

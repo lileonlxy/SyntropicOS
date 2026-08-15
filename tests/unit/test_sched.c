@@ -1372,6 +1372,32 @@ static void test_sched_next_wakeup_blocked_timeout(void)
     mock_tick_ms = 0;
 }
 
+static void test_block_event_with_timeout_isr_race_post_timeout(void)
+{
+    SYN_Task task;
+    SYN_Sched sched;
+    mock_tick_ms = 1000;
+    syn_event_flags_init(&test_evt_flags);
+    test_evt_matched_flags = 0xAA; /* sentinel */
+    syn_task_create(&task, "evt_to_task", block_evt_timeout_task_func, 0, NULL);
+    syn_sched_init(&sched, &task, 1);
+
+    /* First pass: enters BLOCKED state with delay_until = 1100 */
+    syn_sched_run(&sched);
+    TEST_ASSERT_EQUAL_UINT8(SYN_TASK_BLOCKED, task.state);
+
+    /* Advance time past timeout */
+    mock_tick_ms = 1105;
+
+    /* Second pass: unblocks on timeout */
+    syn_sched_run(&sched);
+    TEST_ASSERT_EQUAL_UINT32(0, test_evt_matched_flags); /* reported timeout (0) */
+
+    /* Now set an event flag to simulate an ISR setting a flag after timeout */
+    syn_event_flags_set(&test_evt_flags, 0x01);
+    TEST_ASSERT_EQUAL_UINT32(0x01, syn_event_flags_get(&test_evt_flags)); /* flag remains intact */
+}
+
 void run_sched_tests(void)
 {
     RUN_TEST(test_scheduler);
@@ -1412,4 +1438,5 @@ void run_sched_tests(void)
     RUN_TEST(test_block_event_with_timeout_event_fired);
     RUN_TEST(test_block_event_with_timeout_expired);
     RUN_TEST(test_sched_next_wakeup_blocked_timeout);
+    RUN_TEST(test_block_event_with_timeout_isr_race_post_timeout);
 }

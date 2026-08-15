@@ -319,6 +319,9 @@ void test_x509_cert_parse_and_chain(void)
     TEST_ASSERT_FALSE(syn_x509_validate_chain(&wrong_cn_cert, &root_ca, "expected.domain.com"));
     TEST_ASSERT_FALSE(syn_x509_validate_chain(&wrong_cn_cert, &root_ca, NULL));
 
+    SYN_X509_Cert empty_cn_cert = {.subject_cn = "", .pubkey_algo = SYN_X509_ALGO_ED25519};
+    TEST_ASSERT_FALSE(syn_x509_validate_chain(&empty_cn_cert, &root_ca, "expected.domain.com"));
+
     /* Long CN string parse test to cover copy_len >= max_len truncation in parse_rdn_cn (line 51)
      */
     static const uint8_t long_cn_cert_der[] = {

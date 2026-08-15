@@ -1040,6 +1040,11 @@ static void test_motor_ctrl_output_and_soft_limit_clamps(void)
 
     /* Move to with low velocity */
     syn_motor_ctrl_move_to(&ctrl, 10, 1, 1);
+
+    /* pid_scale >= 31 parameter check */
+    cfg.pid_scale = 32;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_motor_ctrl_init(&ctrl, &cfg));
+    cfg.pid_scale = 0;
 }
 
 void run_motor_ctrl_tests(void)

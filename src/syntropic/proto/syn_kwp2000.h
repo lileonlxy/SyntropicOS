@@ -59,6 +59,13 @@ extern "C" {
 #define SYN_KWP2000_SESSION_EXTENDED 0x86U    /**< Extended diagnostic session */
 /**@}*/
 
+/** @name KWP2000 Timing Constants (ISO 14230-3 §5.3) */
+/**@{*/
+#ifndef SYN_KWP2000_S3_TIMEOUT_MS
+#define SYN_KWP2000_S3_TIMEOUT_MS 5000U /**< S3 server session timeout in ms */
+#endif
+/**@}*/
+
 /** @name KWP2000 Negative Response Codes (NRC) */
 /**@{*/
 #define SYN_KWP2000_NRC_SERVICE_NOT_SUPPORTED 0x11U     /**< Service not supported */

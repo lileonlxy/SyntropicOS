@@ -251,7 +251,7 @@ bool syn_x509_validate_chain(const SYN_X509_Cert *cert, const SYN_X509_Cert *roo
         return false;
     }
 
-    if (expected_cn != NULL && cert->subject_cn[0] != '\0') {
+    if (expected_cn != NULL) {
         if (strcmp(cert->subject_cn, expected_cn) != 0) {
             return false;
         }

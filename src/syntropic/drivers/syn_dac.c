@@ -29,6 +29,9 @@ SYN_Status syn_dac_write_mv(const SYN_DAC *dac, uint16_t mv)
 {
     SYN_ASSERT(dac != NULL);
     uint16_t ref_mv = syn_port_dac_reference_mv();
+    if (ref_mv == 0) {
+        return SYN_ERROR;
+    }
     uint16_t max = syn_dac_max_raw(dac);
     /* Clamp to reference */
     if (mv > ref_mv) {

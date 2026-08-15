@@ -193,6 +193,10 @@ SYN_Status syn_settings_dual_bank_init(SYN_DualBankSettings *db, uint32_t flash_
                                        uint32_t flash_base_b, uint8_t sector_count, void *data,
                                        uint16_t data_size, const void *defaults)
 {
+    if (db == NULL || data == NULL || defaults == NULL || data_size == 0) {
+        return SYN_INVALID_PARAM;
+    }
+
     SYN_ASSERT(db != NULL);
     SYN_ASSERT(data != NULL);
     SYN_ASSERT(defaults != NULL);
@@ -205,24 +209,44 @@ SYN_Status syn_settings_dual_bank_init(SYN_DualBankSettings *db, uint32_t flash_
     SYN_Status st_b =
         syn_settings_init(&db->bank_b, flash_base_b, sector_count, data, data_size, defaults);
 
-    if (st_a == SYN_OK) {
-        db->active_bank = 0;
-        db->active_crc32 = syn_crc32((const uint8_t *)data, data_size);
+    if (st_a == SYN_OK && st_b == SYN_OK) {
+        /* Both banks valid: compare sequence numbers to pick newest bank */
+        uint16_t seq_a = (uint16_t)(db->bank_a.store.next_seq - 1U);
+        uint16_t seq_b = (uint16_t)(db->bank_b.store.next_seq - 1U);
+        if ((int16_t)(seq_b - seq_a) > 0) {
+            db->active_bank = 1;
+            /* data already contains Bank B */
+        } else {
+            db->active_bank = 0;
+            (void)syn_param_load(&db->bank_a.store, data);
+        }
     } else if (st_b == SYN_OK) {
         db->active_bank = 1;
-        db->active_crc32 = syn_crc32((const uint8_t *)data, data_size);
+        /* data already contains Bank B */
+    } else if (st_a == SYN_OK) {
+        db->active_bank = 0;
+        (void)syn_param_load(&db->bank_a.store, data);
     } else {
         memcpy(data, defaults, data_size);
-        syn_settings_save(&db->bank_a);
+        (void)syn_settings_save(&db->bank_a);
         db->active_bank = 0;
-        db->active_crc32 = syn_crc32((const uint8_t *)data, data_size);
     }
+
+    SYN_Settings *active = (db->active_bank == 0) ? &db->bank_a : &db->bank_b;
+    SYN_Settings *inactive = (db->active_bank == 0) ? &db->bank_b : &db->bank_a;
+    active->checksum = compute_crc(data, data_size);
+    inactive->checksum = active->checksum;
+    db->active_crc32 = syn_crc32((const uint8_t *)data, data_size);
 
     return SYN_OK;
 }
 
 SYN_Status syn_settings_dual_bank_save(SYN_DualBankSettings *db)
 {
+    if (db == NULL) {
+        return SYN_INVALID_PARAM;
+    }
+
     SYN_ASSERT(db != NULL);
 
     SYN_Settings *active = (db->active_bank == 0) ? &db->bank_a : &db->bank_b;

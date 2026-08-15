@@ -333,8 +333,18 @@ void test_autotune_zn_methods(void)
     at.amplitude_sum = 200; /* half_amp = 100 */
     at.amplitude_count = 1;
     syn_autotune_update(&at);
-    /* Ku = 4 * 100 / (pi * 100) = 4 / pi = 1.27 -> 127 in fixed point? No, Ku is calculated
-     * differently. */
+
+    /* Zero period count / zero period sum test (division by zero protection) */
+    cfg.method = SYN_ATUNE_ZN_CLASSIC;
+    syn_autotune_init(&at, &ctrl, &cfg);
+    at.cfg.relay_cycles = 0;
+    at.state = SYN_ATUNE_RELAY;
+    at.period_count = 0;
+    at.period_sum = 0;
+    at.amplitude_sum = 0;
+    at.amplitude_count = 0;
+    syn_autotune_update(&at);
+    TEST_ASSERT_EQUAL(SYN_ATUNE_RAMP_DOWN, at.state);
 }
 
 void test_autotune_ramp_down(void)

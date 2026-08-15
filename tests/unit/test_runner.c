@@ -813,6 +813,7 @@ int main(void)
     extern void test_ble_hci_rx_event_dispatch(void);
     extern void test_ble_hci_rx_acl_dispatch(void);
     extern void test_ble_hci_rx_overflow_and_invalid(void);
+    extern void test_ble_hci_cmd_complete_short_params(void);
     extern void test_ble_gap_null_params(void);
     extern void test_ble_gap_adv_data_encoding(void);
     extern void test_ble_gap_process_events(void);
@@ -846,6 +847,7 @@ int main(void)
     RUN_TEST(test_ble_hci_rx_event_dispatch);
     RUN_TEST(test_ble_hci_rx_acl_dispatch);
     RUN_TEST(test_ble_hci_rx_overflow_and_invalid);
+    RUN_TEST(test_ble_hci_cmd_complete_short_params);
     RUN_TEST(test_ble_gap_null_params);
     RUN_TEST(test_ble_gap_adv_data_encoding);
     RUN_TEST(test_ble_gap_process_events);

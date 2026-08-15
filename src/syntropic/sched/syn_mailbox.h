@@ -87,27 +87,27 @@ typedef struct {
  * @param count     Max number of messages.
  */
 #if defined(SYN_USE_MULTICORE) && SYN_USE_MULTICORE
-#define SYN_MAILBOX_DEFINE(name, type, count)          \
-    static uint8_t name##_buf[(count) * sizeof(type)]; \
-    static SYN_Mailbox name = {                        \
-        .buf = name##_buf,                             \
-        .msg_size = sizeof(type),                      \
-        .capacity = (count),                           \
-        .head = 0,                                     \
-        .tail = 0,                                     \
-        .overflow = 0,                                 \
-        .notify = false,                               \
+#define SYN_MAILBOX_DEFINE(name, type, count)                 \
+    static uint8_t name##_buf[((count) + 1U) * sizeof(type)]; \
+    static SYN_Mailbox name = {                               \
+        .buf = name##_buf,                                    \
+        .msg_size = sizeof(type),                             \
+        .capacity = ((count) + 1U),                           \
+        .head = 0,                                            \
+        .tail = 0,                                            \
+        .overflow = 0,                                        \
+        .notify = false,                                      \
     }
 #else
-#define SYN_MAILBOX_DEFINE(name, type, count)          \
-    static uint8_t name##_buf[(count) * sizeof(type)]; \
-    static SYN_Mailbox name = {                        \
-        .buf = name##_buf,                             \
-        .msg_size = sizeof(type),                      \
-        .capacity = (count),                           \
-        .head = 0,                                     \
-        .tail = 0,                                     \
-        .overflow = 0,                                 \
+#define SYN_MAILBOX_DEFINE(name, type, count)                 \
+    static uint8_t name##_buf[((count) + 1U) * sizeof(type)]; \
+    static SYN_Mailbox name = {                               \
+        .buf = name##_buf,                                    \
+        .msg_size = sizeof(type),                             \
+        .capacity = ((count) + 1U),                           \
+        .head = 0,                                            \
+        .tail = 0,                                            \
+        .overflow = 0,                                        \
     }
 #endif
 

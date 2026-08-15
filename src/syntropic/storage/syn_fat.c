@@ -137,6 +137,10 @@ static uint32_t read_fat_entry(const FAT_Volume *vol, uint32_t cluster)
         offset = (cluster * 2) % 512;
     }
 
+    if (fat_sector >= vol->fat_start_sector + vol->fat_sectors) {
+        return 0x0FFFFFFF;
+    }
+
     if (syn_sd_read(&g_sd, fat_sector, sec_buf) != SYN_OK) {
         return 0x0FFFFFFF;
     }
@@ -165,6 +169,9 @@ static bool write_fat_entry(const FAT_Volume *vol, uint32_t cluster, uint32_t va
         fat_sector = vol->fat_start_sector + ((cluster * 2) / 512);
         offset = (cluster * 2) % 512;
     }
+
+    if (fat_sector >= vol->fat_start_sector + vol->fat_sectors)
+        return false;
 
     if (syn_sd_read(&g_sd, fat_sector, sec_buf) != SYN_OK)
         return false;

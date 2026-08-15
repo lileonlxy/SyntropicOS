@@ -88,6 +88,7 @@ typedef struct {
     uint16_t active_slot;  /**< Slot index within the active sector     */
     uint16_t next_seq;     /**< Next sequence number to use             */
     bool initialized;      /**< Init complete                           */
+    bool has_active_slot;  /**< Flash has at least one valid saved slot */
 } SYN_ParamStore;
 
 /* ── API ────────────────────────────────────────────────────────────────── */

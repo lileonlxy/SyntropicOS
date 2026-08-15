@@ -125,6 +125,9 @@ SYN_Status syn_motor_ctrl_init(SYN_MotorCtrl *ctrl, const SYN_MotorCtrl_Config *
     SYN_ASSERT(cfg != NULL);
     SYN_ASSERT(cfg->read_pos != NULL);
     SYN_ASSERT(cfg->update_hz > 0);
+    if (cfg->pid_scale >= 31) {
+        return SYN_INVALID_PARAM;
+    }
 
     memset(ctrl, 0, sizeof(*ctrl));
     ctrl->cfg = *cfg;

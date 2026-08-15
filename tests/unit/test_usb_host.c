@@ -373,6 +373,37 @@ void test_usb_host_null_checks(void)
     TEST_ASSERT_FALSE(syn_transport_recv(&tr, out_b, sizeof(out_b), NULL));
 }
 
+void test_usb_host_subordinate_descriptor_overflow(void)
+{
+    mock_usb_host_reset();
+    SYN_USB_Host host;
+    syn_usb_host_init(&host);
+
+    SYN_USB_HostClassDriver cls = {
+        .class_code = 0xFF,
+        .subclass_code = 0xFF,
+        .protocol_code = 0xFF,
+        .probe = test_probe_cb,
+    };
+    syn_usb_host_register_class(&host, &cls);
+
+    /* Interface (9B) followed by a subordinate descriptor claiming 100 bytes when only 2 remain */
+    uint8_t malformed_cfg[12] = {
+        0x09, 0x04, 0x00, 0x00, 0x01, 0x02, 0x02, 0x01, 0x00, /* Interface 0 */
+        0x64, 0x24, 0x00                                      /* Subordinate with bLength = 100 */
+    };
+    memcpy(host.enum_buf, malformed_cfg, sizeof(malformed_cfg));
+    host.enum_buf_len = sizeof(malformed_cfg);
+
+    probe_called = false;
+    host.state = SYN_USB_HOST_STATE_ENUMERATING;
+    host.enum_step = SYN_USB_HOST_ENUM_CLASS_PROBE;
+    host.xfer_pending = false;
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_usb_host_process(&host));
+    TEST_ASSERT_TRUE(probe_called);
+}
+
 void run_usb_host_tests(void)
 {
     RUN_TEST(test_usb_host_init_and_state);
@@ -381,4 +412,5 @@ void run_usb_host_tests(void)
     RUN_TEST(test_usb_host_cdc_driver);
     RUN_TEST(test_usb_host_cdc_transport_bridge);
     RUN_TEST(test_usb_host_null_checks);
+    RUN_TEST(test_usb_host_subordinate_descriptor_overflow);
 }

@@ -472,7 +472,10 @@ SYN_AutoTune_State syn_autotune_update(SYN_AutoTune *at)
             at->state = SYN_ATUNE_RAMP_DOWN;
 
             /* Compute PID gains */
-            uint32_t Tu = at->period_sum / at->period_count;
+            uint32_t Tu = (at->period_count > 0) ? (at->period_sum / at->period_count) : 0U;
+            if (Tu == 0U) {
+                Tu = 1U;
+            }
             int32_t avg_amp =
                 (at->amplitude_count > 0) ? at->amplitude_sum / at->amplitude_count : 1;
             int32_t half_amp = avg_amp / 2;

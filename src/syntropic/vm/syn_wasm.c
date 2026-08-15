@@ -1270,7 +1270,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             uint32_t base_addr = 0;
             if (!pop_stack(ctx, &base_addr))
                 break;
-            uint32_t addr = base_addr + offset;
+            uint64_t addr = (uint64_t)base_addr + offset;
 
             uint32_t req_bytes = 4;
             if (opcode == OP_I32_LOAD8_S || opcode == OP_I32_LOAD8_U) {
@@ -1279,7 +1279,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
                 req_bytes = 2;
             }
 
-            if (!ctx->linear_mem || addr + req_bytes > ctx->linear_mem_size) {
+            if (!ctx->linear_mem || addr > ctx->linear_mem_size - req_bytes) {
                 ctx->status = SYN_WASM_TRAP_OUT_OF_BOUNDS;
                 break;
             }
@@ -1317,7 +1317,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             uint32_t base_addr = 0;
             if (!pop_stack(ctx, &base_addr))
                 break;
-            uint32_t addr = base_addr + offset;
+            uint64_t addr = (uint64_t)base_addr + offset;
 
             uint32_t req_bytes = 8;
             if (opcode == OP_I64_LOAD8_S || opcode == OP_I64_LOAD8_U)
@@ -1327,7 +1327,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             else if (opcode == OP_I64_LOAD32_S || opcode == OP_I64_LOAD32_U)
                 req_bytes = 4;
 
-            if (!ctx->linear_mem || addr + req_bytes > ctx->linear_mem_size) {
+            if (!ctx->linear_mem || addr > ctx->linear_mem_size - req_bytes) {
                 ctx->status = SYN_WASM_TRAP_OUT_OF_BOUNDS;
                 break;
             }
@@ -1375,7 +1375,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             uint32_t val = 0, base_addr = 0;
             if (!pop_stack(ctx, &val) || !pop_stack(ctx, &base_addr))
                 break;
-            uint32_t addr = base_addr + offset;
+            uint64_t addr = (uint64_t)base_addr + offset;
 
             uint32_t req_bytes = 4;
             if (opcode == OP_I32_STORE8) {
@@ -1384,7 +1384,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
                 req_bytes = 2;
             }
 
-            if (!ctx->linear_mem || addr + req_bytes > ctx->linear_mem_size) {
+            if (!ctx->linear_mem || addr > ctx->linear_mem_size - req_bytes) {
                 ctx->status = SYN_WASM_TRAP_OUT_OF_BOUNDS;
                 break;
             }
@@ -1413,7 +1413,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             uint32_t base_addr = 0;
             if (!pop_stack64(ctx, &val) || !pop_stack(ctx, &base_addr))
                 break;
-            uint32_t addr = base_addr + offset;
+            uint64_t addr = (uint64_t)base_addr + offset;
 
             uint32_t req_bytes = 8;
             if (opcode == OP_I64_STORE8)
@@ -1423,7 +1423,7 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             else if (opcode == OP_I64_STORE32)
                 req_bytes = 4;
 
-            if (!ctx->linear_mem || addr + req_bytes > ctx->linear_mem_size) {
+            if (!ctx->linear_mem || addr > ctx->linear_mem_size - req_bytes) {
                 ctx->status = SYN_WASM_TRAP_OUT_OF_BOUNDS;
                 break;
             }
@@ -1881,9 +1881,9 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             uint32_t base_addr = 0;
             if (!pop_stack(ctx, &base_addr))
                 break;
-            uint32_t addr = base_addr + offset;
+            uint64_t addr = (uint64_t)base_addr + offset;
             uint32_t req = (opcode == OP_F32_LOAD) ? 4 : 8;
-            if (!ctx->linear_mem || addr + req > ctx->linear_mem_size) {
+            if (!ctx->linear_mem || addr > ctx->linear_mem_size - req) {
                 ctx->status = SYN_WASM_TRAP_OUT_OF_BOUNDS;
                 break;
             }
@@ -1903,9 +1903,9 @@ SYN_WASM_Status syn_wasm_step(SYN_WASM_Context *ctx, uint16_t max_instructions)
             uint32_t base_addr = 0;
             if (!pop_stack64(ctx, &val) || !pop_stack(ctx, &base_addr))
                 break;
-            uint32_t addr = base_addr + offset;
+            uint64_t addr = (uint64_t)base_addr + offset;
             uint32_t req = (opcode == OP_F32_STORE) ? 4 : 8;
-            if (!ctx->linear_mem || addr + req > ctx->linear_mem_size) {
+            if (!ctx->linear_mem || addr > ctx->linear_mem_size - req) {
                 ctx->status = SYN_WASM_TRAP_OUT_OF_BOUNDS;
                 break;
             }

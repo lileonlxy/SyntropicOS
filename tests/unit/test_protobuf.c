@@ -202,10 +202,36 @@ void test_protobuf_overflow_and_errors(void)
     TEST_ASSERT_EQUAL(SYN_ERROR, syn_pb_decode_tag(&g_dec, &tag));
 }
 
+void test_protobuf_decode_bytes_large_length(void)
+{
+    /* Craft a varint encoding SIZE_MAX (or near it) as the length prefix.
+     * On 64-bit: 0xFF x9 + 0x01 encodes (2^63 - 1 + ...) → huge value.
+     * On 32-bit: 0xFF x4 + 0x0F encodes 0xFFFFFFFF.
+     * Either way, offset + length wraps past dec.size if using additive check. */
+    uint8_t crafted[] = {0xFF, 0xFF, 0xFF, 0xFF, 0x0F, 0xAA};
+    syn_pb_decoder_init(&g_dec, crafted, sizeof(crafted));
+
+    const uint8_t *ptr;
+    size_t len;
+    /* Must reject: decoded length (0xFFFFFFFF) > remaining bytes */
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_pb_decode_bytes(&g_dec, &ptr, &len));
+
+    /* Encode side: attempt to encode bytes with length > remaining capacity */
+    uint8_t enc_buf[16];
+    syn_pb_encoder_init(&g_enc, enc_buf, sizeof(enc_buf));
+    /* Fill most of the buffer first */
+    g_enc.offset = 14U;
+    /* Attempt to encode a 10-byte payload with only 2 bytes remaining.
+     * Even if tag+varint somehow succeed, the memcpy guard must catch it. */
+    uint8_t payload[10] = {0};
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_pb_encode_bytes(&g_enc, 1, payload, sizeof(payload)));
+}
+
 void run_protobuf_tests(void)
 {
     RUN_TEST(test_protobuf_init_and_null_checks);
     RUN_TEST(test_protobuf_encode_decode_roundtrip);
     RUN_TEST(test_protobuf_skip_field);
     RUN_TEST(test_protobuf_overflow_and_errors);
+    RUN_TEST(test_protobuf_decode_bytes_large_length);
 }

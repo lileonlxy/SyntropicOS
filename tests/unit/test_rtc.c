@@ -183,12 +183,12 @@ static void test_rtc_from_epoch_zero(void)
     TEST_ASSERT_EQUAL_UINT8(0u, dt.second);
 }
 
-/* ── Registration ────────────────────────────────────────────────────────── */
-
 static void test_rtc_drift_ppm(void)
 {
     syn_rtc_init();
-    syn_rtc_set_drift_ppm(10); /* +10 ppm drift compensation */
+    syn_rtc_set_drift_ppm(-1000000); /* Must be rejected (no division by zero) */
+    syn_rtc_set_drift_ppm(2000000);  /* Must be rejected */
+    syn_rtc_set_drift_ppm(10);       /* +10 ppm drift compensation */
 
     SYN_RTC_DateTime set_dt = {
         .year = 2025u, .month = 6u, .day = 15u, .hour = 10u, .minute = 30u, .second = 45u};

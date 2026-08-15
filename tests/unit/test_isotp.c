@@ -580,6 +580,49 @@ static void test_isotp_canfd_multi_frame(void)
         TEST_ASSERT_EQUAL_MEMORY(payload, out, 25);
     }
 
+    static void test_isotp_tx_wait_flow_control(void)
+    {
+        SYN_ISOTP_Link sender;
+        syn_isotp_init(&sender, 0x7E8, 0x7E0, rx_buf_a, sizeof(rx_buf_a), tx_buf_a,
+                       sizeof(tx_buf_a));
+        syn_isotp_set_timeouts(&sender, 1000, 1000); /* 1000ms N_Bs */
+
+        uint8_t payload[20] = {0};
+        TEST_ASSERT_EQUAL(SYN_OK, syn_isotp_send(&sender, payload, sizeof(payload)));
+
+        SYN_CAN_Frame ff;
+        TEST_ASSERT_TRUE(syn_isotp_get_tx_frame(&sender, &ff));
+        TEST_ASSERT_EQUAL(SYN_ISOTP_TX_WAIT_FC, sender.tx_state);
+
+        /* 1. Receive FC(WAIT) frame from receiver (FS = 0x01) */
+        SYN_CAN_Frame fc_wait = {
+            .id = 0x7E8, .dlc = 8, .data = {0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+        syn_isotp_process_rx_frame(&sender, &fc_wait);
+
+        /* Advance time by 600ms */
+        syn_isotp_step(&sender, 600);
+        TEST_ASSERT_EQUAL(SYN_ISOTP_TX_WAIT_FC, sender.tx_state);
+
+        /* 2. Receive another FC(WAIT) frame — should reset the 1000ms timer */
+        syn_isotp_process_rx_frame(&sender, &fc_wait);
+
+        /* Advance time by another 600ms (total 1200ms elapsed since send start) */
+        syn_isotp_step(&sender, 600);
+        /* With FC_WAIT resetting the timer, sender remains in WAIT_FC */
+        TEST_ASSERT_EQUAL(SYN_ISOTP_TX_WAIT_FC, sender.tx_state);
+
+        /* 3. Receive FC(CTS) frame (FS = 0x00) */
+        SYN_CAN_Frame fc_cts = {
+            .id = 0x7E8, .dlc = 8, .data = {0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+        syn_isotp_process_rx_frame(&sender, &fc_cts);
+        TEST_ASSERT_EQUAL(SYN_ISOTP_TX_SEND_CF, sender.tx_state);
+
+        /* Verify CF can be retrieved */
+        SYN_CAN_Frame cf;
+        TEST_ASSERT_TRUE(syn_isotp_get_tx_frame(&sender, &cf));
+        TEST_ASSERT_EQUAL(0x21, cf.data[0]); /* CF seq 1 */
+    }
+
     void run_isotp_tests(void)
     {
         RUN_TEST(test_isotp_single_frame);
@@ -596,6 +639,7 @@ static void test_isotp_canfd_multi_frame(void)
         RUN_TEST(test_isotp_is_tx_idle_helper);
         RUN_TEST(test_isotp_tx_consecutive_frame_flow_control);
         RUN_TEST(test_isotp_block_size_flow_control);
+        RUN_TEST(test_isotp_tx_wait_flow_control);
 #if defined(SYN_USE_CAN_FD) && SYN_USE_CAN_FD
         RUN_TEST(test_isotp_canfd_single_frame);
         RUN_TEST(test_isotp_canfd_multi_frame);

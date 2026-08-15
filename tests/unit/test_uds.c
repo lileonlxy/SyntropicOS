@@ -3660,6 +3660,41 @@ static void test_uds_multi_did_read(void)
     TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH, resp[2]);
 }
 
+void test_uds_memory_by_address_integer_overflow(void)
+{
+    syn_uds_init(&g_uds);
+    g_uds.security_state = SYN_UDS_SECURITY_UNLOCKED;
+
+    uint8_t resp[64] = {0};
+    uint16_t resp_len = 0;
+
+    /* 1. ReadMemoryByAddress with size = 0xFFFFFFFF (alfid = 0x44: 4B addr, 4B size) */
+    uint8_t req_read[10] = {
+        SYN_UDS_SID_READ_MEMORY_BY_ADDRESS, 0x44, 0x00, 0x00, 0x10, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
+    TEST_ASSERT_TRUE(syn_uds_process_request(&g_uds, req_read, sizeof(req_read), resp, sizeof(resp),
+                                             &resp_len, SYN_UDS_ADDR_PHYSICAL));
+    TEST_ASSERT_EQUAL_HEX8(SYN_UDS_RESPONSE_NEGATIVE, resp[0]);
+    TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_RESPONSE_TOO_LONG, resp[2]);
+
+    /* 2. WriteMemoryByAddress with size = 0xFFFFFFFF (alfid = 0x44: 4B addr, 4B size) */
+    uint8_t req_write[12] = {SYN_UDS_SID_WRITE_MEMORY_BY_ADDRESS,
+                             0x44,
+                             0x00,
+                             0x00,
+                             0x10,
+                             0x00,
+                             0xFF,
+                             0xFF,
+                             0xFF,
+                             0xFF,
+                             0x01,
+                             0x02};
+    TEST_ASSERT_TRUE(syn_uds_process_request(&g_uds, req_write, sizeof(req_write), resp,
+                                             sizeof(resp), &resp_len, SYN_UDS_ADDR_PHYSICAL));
+    TEST_ASSERT_EQUAL_HEX8(SYN_UDS_RESPONSE_NEGATIVE, resp[0]);
+    TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH, resp[2]);
+}
+
 void run_uds_tests(void)
 {
     RUN_TEST(test_uds_init_and_sessions);
@@ -3697,4 +3732,5 @@ void run_uds_tests(void)
     RUN_TEST(test_uds_custom_service_policies);
     RUN_TEST(test_uds_iso14229_service_callbacks);
     RUN_TEST(test_uds_multi_did_read);
+    RUN_TEST(test_uds_memory_by_address_integer_overflow);
 }

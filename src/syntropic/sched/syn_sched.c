@@ -146,15 +146,16 @@ bool syn_sched_run(SYN_Sched *sched)
 
             /* Blocked on event or timeout — check if event fired or deadline passed */
             if (task->state == (uint8_t)SYN_TASK_BLOCKED) {
-                bool event_fired = (task->wait_event != NULL &&
-                                    (syn_event_flags_get(task->wait_event) & task->wait_mask));
+                uint32_t matched = (task->wait_event != NULL)
+                                       ? (syn_event_flags_get(task->wait_event) & task->wait_mask)
+                                       : 0;
                 bool timeout_elapsed =
                     (task->delay_until != 0 && (int32_t)(now - task->delay_until) >= 0);
 
-                if (event_fired || timeout_elapsed) {
+                if (matched != 0 || timeout_elapsed) {
                     /* Event fired or timeout elapsed — transition to READY */
+                    task->wait_mask = matched;
                     task->wait_event = NULL;
-                    task->wait_mask = 0;
                     task->delay_until = 0;
                     task->state = (uint8_t)SYN_TASK_READY;
                     /* Fall through to normal priority evaluation */

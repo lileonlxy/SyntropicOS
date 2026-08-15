@@ -1030,72 +1030,66 @@ SYN_PT_Status syn_ecat_master_discover_pdo_mapping_task(SYN_PT *pt, SYN_EcatMast
     m->total_tx_bits = 0;
 
     /* Read 0x1C12:00 (RxPDO Assign Count) */
-    PT_INIT(&m->sub_pt);
     m->pdo_count = 0;
     m->pdo_sdo_val = 0;
-    PT_WAIT_UNTIL(pt,
-                  syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C12, 0,
-                                                &m->pdo_sdo_val, 1, &m->pdo_read_len) == PT_EXITED);
+    PT_SPAWN(pt, &m->sub_pt,
+             syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C12, 0, &m->pdo_sdo_val,
+                                           1, &m->pdo_read_len));
     m->pdo_count = (uint8_t)m->pdo_sdo_val;
 
     if (m->pdo_count > 0) {
         /* Read first RxPDO assignment (0x1C12:01) */
-        PT_INIT(&m->sub_pt);
         m->pdo_sdo_val = 0;
-        PT_WAIT_UNTIL(pt, syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C12, 1,
-                                                        &m->pdo_sdo_val, 2,
-                                                        &m->pdo_read_len) == PT_EXITED);
+        PT_SPAWN(pt, &m->sub_pt,
+                 syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C12, 1,
+                                               &m->pdo_sdo_val, 2, &m->pdo_read_len));
         m->pdo_map_idx = (uint16_t)m->pdo_sdo_val;
         if (m->pdo_map_idx != 0) {
             /* Read RxPDO mapping entry count (e.g. 0x1600:00) */
-            PT_INIT(&m->sub_pt);
             m->pdo_sdo_val = 0;
-            PT_WAIT_UNTIL(pt, syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr,
-                                                            m->pdo_map_idx, 0, &m->pdo_sdo_val, 1,
-                                                            &m->pdo_read_len) == PT_EXITED);
+            PT_SPAWN(pt, &m->sub_pt,
+                     syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, m->pdo_map_idx, 0,
+                                                   &m->pdo_sdo_val, 1, &m->pdo_read_len));
             m->pdo_count = (uint8_t)m->pdo_sdo_val;
             for (m->pdo_entry_idx = 1; m->pdo_entry_idx <= m->pdo_count; m->pdo_entry_idx++) {
-                PT_INIT(&m->sub_pt);
                 m->pdo_sdo_val = 0;
-                PT_WAIT_UNTIL(pt, syn_ecat_master_sdo_read_task(
-                                      &m->sub_pt, m, station_addr, m->pdo_map_idx, m->pdo_entry_idx,
-                                      &m->pdo_sdo_val, 4, &m->pdo_read_len) == PT_EXITED);
+                PT_SPAWN(pt, &m->sub_pt,
+                         syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, m->pdo_map_idx,
+                                                       m->pdo_entry_idx, &m->pdo_sdo_val, 4,
+                                                       &m->pdo_read_len));
                 m->total_rx_bits += (m->pdo_sdo_val & 0xFFU);
             }
         }
     }
 
     /* Read 0x1C13:00 (TxPDO Assign Count) */
-    PT_INIT(&m->sub_pt);
     m->pdo_count = 0;
     m->pdo_sdo_val = 0;
-    PT_WAIT_UNTIL(pt,
-                  syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C13, 0,
-                                                &m->pdo_sdo_val, 1, &m->pdo_read_len) == PT_EXITED);
+    PT_SPAWN(pt, &m->sub_pt,
+             syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C13, 0, &m->pdo_sdo_val,
+                                           1, &m->pdo_read_len));
     m->pdo_count = (uint8_t)m->pdo_sdo_val;
 
     if (m->pdo_count > 0) {
         /* Read first TxPDO assignment (0x1C13:01) */
-        PT_INIT(&m->sub_pt);
         m->pdo_sdo_val = 0;
-        PT_WAIT_UNTIL(pt, syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C13, 1,
-                                                        &m->pdo_sdo_val, 2,
-                                                        &m->pdo_read_len) == PT_EXITED);
+        PT_SPAWN(pt, &m->sub_pt,
+                 syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, 0x1C13, 1,
+                                               &m->pdo_sdo_val, 2, &m->pdo_read_len));
         m->pdo_map_idx = (uint16_t)m->pdo_sdo_val;
         if (m->pdo_map_idx != 0) {
             /* Read TxPDO mapping entry count (e.g. 0x1A00:00) */
-            PT_INIT(&m->sub_pt);
             m->pdo_sdo_val = 0;
-            PT_WAIT_UNTIL(pt, syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr,
-                                                            m->pdo_map_idx, 0, &m->pdo_sdo_val, 1,
-                                                            &m->pdo_read_len) == PT_EXITED);
+            PT_SPAWN(pt, &m->sub_pt,
+                     syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, m->pdo_map_idx, 0,
+                                                   &m->pdo_sdo_val, 1, &m->pdo_read_len));
             m->pdo_count = (uint8_t)m->pdo_sdo_val;
             for (m->pdo_entry_idx = 1; m->pdo_entry_idx <= m->pdo_count; m->pdo_entry_idx++) {
-                PT_INIT(&m->sub_pt);
                 m->pdo_sdo_val = 0;
-                PT_WAIT_UNTIL(pt, syn_ecat_master_sdo_read_task(
-                                      &m->sub_pt, m, station_addr, m->pdo_map_idx, m->pdo_entry_idx,
-                                      &m->pdo_sdo_val, 4, &m->pdo_read_len) == PT_EXITED);
+                PT_SPAWN(pt, &m->sub_pt,
+                         syn_ecat_master_sdo_read_task(&m->sub_pt, m, station_addr, m->pdo_map_idx,
+                                                       m->pdo_entry_idx, &m->pdo_sdo_val, 4,
+                                                       &m->pdo_read_len));
                 m->total_tx_bits += (m->pdo_sdo_val & 0xFFU);
             }
         }

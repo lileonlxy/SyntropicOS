@@ -78,6 +78,7 @@ typedef struct SYN_COBS_Decoder {
     uint8_t *buf;                     /**< Receive buffer                */
     size_t buf_size;                  /**< Buffer capacity               */
     size_t idx;                       /**< Current write position        */
+    bool overflow;                    /**< Discarding overflowing frame  */
     SYN_COBS_PacketCallback callback; /**< Callback on complete packet   */
     void *ctx;                        /**< User context for callback     */
 } SYN_COBS_Decoder;

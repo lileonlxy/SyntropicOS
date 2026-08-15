@@ -160,6 +160,7 @@ SYN_Status syn_param_init(SYN_ParamStore *store, uint32_t flash_base, uint8_t se
 
     if (found) {
         store->next_seq = (uint16_t)(best_seq + 1);
+        store->has_active_slot = true;
         store->initialized = true;
         return SYN_OK;
     }
@@ -168,6 +169,7 @@ SYN_Status syn_param_init(SYN_ParamStore *store, uint32_t flash_base, uint8_t se
     store->active_sector = 0;
     store->active_slot = 0;
     store->next_seq = 1;
+    store->has_active_slot = false;
     store->initialized = true;
     return SYN_ERROR;
 }
@@ -207,7 +209,7 @@ SYN_Status syn_param_save(SYN_ParamStore *store, const void *data)
     uint16_t sl = store->active_slot;
 
     /* If this isn't the first write, advance to next slot */
-    if (store->next_seq > 1) {
+    if (store->has_active_slot) {
         sl++;
         if (sl >= store->slots_per_sector) {
             /* Move to next sector */
@@ -252,6 +254,7 @@ SYN_Status syn_param_save(SYN_ParamStore *store, const void *data)
     store->active_sector = sec;
     store->active_slot = sl;
     store->next_seq++;
+    store->has_active_slot = true;
 
     return SYN_OK;
 }
@@ -276,6 +279,7 @@ SYN_Status syn_param_erase_all(SYN_ParamStore *store)
     store->active_sector = 0;
     store->active_slot = 0;
     store->next_seq = 1;
+    store->has_active_slot = false;
 
     return SYN_OK;
 }

@@ -259,7 +259,7 @@ static void handle_read_write_multiple(SYN_Modbus *mb, uint16_t frame_len)
     uint8_t write_bytes = mb->buf[10];
 
     if (read_count == 0 || read_count > 125 || write_count == 0 || write_count > 121 ||
-        write_bytes != write_count * 2) {
+        write_bytes != write_count * 2 || frame_len < (uint16_t)(13 + write_bytes)) {
         send_exception(mb, SYN_MB_FC_READ_WRITE_MULTIPLE, SYN_MB_EX_ILLEGAL_VALUE);
         return;
     }
@@ -292,10 +292,16 @@ static void handle_read_write_multiple(SYN_Modbus *mb, uint16_t frame_len)
 
 /**
  * @brief Handle Modbus read device identification (FC 0x2B / MEI 0x0E).
- * @param mb Modbus instance.
+ * @param mb         Modbus instance.
+ * @param frame_len  Received frame length.
  */
-static void handle_read_device_info(SYN_Modbus *mb)
+static void handle_read_device_info(SYN_Modbus *mb, uint16_t frame_len)
 {
+    if (frame_len < 7) {
+        send_exception(mb, SYN_MB_FC_READ_DEVICE_INFO, SYN_MB_EX_ILLEGAL_VALUE);
+        return;
+    }
+
     if (mb->buf[2] != SYN_MB_MEI_TYPE_READ_DEVICE_ID) {
         send_exception(mb, SYN_MB_FC_READ_DEVICE_INFO, SYN_MB_EX_ILLEGAL_VALUE);
         return;
@@ -383,12 +389,19 @@ static void handle_read_device_info(SYN_Modbus *mb)
 
 /**
  * @brief Handle Modbus read file record (FC 0x14).
- * @param mb Modbus instance.
+ * @param mb         Modbus instance.
+ * @param frame_len  Received frame length.
  */
-static void handle_read_file_record(SYN_Modbus *mb)
+static void handle_read_file_record(SYN_Modbus *mb, uint16_t frame_len)
 {
+    if (frame_len < 5) {
+        send_exception(mb, SYN_MB_FC_READ_FILE_RECORD, SYN_MB_EX_ILLEGAL_VALUE);
+        return;
+    }
+
     uint8_t byte_count = mb->buf[2];
-    if (byte_count < 7 || (byte_count % 7) != 0 || mb->cfg.on_read_file == NULL) {
+    if (byte_count < 7 || (byte_count % 7) != 0 || frame_len < (uint16_t)(5 + byte_count) ||
+        mb->cfg.on_read_file == NULL) {
         send_exception(mb, SYN_MB_FC_READ_FILE_RECORD, SYN_MB_EX_ILLEGAL_VALUE);
         return;
     }
@@ -440,12 +453,18 @@ static void handle_read_file_record(SYN_Modbus *mb)
 
 /**
  * @brief Handle Modbus write file record (FC 0x15).
- * @param mb Modbus instance.
+ * @param mb         Modbus instance.
+ * @param frame_len  Received frame length.
  */
-static void handle_write_file_record(SYN_Modbus *mb)
+static void handle_write_file_record(SYN_Modbus *mb, uint16_t frame_len)
 {
+    if (frame_len < 5) {
+        send_exception(mb, SYN_MB_FC_WRITE_FILE_RECORD, SYN_MB_EX_ILLEGAL_VALUE);
+        return;
+    }
+
     uint8_t data_len = mb->buf[2];
-    if (data_len < 9 || mb->cfg.on_write_file == NULL) {
+    if (data_len < 9 || frame_len < (uint16_t)(5 + data_len) || mb->cfg.on_write_file == NULL) {
         send_exception(mb, SYN_MB_FC_WRITE_FILE_RECORD, SYN_MB_EX_ILLEGAL_VALUE);
         return;
     }
@@ -794,10 +813,16 @@ static void handle_mask_write_register(SYN_Modbus *mb, uint16_t frame_len)
 
 /**
  * @brief Handle Read FIFO Queue (FC 0x18).
- * @param mb Pointer to Modbus instance.
+ * @param mb         Pointer to Modbus instance.
+ * @param frame_len  Length of received frame.
  */
-static void handle_read_fifo_queue(SYN_Modbus *mb)
+static void handle_read_fifo_queue(SYN_Modbus *mb, uint16_t frame_len)
 {
+    if (frame_len < 6) {
+        send_exception(mb, mb->buf[1], SYN_MB_EX_ILLEGAL_VALUE);
+        return;
+    }
+
     if (mb->cfg.fifo_queue == NULL) {
         send_exception(mb, mb->buf[1], SYN_MB_EX_ILLEGAL_ADDR);
         return;
@@ -944,12 +969,12 @@ bool syn_modbus_process(SYN_Modbus *mb)
     case SYN_MB_FC_READ_FILE_RECORD:
         if (is_broadcast)
             break;
-        handle_read_file_record(mb);
+        handle_read_file_record(mb, len);
         mb->comm_event_counter++;
         return true;
 
     case SYN_MB_FC_WRITE_FILE_RECORD:
-        handle_write_file_record(mb);
+        handle_write_file_record(mb, len);
         mb->comm_event_counter++;
         return !is_broadcast;
 
@@ -965,13 +990,13 @@ bool syn_modbus_process(SYN_Modbus *mb)
     case SYN_MB_FC_READ_FIFO_QUEUE:
         if (is_broadcast)
             break;
-        handle_read_fifo_queue(mb);
+        handle_read_fifo_queue(mb, len);
         return true;
 
     case SYN_MB_FC_READ_DEVICE_INFO:
         if (is_broadcast)
             break;
-        handle_read_device_info(mb);
+        handle_read_device_info(mb, len);
         mb->comm_event_counter++;
         return true;
 

@@ -202,6 +202,20 @@ void test_doip_error_nacks(void)
     TEST_ASSERT_FALSE(syn_doip_process_msg(&g_doip, &g_uds, rx_diag, 15, tx, 10, &tx_len));
 }
 
+void test_doip_payload_length_integer_overflow(void)
+{
+    setup_doip_test();
+    /* Craft a DoIP packet claiming 0xFFFFFFFF payload bytes in an 8-byte packet */
+    uint8_t rx_overflow[8] = {0x02, 0xFD, 0x80, 0x01, 0xFF, 0xFF, 0xFF, 0xFF};
+    uint8_t tx[64] = {0};
+    uint16_t tx_len = 0;
+
+    TEST_ASSERT_TRUE(syn_doip_process_msg(&g_doip, &g_uds, rx_overflow, sizeof(rx_overflow), tx,
+                                          sizeof(tx), &tx_len));
+    TEST_ASSERT_EQUAL_UINT16(9, tx_len);
+    TEST_ASSERT_EQUAL_HEX8(SYN_DOIP_NACK_INVALID_PAYLOAD_LENGTH, tx[8]);
+}
+
 void run_doip_tests(void)
 {
     RUN_TEST(test_doip_init_and_identifiers);
@@ -210,4 +224,5 @@ void run_doip_tests(void)
     RUN_TEST(test_doip_routing_activation_request);
     RUN_TEST(test_doip_diagnostic_message_uds_loopback);
     RUN_TEST(test_doip_error_nacks);
+    RUN_TEST(test_doip_payload_length_integer_overflow);
 }

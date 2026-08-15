@@ -102,6 +102,7 @@ void syn_cobs_decoder_init(SYN_COBS_Decoder *dec, uint8_t *buf, size_t buf_size,
     dec->buf = buf;
     dec->buf_size = buf_size;
     dec->idx = 0;
+    dec->overflow = false;
     dec->callback = callback;
     dec->ctx = ctx;
 }
@@ -114,8 +115,8 @@ void syn_cobs_decoder_feed(SYN_COBS_Decoder *dec, uint8_t byte)
     SYN_ASSERT(dec != NULL);
 
     if (byte == 0x00) {
-        /* Delimiter — decode accumulated data */
-        if (dec->idx > 0 && dec->callback != NULL) {
+        /* Delimiter — decode accumulated data if not in overflow state */
+        if (!dec->overflow && dec->idx > 0 && dec->callback != NULL) {
             /* Decode in-place */
             size_t dec_len = syn_cobs_decode(dec->buf, dec->idx, dec->buf);
             if (dec_len > 0) {
@@ -123,13 +124,17 @@ void syn_cobs_decoder_feed(SYN_COBS_Decoder *dec, uint8_t byte)
             }
         }
         dec->idx = 0;
+        dec->overflow = false;
     } else {
         /* Accumulate */
-        if (dec->idx < dec->buf_size) {
-            dec->buf[dec->idx++] = byte;
-        } else {
-            /* Overflow — discard frame */
-            dec->idx = 0;
+        if (!dec->overflow) {
+            if (dec->idx < dec->buf_size) {
+                dec->buf[dec->idx++] = byte;
+            } else {
+                /* Overflow — mark overflow and discard all bytes until next delimiter */
+                dec->overflow = true;
+                dec->idx = 0;
+            }
         }
     }
 }
@@ -141,6 +146,7 @@ void syn_cobs_decoder_reset(SYN_COBS_Decoder *dec)
     }
     SYN_ASSERT(dec != NULL);
     dec->idx = 0;
+    dec->overflow = false;
 }
 
 #endif /* SYN_USE_COBS */

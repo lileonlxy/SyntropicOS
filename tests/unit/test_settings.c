@@ -256,6 +256,52 @@ static void test_settings_dual_bank(void)
     TEST_ASSERT_EQUAL_INT(1, db.active_bank);
 }
 
+static void test_settings_dual_bank_reboot_selects_newest_bank(void)
+{
+    mock_port_reset();
+    TestSettings data;
+    SYN_DualBankSettings db;
+
+    /* 1. Initial dual bank init (both blank): Bank A becomes active with defaults (velocity=500) */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_settings_dual_bank_init(&db, FLASH_BASE, FLASH_BASE + 2048, 2,
+                                                          &data, sizeof(data), &defaults));
+    TEST_ASSERT_EQUAL_INT(0, db.active_bank);
+    TEST_ASSERT_EQUAL_INT32(500, data.velocity);
+
+    /* 2. Save new setting -> written to inactive Bank B (seq=2), active_bank becomes 1 */
+    data.velocity = 888;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_settings_dual_bank_save(&db));
+    TEST_ASSERT_EQUAL_INT(1, db.active_bank);
+
+    /* 3. Simulate reboot: fresh RAM buffer and fresh DualBankSettings instance */
+    TestSettings reboot_data = {0};
+    SYN_DualBankSettings reboot_db;
+
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_settings_dual_bank_init(&reboot_db, FLASH_BASE, FLASH_BASE + 2048, 2,
+                                                  &reboot_data, sizeof(reboot_data), &defaults));
+
+    /* Bank B has seq=2 while Bank A has seq=1 -> Bank B must be selected as active */
+    TEST_ASSERT_EQUAL_INT(1, reboot_db.active_bank);
+    TEST_ASSERT_EQUAL_INT32(888, reboot_data.velocity);
+
+    /* 4. Subsequent save from reboot state must write to Bank A and succeed */
+    reboot_data.velocity = 999;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_settings_dual_bank_save(&reboot_db));
+    TEST_ASSERT_EQUAL_INT(0, reboot_db.active_bank);
+
+    /* Verify reboot again selects Bank A (seq=3 > seq=2) */
+    TestSettings reboot_data2 = {0};
+    SYN_DualBankSettings reboot_db2;
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_settings_dual_bank_init(&reboot_db2, FLASH_BASE, FLASH_BASE + 2048, 2,
+                                                  &reboot_data2, sizeof(reboot_data2), &defaults));
+    TEST_ASSERT_EQUAL_INT(0, reboot_db2.active_bank);
+    TEST_ASSERT_EQUAL_INT32(999, reboot_data2.velocity);
+
+    mock_port_reset();
+}
+
 static void test_settings_edge_cases(void)
 {
     TestSettings settings;
@@ -394,6 +440,7 @@ static void test_settings_null_and_invalid_param_checks(void)
 {
     TestSettings data;
     SYN_Settings store;
+    SYN_DualBankSettings db;
 
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_settings_init(NULL, FLASH_BASE, SECTOR_COUNT, &data,
                                                            sizeof(data), &defaults));
@@ -402,6 +449,20 @@ static void test_settings_null_and_invalid_param_checks(void)
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
                       syn_settings_init(&store, FLASH_BASE, SECTOR_COUNT, &data, 0, &defaults));
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_settings_save(NULL));
+
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_settings_dual_bank_init(NULL, FLASH_BASE, FLASH_BASE + 2048, SECTOR_COUNT,
+                                                  &data, sizeof(data), &defaults));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_settings_dual_bank_init(&db, FLASH_BASE, FLASH_BASE + 2048, SECTOR_COUNT,
+                                                  NULL, sizeof(data), &defaults));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_settings_dual_bank_init(&db, FLASH_BASE, FLASH_BASE + 2048, SECTOR_COUNT,
+                                                  &data, sizeof(data), NULL));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_settings_dual_bank_init(&db, FLASH_BASE, FLASH_BASE + 2048, SECTOR_COUNT,
+                                                  &data, 0, &defaults));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_settings_dual_bank_save(NULL));
 }
 
 static void test_settings_vfs_import_no_save(void)
@@ -518,6 +579,7 @@ void run_settings_tests(void)
     RUN_TEST(test_settings_checksum_changes_on_save);
     RUN_TEST(test_settings_export_and_import);
     RUN_TEST(test_settings_dual_bank);
+    RUN_TEST(test_settings_dual_bank_reboot_selects_newest_bank);
     RUN_TEST(test_settings_edge_cases);
     RUN_TEST(test_settings_vfs_export_import);
     RUN_TEST(test_settings_dual_bank_fallback_to_defaults);

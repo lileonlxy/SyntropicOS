@@ -620,6 +620,10 @@ static void test_sd_sdsc_read_write(void)
                            0xFF, 0x05, 0xFF}; /* R1=0, dummies, Token=0x05, Ready=0xFF */
     mock_spi_set_response(write_rx, sizeof(write_rx));
     TEST_ASSERT_EQUAL(SYN_OK, syn_sd_write(&sd, 2, buf_sdsc));
+
+    /* Sector overflow validation */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_sd_read(&sd, 0x00800000u, buf_sdsc));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_sd_write(&sd, 0x00800000u, buf_sdsc));
 }
 
 void run_sd_tests(void)

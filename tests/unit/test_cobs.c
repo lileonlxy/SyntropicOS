@@ -152,6 +152,33 @@ static void test_cobs_zero_length(void)
     syn_cobs_decoder_reset(NULL);
 }
 
+static void test_cobs_decoder_overflow_discards_entire_frame(void)
+{
+    static uint8_t dec_buf[8];
+    cobs_overflow_rx = 0;
+
+    SYN_COBS_Decoder dec;
+    syn_cobs_decoder_init(&dec, dec_buf, sizeof(dec_buf), on_cobs_overflow, NULL);
+
+    /* 1. Feed 20 bytes of non-zero data (exceeds 8-byte buffer) */
+    for (int i = 0; i < 20; i++) {
+        syn_cobs_decoder_feed(&dec, (uint8_t)(i + 1));
+    }
+    /* Feed delimiter for the overflowing frame */
+    syn_cobs_decoder_feed(&dec, 0x00);
+    /* Callback must NOT have been called on the tail fragment */
+    TEST_ASSERT_EQUAL_INT(0, cobs_overflow_rx);
+
+    /* 2. Feed a valid encoded small packet: [0x04, 0x01, 0x02, 0x03] -> decodes to [0x01, 0x02,
+     * 0x03] */
+    uint8_t valid_enc[] = {0x04, 0x01, 0x02, 0x03};
+    for (size_t i = 0; i < sizeof(valid_enc); i++) {
+        syn_cobs_decoder_feed(&dec, valid_enc[i]);
+    }
+    syn_cobs_decoder_feed(&dec, 0x00);
+    TEST_ASSERT_EQUAL_INT(1, cobs_overflow_rx);
+}
+
 void run_cobs_tests(void)
 {
     RUN_TEST(test_cobs);
@@ -159,6 +186,7 @@ void run_cobs_tests(void)
     RUN_TEST(test_cobs_decode_zero_in_payload);
     RUN_TEST(test_cobs_decode_malformed);
     RUN_TEST(test_cobs_decoder_overflow);
+    RUN_TEST(test_cobs_decoder_overflow_discards_entire_frame);
     RUN_TEST(test_cobs_decoder_reset);
     RUN_TEST(test_cobs_zero_length);
 }

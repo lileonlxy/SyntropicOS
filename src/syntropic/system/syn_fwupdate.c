@@ -83,7 +83,7 @@ SYN_Status syn_fwupdate_begin(SYN_FwUpdate *upd, uint32_t slot_addr, uint32_t ma
      * because memset above zeroed the struct. */
 #endif
 
-    /* Erase the first sector (contains the header) */
+    /* Erase the first sector (contains the header area) */
     SYN_Status st = syn_port_flash_erase(slot_addr);
     if (st != SYN_OK) {
         upd->error = true;
@@ -91,19 +91,7 @@ SYN_Status syn_fwupdate_begin(SYN_FwUpdate *upd, uint32_t slot_addr, uint32_t ma
         return st;
     }
 
-    /* Write a WRITING header so the bootloader knows this slot is dirty */
-    SYN_FwImageHeader hdr;
-    memset(&hdr, 0, sizeof(hdr));
-    hdr.magic = SYN_FW_MAGIC;
-    hdr.state = SYN_FW_STATE_WRITING;
-    syn_fwimage_seal_header(&hdr);
-
-    st = syn_port_flash_write(slot_addr, &hdr, sizeof(hdr));
-    if (st != SYN_OK) {
-        upd->error = true;
-        upd->active = false;
-    }
-    return st;
+    return SYN_OK;
 }
 
 SYN_Status syn_fwupdate_write(SYN_FwUpdate *upd, const uint8_t *data, size_t len)
@@ -224,22 +212,13 @@ SYN_Status syn_fwupdate_finish(SYN_FwUpdate *upd, uint32_t expected_crc,
 
     syn_fwimage_seal_header(&hdr);
 
-    /* Erase first sector to rewrite header */
-    st = syn_port_flash_erase(upd->slot_addr);
-    if (st != SYN_OK) {
-        upd->error = true;
-        syn_fwupdate_abort(upd);
-        return st;
-    }
-
-    /* LCOV_EXCL_START: Hardware flash write header error */
+    /* Write the final header directly into the unprogrammed slot header area */
     st = syn_port_flash_write(upd->slot_addr, &hdr, sizeof(hdr));
     if (st != SYN_OK) {
         upd->error = true;
         syn_fwupdate_abort(upd);
         return st;
     }
-    /* LCOV_EXCL_STOP */
 
     upd->active = false;
     return SYN_OK;

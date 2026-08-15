@@ -66,7 +66,7 @@ static void probe_class_drivers(SYN_USB_Host *host)
             while (next + 2U <= total) {
                 uint8_t nLen = buf[next];
                 uint8_t nType = buf[next + 1U];
-                if (nLen < 2U || nType == SYN_USB_DESC_TYPE_INTERFACE) {
+                if (nLen < 2U || (next + nLen) > total || nType == SYN_USB_DESC_TYPE_INTERFACE) {
                     break;
                 }
                 next += nLen;

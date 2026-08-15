@@ -260,6 +260,53 @@ static void test_param_power_loss_recovery(void)
     mock_port_reset();
 }
 
+static void test_param_sequence_number_wrap(void)
+{
+    mock_port_reset();
+    SYN_ParamStore store;
+    TestParams p = {.brightness = 100, .offset = 20, .mode = 1};
+
+    /* Initialize with blank flash */
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_param_init(&store, 0, 2, sizeof(TestParams)));
+
+    /* Set next_seq to 65534 so sequence numbers are contiguous: 65534 -> 65535 -> 0 -> 1 */
+    store.next_seq = 65534;
+
+    /* First write: writes seq=65534 at slot 0 */
+    p.brightness = 1;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_param_save(&store, &p));
+    TEST_ASSERT_EQUAL_UINT16(0, store.active_slot);
+    TEST_ASSERT_EQUAL_UINT16(65535, store.next_seq);
+
+    /* Second write: writes seq=65535 at slot 1 */
+    p.brightness = 2;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_param_save(&store, &p));
+    TEST_ASSERT_EQUAL_UINT16(1, store.active_slot);
+    TEST_ASSERT_EQUAL_UINT16(0, store.next_seq); /* wrapped to 0! */
+
+    /* Third write: with next_seq = 0, must advance to slot 2 and not erase active sector */
+    p.brightness = 3;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_param_save(&store, &p));
+    TEST_ASSERT_EQUAL_UINT16(2, store.active_slot);
+    TEST_ASSERT_EQUAL_UINT16(1, store.next_seq);
+
+    /* Fourth write: with next_seq = 1, must advance to slot 3 */
+    p.brightness = 4;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_param_save(&store, &p));
+    TEST_ASSERT_EQUAL_UINT16(3, store.active_slot);
+    TEST_ASSERT_EQUAL_UINT16(2, store.next_seq);
+
+    /* Power cycle: re-init store and ensure it finds latest seq (seq=1) at slot 3 */
+    SYN_ParamStore store2;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_param_init(&store2, 0, 2, sizeof(TestParams)));
+    TEST_ASSERT_EQUAL_UINT16(3, store2.active_slot);
+    TEST_ASSERT_EQUAL_UINT16(2, store2.next_seq);
+
+    TestParams loaded;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_param_load(&store2, &loaded));
+    TEST_ASSERT_EQUAL_INT(4, loaded.brightness);
+}
+
 void run_param_tests(void)
 {
     RUN_TEST(test_param_store);
@@ -271,4 +318,5 @@ void run_param_tests(void)
     RUN_TEST(test_param_scan_crc_mismatch);
     RUN_TEST(test_param_save_write_errors);
     RUN_TEST(test_param_power_loss_recovery);
+    RUN_TEST(test_param_sequence_number_wrap);
 }

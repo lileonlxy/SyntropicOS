@@ -135,6 +135,12 @@ void test_fwupdate_basic(void)
     TEST_ASSERT_EQUAL_HEX32(0x00010200, hdr.version_code);
     TEST_ASSERT_EQUAL(128, hdr.image_size);
     TEST_ASSERT_EQUAL_HEX32(expected_crc, hdr.image_crc);
+
+    /* Verify the firmware payload was preserved in sector 0 */
+    uint8_t readback[128] = {0};
+    syn_port_flash_read(SLOT_A_ADDR + (uint32_t)sizeof(SYN_FwImageHeader), readback,
+                        sizeof(readback));
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(firmware, readback, sizeof(firmware));
 }
 
 void test_fwupdate_multi_sector(void)
@@ -329,16 +335,20 @@ static void test_fwupdate_erase_fail(void)
     TEST_ASSERT_FALSE(upd.active);
 }
 
-/** flash_write header fails in begin — exercises lines 91-92 */
+/** flash_write header fails in finish */
 static void test_fwupdate_write_header_fail(void)
 {
     mock_port_reset();
     static uint8_t pbuf[64];
     SYN_FwUpdate upd;
 
-    /* Erase succeeds, but the very next write (header) fails */
-    mock_flash_write_fail_next = true;
     SYN_Status st = syn_fwupdate_begin(&upd, SLOT_A_ADDR, SLOT_SIZE, pbuf, sizeof(pbuf));
+    TEST_ASSERT_EQUAL(SYN_OK, st);
+
+    /* Fail the header write in finish() */
+    mock_flash_write_fail_next = true;
+    uint32_t crc = syn_crc32_final(SYN_CRC32_INIT);
+    st = syn_fwupdate_finish(&upd, crc, NULL, 1);
     TEST_ASSERT_EQUAL(SYN_ERROR, st);
     TEST_ASSERT_TRUE(upd.error);
     TEST_ASSERT_FALSE(upd.active);
@@ -380,29 +390,6 @@ static void test_fwupdate_finish_flush_fail(void)
     /* Fail the flush write that happens inside finish() */
     mock_flash_write_fail_next = true;
     uint32_t crc = syn_crc32_final(syn_crc32_update(SYN_CRC32_INIT, data, sizeof(data)));
-    st = syn_fwupdate_finish(&upd, crc, NULL, 1);
-    TEST_ASSERT_EQUAL(SYN_ERROR, st);
-    TEST_ASSERT_TRUE(upd.error);
-}
-
-/** flash_erase fails in finish — exercises lines 178-179 */
-static void test_fwupdate_finish_erase_fail(void)
-{
-    mock_port_reset();
-    static uint8_t pbuf[64];
-    SYN_FwUpdate upd;
-
-    SYN_Status st = syn_fwupdate_begin(&upd, SLOT_A_ADDR, SLOT_SIZE, pbuf, sizeof(pbuf));
-    TEST_ASSERT_EQUAL(SYN_OK, st);
-
-    /* Write a byte, compute CRC */
-    uint8_t data[1] = {0xAB};
-    st = syn_fwupdate_write(&upd, data, sizeof(data));
-    TEST_ASSERT_EQUAL(SYN_OK, st);
-    uint32_t crc = syn_crc32_final(syn_crc32_update(SYN_CRC32_INIT, data, sizeof(data)));
-
-    /* Fail the erase that happens at the start of finish() header-rewrite */
-    mock_flash_fail_at = SLOT_A_ADDR;
     st = syn_fwupdate_finish(&upd, crc, NULL, 1);
     TEST_ASSERT_EQUAL(SYN_ERROR, st);
     TEST_ASSERT_TRUE(upd.error);
@@ -569,7 +556,6 @@ void run_fwupdate_tests(void)
     RUN_TEST(test_fwupdate_write_overflow);
     RUN_TEST(test_fwupdate_write_flush_fail);
     RUN_TEST(test_fwupdate_finish_flush_fail);
-    RUN_TEST(test_fwupdate_finish_erase_fail);
     RUN_TEST(test_fwupdate_sector_erase_fail);
     RUN_TEST(test_fwupdate_parameter_and_state_guards);
     RUN_TEST(test_fwboot_testing_priority_and_confirm_failures);
