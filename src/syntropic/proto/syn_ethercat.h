@@ -309,29 +309,60 @@ SYN_PT_Status syn_ecat_master_cyclic_task(SYN_PT *pt, SYN_EcatMaster *m);
 
 /**
  * @brief Encode FPRD to read register @p reg_addr from slave @p station_addr.
+ * @param m Pointer to master handle.
+ * @param station_addr Configured station address of slave.
+ * @param reg_addr Register address to read.
+ * @param len Number of bytes to read.
+ * @return Encoded Ethernet frame length.
  */
 size_t syn_ecat_encode_read_reg(SYN_EcatMaster *m, uint16_t station_addr, uint16_t reg_addr,
                                 uint16_t len);
 
 /**
  * @brief Encode FPWR to write register @p reg_addr to slave @p station_addr.
+ * @param m Pointer to master handle.
+ * @param station_addr Configured station address of slave.
+ * @param reg_addr Register address to write.
+ * @param data Pointer to data bytes to write.
+ * @param len Number of bytes to write.
+ * @return Encoded Ethernet frame length.
  */
 size_t syn_ecat_encode_write_reg(SYN_EcatMaster *m, uint16_t station_addr, uint16_t reg_addr,
                                  const void *data, uint16_t len);
 
 /**
  * @brief Decode FPRD response datagram for register read.
+ * @param m Pointer to master handle.
+ * @param rx_len Received Ethernet frame length.
+ * @param out_data Destination buffer for register data.
+ * @param len Expected byte length.
+ * @return SYN_OK on success, error code otherwise.
  */
 SYN_Status syn_ecat_decode_read_reg(SYN_EcatMaster *m, size_t rx_len, void *out_data, uint16_t len);
 
 /**
  * @brief Protothread Task: Read 32-bit word from slave SII EEPROM via hardware status polling.
+ * @param pt Protothread context pointer.
+ * @param m Pointer to master handle.
+ * @param station_addr Configured station address of slave.
+ * @param word_offset 16-bit word offset in SII EEPROM.
+ * @param out_data Destination pointer for 32-bit word.
+ * @return PT_WAITING if waiting, PT_ENDED when complete.
  */
 SYN_PT_Status syn_ecat_master_read_sii_task(SYN_PT *pt, SYN_EcatMaster *m, uint16_t station_addr,
                                             uint16_t word_offset, uint32_t *out_data);
 
 /**
  * @brief Protothread Task: CoE SDO read from slave Object Dictionary with SM1 polling.
+ * @param pt Protothread context pointer.
+ * @param m Pointer to master handle.
+ * @param station_addr Configured station address of slave.
+ * @param index 16-bit Object Dictionary index.
+ * @param subindex 8-bit sub-index.
+ * @param out_data Destination buffer for SDO payload.
+ * @param max_len Capacity of destination buffer.
+ * @param out_len Destination pointer for actual payload length.
+ * @return PT_WAITING if waiting, PT_ENDED when complete.
  */
 SYN_PT_Status syn_ecat_master_sdo_read_task(SYN_PT *pt, SYN_EcatMaster *m, uint16_t station_addr,
                                             uint16_t index, uint8_t subindex, void *out_data,
@@ -340,6 +371,12 @@ SYN_PT_Status syn_ecat_master_sdo_read_task(SYN_PT *pt, SYN_EcatMaster *m, uint1
 /**
  * @brief Protothread Task: Read CoE Object Dictionary 0x1C12/0x1C13 to calculate slave Rx/Tx PDO
  * byte lengths.
+ * @param pt Protothread context pointer.
+ * @param m Pointer to master handle.
+ * @param station_addr Configured station address of slave.
+ * @param out_rx_bytes Destination pointer for Rx PDO byte size.
+ * @param out_tx_bytes Destination pointer for Tx PDO byte size.
+ * @return PT_WAITING if waiting, PT_ENDED when complete.
  */
 SYN_PT_Status syn_ecat_master_discover_pdo_mapping_task(SYN_PT *pt, SYN_EcatMaster *m,
                                                         uint16_t station_addr,

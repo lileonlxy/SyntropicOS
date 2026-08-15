@@ -18,8 +18,9 @@
 
 /**
  * @brief Encode a hostname as a DNS QNAME (label-length format).
- * @param dest  [out] Destination buffer.
- * @param src   Dot-separated hostname.
+ * @param dest          [out] Destination buffer.
+ * @param dest_capacity Destination buffer capacity.
+ * @param src           Dot-separated hostname.
  * @return Total bytes written.
  */
 static size_t encode_qname(uint8_t *dest, size_t dest_capacity, const char *src)

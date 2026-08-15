@@ -773,6 +773,12 @@ SYN_PT_Status syn_ecat_master_scan_task(SYN_PT *pt, SYN_EcatMaster *m)
     PT_END(pt);
 }
 
+/**
+ * @brief Get configured station address for slave index.
+ * @param m Pointer to EtherCAT Master instance.
+ * @param idx Slave index in master slave table.
+ * @return Station address.
+ */
 static uint16_t syn_ecat_get_slave_station_addr(const SYN_EcatMaster *m, uint8_t idx)
 {
     /* LCOV_EXCL_START: Static helper defensive bounds guard */

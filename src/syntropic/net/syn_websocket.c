@@ -325,6 +325,10 @@ static bool ws_has_work(const SYN_WebsocketSession *ws)
     return false;
 }
 
+/**
+ * @brief Dispatch a completely received WebSocket frame to handlers.
+ * @param ws Pointer to WebSocket session instance.
+ */
 static void dispatch_ws_frame(SYN_WebsocketSession *ws)
 {
     if (ws->opcode == 0x08) {
