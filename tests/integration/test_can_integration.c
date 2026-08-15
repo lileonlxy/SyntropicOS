@@ -61,8 +61,26 @@ void test_canopen_cia402_integration(void)
                          SYN_CIA402_CW_QUICK_STOP | SYN_CIA402_CW_ENABLE_OP;
     status = syn_cia402_set_controlword(&drive, cw_enable);
     TEST_ASSERT_EQUAL_INT(SYN_OK, status);
-
     TEST_ASSERT_EQUAL_INT(SYN_CIA402_STATE_OPERATION_ENABLED, drive.state);
+
+    /* Quick Stop Transition: Active Low bit 2 cleared -> 0x000B */
+    uint16_t cw_quickstop =
+        SYN_CIA402_CW_SWITCH_ON | SYN_CIA402_CW_ENABLE_VOLTAGE | SYN_CIA402_CW_ENABLE_OP;
+    status = syn_cia402_set_controlword(&drive, cw_quickstop);
+    TEST_ASSERT_EQUAL_INT(SYN_OK, status);
+    TEST_ASSERT_EQUAL_INT(SYN_CIA402_STATE_QUICK_STOP_ACTIVE, drive.state);
+
+    /* Trigger Fault condition */
+    status = syn_cia402_trigger_fault(&drive, 0x2310);
+    TEST_ASSERT_EQUAL_INT(SYN_OK, status);
+    TEST_ASSERT_EQUAL_INT(SYN_CIA402_STATE_FAULT, drive.state);
+    statusword = syn_cia402_get_statusword(&drive);
+    TEST_ASSERT_TRUE((statusword & SYN_CIA402_SW_FAULT) != 0);
+
+    /* Fault Reset Transition (Bit 7 rising edge 0 -> 1) */
+    status = syn_cia402_set_controlword(&drive, SYN_CIA402_CW_FAULT_RESET);
+    TEST_ASSERT_EQUAL_INT(SYN_OK, status);
+    TEST_ASSERT_EQUAL_INT(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
 
     printf("[Integration Test] End-to-End CANopen CiA 402 Integration PASS!\n");
 }
