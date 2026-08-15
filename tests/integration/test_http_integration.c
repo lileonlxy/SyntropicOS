@@ -75,6 +75,26 @@ void test_http_client_e2e(void)
            rcv_body);
 
     TEST_ASSERT_NOT_NULL(strstr(rcv_body, "nginx"));
+
+    /* Test 2: GET / (Root Endpoint) */
+    memset(rcv_body, 0, sizeof(rcv_body));
+    rcv_len = 0;
+    status = syn_http_client_init(&client, "GET", host, port, "/", NULL, NULL, 0, NULL, 0,
+                                  on_http_body, NULL, work_buf, sizeof(work_buf));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, status);
+    PT_INIT(&pt);
+    iterations = 0;
+    while (client.state != SYN_HTTP_STATE_DONE && client.state != SYN_HTTP_STATE_ERROR &&
+           iterations < 100) {
+        mock_tick_advance(10);
+        syn_http_client_task(&pt, &task);
+        usleep(10000);
+        iterations++;
+    }
+    TEST_ASSERT_EQUAL_INT(SYN_HTTP_STATE_DONE, client.state);
+    TEST_ASSERT_EQUAL_INT(200, client.resp.status_code);
+    TEST_ASSERT_NOT_NULL(strstr(rcv_body, "Ready"));
+
     printf("[Integration Test] End-to-End Nginx HTTP Integration PASS!\n");
 }
 

@@ -42,7 +42,10 @@ static void test_oled_controllers(void)
     /* SSD1309 Initialization */
     st = syn_oled_init(&oled, 0, 1, 0x3C, 128, 64, SYN_OLED_SSD1309);
     TEST_ASSERT_EQUAL(SYN_OK, st);
-    syn_oled_flush_canvas(&oled, &c);
+    /* SSD1306 128x32 Initialization (non-64 height COM pin config branch) */
+    st = syn_oled_init(&oled, 0, 1, 0x3C, 128, 32, SYN_OLED_SSD1306);
+    TEST_ASSERT_EQUAL(SYN_OK, st);
+    TEST_ASSERT_EQUAL_UINT16(32, oled.height);
 
     /* NULL safety guards */
     syn_oled_set_contrast(NULL, 0);

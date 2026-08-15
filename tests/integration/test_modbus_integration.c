@@ -36,9 +36,7 @@ void test_modbus_tcp_integration(void)
     }
     printf("[Integration Test] Connected to Modbus TCP Server!\n");
 
-    /* Build Modbus TCP Read Holding Registers Request (FC 0x03, Reg 0, Count 2) */
-    /* MBAP: TxID=0x0001, ProtoID=0x0000, Length=6, UnitID=1 */
-    /* PDU: FC=0x03, StartAddr=0x0000, RegCount=0x0002 */
+    /* 1. Read Holding Registers (FC 0x03, Reg 0, Count 2) */
     uint8_t req[12] = {
         0x00,
         0x01, /* TxID */
@@ -73,6 +71,71 @@ void test_modbus_tcp_integration(void)
     printf("[Integration Test] Read Holding Reg 0: 0x%04X, Reg 1: 0x%04X\n", reg0, reg1);
     TEST_ASSERT_EQUAL_HEX16(0x1234, reg0);
     TEST_ASSERT_EQUAL_HEX16(0x5678, reg1);
+
+    /* 2. Write Single Register (FC 0x06, Reg 2 = 0xCAFE) */
+    uint8_t write_req[12] = {
+        0x00,
+        0x02, /* TxID */
+        0x00,
+        0x00, /* ProtoID */
+        0x00,
+        0x06,                   /* Length */
+        0x01,                   /* UnitID */
+        SYN_MB_FC_WRITE_SINGLE, /* FC 0x06 */
+        0x00,
+        0x02, /* Register Address 2 */
+        0xCA,
+        0xFE /* Value 0xCAFE */
+    };
+    sent = send(sock, write_req, sizeof(write_req), 0);
+    TEST_ASSERT_EQUAL_INT(sizeof(write_req), sent);
+
+    recvd = recv(sock, resp, sizeof(resp), 0);
+    TEST_ASSERT_EQUAL_INT(12, recvd);
+    TEST_ASSERT_EQUAL_UINT8(SYN_MB_FC_WRITE_SINGLE, resp[7]);
+    TEST_ASSERT_EQUAL_UINT8(0xCA, resp[10]);
+    TEST_ASSERT_EQUAL_UINT8(0xFE, resp[11]);
+
+    /* Read back Reg 2 to verify persistence */
+    uint8_t read_req2[12] = {0x00, 0x03, 0x00, 0x00, 0x00, 0x06, 0x01, SYN_MB_FC_READ_HOLDING,
+                             0x00, 0x02, 0x00, 0x01};
+    send(sock, read_req2, sizeof(read_req2), 0);
+    recvd = recv(sock, resp, sizeof(resp), 0);
+    TEST_ASSERT_TRUE(recvd >= 9);
+    uint16_t reg2 = (resp[9] << 8) | resp[10];
+    printf("[Integration Test] Verified Written Reg 2: 0x%04X\n", reg2);
+    TEST_ASSERT_EQUAL_HEX16(0xCAFE, reg2);
+
+    /* 3. Write Single Coil (FC 0x05, Coil 1 = ON 0xFF00) */
+    uint8_t coil_req[12] = {
+        0x00,
+        0x04, /* TxID */
+        0x00,
+        0x00, /* ProtoID */
+        0x00,
+        0x06,                        /* Length */
+        0x01,                        /* UnitID */
+        SYN_MB_FC_WRITE_SINGLE_COIL, /* FC 0x05 */
+        0x00,
+        0x01, /* Coil Address 1 */
+        0xFF,
+        0x00 /* ON */
+    };
+    sent = send(sock, coil_req, sizeof(coil_req), 0);
+    TEST_ASSERT_EQUAL_INT(sizeof(coil_req), sent);
+    recvd = recv(sock, resp, sizeof(resp), 0);
+    TEST_ASSERT_EQUAL_INT(12, recvd);
+    TEST_ASSERT_EQUAL_UINT8(SYN_MB_FC_WRITE_SINGLE_COIL, resp[7]);
+    TEST_ASSERT_EQUAL_UINT8(0xFF, resp[10]);
+
+    /* 4. Exception Response for unsupported FC (e.g. FC 0x2B) */
+    uint8_t invalid_req[12] = {0x00, 0x05, 0x00, 0x00, 0x00, 0x06,
+                               0x01, 0x2B, 0x00, 0x00, 0x00, 0x01};
+    send(sock, invalid_req, sizeof(invalid_req), 0);
+    recvd = recv(sock, resp, sizeof(resp), 0);
+    TEST_ASSERT_TRUE(recvd >= 9);
+    TEST_ASSERT_EQUAL_UINT8(0x2B | 0x80, resp[7]); /* Error FC 0xAB */
+    TEST_ASSERT_EQUAL_UINT8(0x01, resp[8]);        /* Exception code: Illegal function */
 
     close(sock);
     printf("[Integration Test] End-to-End Modbus TCP Integration PASS!\n");
