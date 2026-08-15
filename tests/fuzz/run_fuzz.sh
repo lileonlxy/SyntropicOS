@@ -77,4 +77,52 @@ clang -std=c99 -I"${ROOT_DIR}" -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/tests/unit/moc
 ./fuzzer_isotp -max_total_time=10 || true
 rm -f fuzzer_isotp
 
+echo "=== Compiling & Fuzzing COBS Decoder (10s smoke test) ==="
+clang -std=c99 -I"${ROOT_DIR}" -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/tests/unit/mocks" -DSYN_USE_MULTICORE=1 -fsanitize=fuzzer,address,undefined \
+    "${ROOT_DIR}/src/syntropic/proto/syn_cobs.c" \
+    "${ROOT_DIR}/tests/unit/mocks/mock_port.c" \
+    "${ROOT_DIR}/tests/fuzz/fuzz_cobs.c" \
+    -o fuzzer_cobs
+./fuzzer_cobs -max_total_time=10 || true
+rm -f fuzzer_cobs
+
+echo "=== Compiling & Fuzzing DMX512 Protocol (10s smoke test) ==="
+clang -std=c99 -I"${ROOT_DIR}" -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/tests/unit/mocks" -DSYN_USE_MULTICORE=1 -fsanitize=fuzzer,address,undefined \
+    "${ROOT_DIR}/src/syntropic/proto/syn_dmx512.c" \
+    "${ROOT_DIR}/tests/unit/mocks/mock_port.c" \
+    "${ROOT_DIR}/tests/fuzz/fuzz_dmx512.c" \
+    -o fuzzer_dmx512
+./fuzzer_dmx512 -max_total_time=10 || true
+rm -f fuzzer_dmx512
+
+echo "=== Compiling & Fuzzing JSON Reader (10s smoke test) ==="
+clang -std=c99 -I"${ROOT_DIR}" -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/tests/unit/mocks" -DSYN_USE_MULTICORE=1 -fsanitize=fuzzer,address,undefined \
+    "${ROOT_DIR}/src/syntropic/util/syn_json_read.c" \
+    "${ROOT_DIR}/tests/unit/mocks/mock_port.c" \
+    "${ROOT_DIR}/tests/fuzz/fuzz_json.c" \
+    -o fuzzer_json
+./fuzzer_json -max_total_time=10 || true
+rm -f fuzzer_json
+
+echo "=== Compiling & Fuzzing Modbus Protocol (10s smoke test) ==="
+clang -std=c99 -I"${ROOT_DIR}" -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/tests/unit/mocks" -DSYN_USE_MULTICORE=1 -fsanitize=fuzzer,address,undefined \
+    "${ROOT_DIR}/src/syntropic/proto/syn_modbus.c" \
+    "${ROOT_DIR}/src/syntropic/proto/syn_modbus_tcp.c" \
+    "${ROOT_DIR}/src/syntropic/util/syn_crc.c" \
+    "${ROOT_DIR}/tests/unit/mocks/mock_port.c" \
+    "${ROOT_DIR}/tests/fuzz/fuzz_modbus.c" \
+    -o fuzzer_modbus
+./fuzzer_modbus -max_total_time=10 || true
+rm -f fuzzer_modbus
+
+echo "=== Compiling & Fuzzing SMBus Decoder (10s smoke test) ==="
+clang -std=c99 -I"${ROOT_DIR}" -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/tests/unit/mocks" -DSYN_USE_MULTICORE=1 -fsanitize=fuzzer,address,undefined \
+    "${ROOT_DIR}/src/syntropic/proto/syn_smbus.c" \
+    "${ROOT_DIR}/src/syntropic/util/syn_crc.c" \
+    "${ROOT_DIR}/tests/unit/mocks/mock_port.c" \
+    "${ROOT_DIR}/tests/fuzz/fuzz_smbus.c" \
+    -o fuzzer_smbus
+./fuzzer_smbus -max_total_time=10 || true
+rm -f fuzzer_smbus
+
 echo "=== Protocol Fuzzing Smoke Tests Complete ==="

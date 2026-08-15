@@ -1,5 +1,5 @@
+#include "mock_port.h"
 #include "syntropic/proto/syn_modbus.h"
-#include "tests/mocks/mock_port.h"
 
 #include <stddef.h>
 #include <stdint.h>
