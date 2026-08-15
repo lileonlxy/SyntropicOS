@@ -46,6 +46,7 @@ void run_fsm_tests(void);
 void run_filter_tests(void);
 void run_signal_tests(void);
 void run_fmt_tests(void);
+void run_base64_tests(void);
 void run_ramp_tests(void);
 void run_pubsub_tests(void);
 void run_pack_tests(void);
@@ -232,6 +233,7 @@ int main(void)
     run_crc_tests();
     run_fsm_tests();
     run_fmt_tests();
+    run_base64_tests();
     run_ramp_tests();
     run_pubsub_tests();
     run_pack_tests();

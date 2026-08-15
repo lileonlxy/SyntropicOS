@@ -145,39 +145,9 @@ static void sha1_final(SYN_SHA1_Ctx *ctx, uint8_t digest[20])
     }
 }
 
-/* ── Base64 ─────────────────────────────────────────────────────────────── */
-
-/**
- * @brief Base64 encode a byte array.
- * @param src  Source bytes.
- * @param len  Number of bytes.
- * @param dst  [out] Null-terminated base64 string.
- */
-static void base64_encode(const uint8_t *src, size_t len, char *dst)
-{
-    const char table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    while (len >= 3) {
-        dst[0] = table[src[0] >> 2];
-        dst[1] = table[((src[0] & 0x03) << 4) | (src[1] >> 4)];
-        dst[2] = table[((src[1] & 0x0F) << 2) | (src[2] >> 6)];
-        dst[3] = table[src[2] & 0x3F];
-        src += 3;
-        dst += 4;
-        len -= 3;
-    }
-    if (len == 2) {
-        dst[0] = table[src[0] >> 2];
-        dst[1] = table[((src[0] & 0x03) << 4) | (src[1] >> 4)];
-        dst[2] = table[(src[1] & 0x0F) << 2];
-        dst[3] = '=';
-        dst += 4;
-        /* len == 1 case removed: unreachable for SHA1 digest (20 bytes) */
-    }
-    *dst = '\0';
-}
-
 /* ── Websocket Upgrading ────────────────────────────────────────────────── */
 
+#include "../util/syn_base64.h"
 #include "../util/syn_fmt.h"
 
 /**
@@ -243,7 +213,7 @@ SYN_Status syn_websocket_upgrade(
     sha1_final(&sha, digest);
 
     char accept_key[32];
-    base64_encode(digest, 20, accept_key);
+    syn_base64_encode(digest, 20, accept_key, sizeof(accept_key), NULL);
 
     /* Send response headers in a single TCP frame */
     char resp_buf[160];

@@ -32,6 +32,7 @@ SYN_SRCS := \
 	src/syntropic/drivers/syn_spi_queue.c \
 	src/syntropic/util/syn_ringbuf.c src/syntropic/util/syn_fsm.c \
 	src/syntropic/util/syn_crc.c src/syntropic/util/syn_fmt.c \
+	src/syntropic/util/syn_base64.c \
 	src/syntropic/util/syn_ramp.c src/syntropic/util/syn_scurve.c \
 	src/syntropic/util/syn_cbor_write.c src/syntropic/util/syn_cbor_read.c \
 	src/syntropic/util/syn_pubsub.c src/syntropic/util/syn_netbuf.c \

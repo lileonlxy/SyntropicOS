@@ -1,6 +1,7 @@
 target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_aes128.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_backoff.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_base64.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_cbor_read.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_cbor_write.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_crc.c

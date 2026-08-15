@@ -108,6 +108,10 @@ extern "C" {
 #include "util/syn_fmt.h"
 #endif
 
+#if !defined(SYN_USE_BASE64) || SYN_USE_BASE64
+#include "util/syn_base64.h"
+#endif
+
 #if !defined(SYN_USE_CBOR) || SYN_USE_CBOR
 #include "util/syn_cbor_read.h"
 #include "util/syn_cbor_write.h"
