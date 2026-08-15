@@ -83,8 +83,36 @@ static void test_actuator_clear_stall(void)
     TEST_ASSERT_EQUAL_INT32(100, act.ctrl.pid.cfg.kp);
 }
 
+static void test_actuator_at_target_tolerance(void)
+{
+    SYN_Actuator act;
+    memset(&act, 0, sizeof(act));
+
+    /* Exactly equal */
+    act.target_pct = 500;
+    act.current_pct = 500;
+    TEST_ASSERT_TRUE(syn_actuator_at_target(&act));
+
+    /* Positive diff within tolerance (target 505, current 500 -> diff 5) */
+    act.target_pct = 505;
+    TEST_ASSERT_TRUE(syn_actuator_at_target(&act));
+
+    /* Positive diff outside tolerance (target 506, current 500 -> diff 6) */
+    act.target_pct = 506;
+    TEST_ASSERT_FALSE(syn_actuator_at_target(&act));
+
+    /* Negative diff within tolerance (target 495, current 500 -> diff -5) */
+    act.target_pct = 495;
+    TEST_ASSERT_TRUE(syn_actuator_at_target(&act));
+
+    /* Negative diff outside tolerance (target 494, current 500 -> diff -6) */
+    act.target_pct = 494;
+    TEST_ASSERT_FALSE(syn_actuator_at_target(&act));
+}
+
 void run_actuator_tests(void)
 {
     RUN_TEST(test_actuator);
     RUN_TEST(test_actuator_clear_stall);
+    RUN_TEST(test_actuator_at_target_tolerance);
 }
