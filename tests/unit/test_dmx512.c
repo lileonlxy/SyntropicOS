@@ -176,6 +176,29 @@ static void test_dmx512_full_universe_loopback(void)
     }
 }
 
+static void test_dmx512_short_universe(void)
+{
+    SYN_DMX512_Slave slave;
+    /* 4-channel fixture starting at DMX address 1 */
+    syn_dmx512_slave_init(&slave, 1, 4);
+
+    /* Signal Break */
+    syn_dmx512_slave_rx_break(&slave);
+    /* Start Code 0x00 */
+    syn_dmx512_slave_rx_byte(&slave, 0x00);
+    /* Stream only 16 slots (short universe) */
+    for (uint8_t i = 1; i <= 16; i++) {
+        syn_dmx512_slave_rx_byte(&slave, i * 10);
+    }
+    TEST_ASSERT_FALSE(syn_dmx512_slave_is_updated(&slave));
+
+    /* Next packet Break arrives */
+    syn_dmx512_slave_rx_break(&slave);
+    TEST_ASSERT_TRUE(syn_dmx512_slave_is_updated(&slave));
+    TEST_ASSERT_EQUAL(10, syn_dmx512_slave_get_channel(&slave, 0));
+    TEST_ASSERT_EQUAL(20, syn_dmx512_slave_get_channel(&slave, 1));
+}
+
 void run_dmx512_tests(void)
 {
     RUN_TEST(test_dmx512_master_init_and_channels);
@@ -183,4 +206,5 @@ void run_dmx512_tests(void)
     RUN_TEST(test_dmx512_slave_rx_flow);
     RUN_TEST(test_dmx512_slave_init_bounds);
     RUN_TEST(test_dmx512_full_universe_loopback);
+    RUN_TEST(test_dmx512_short_universe);
 }

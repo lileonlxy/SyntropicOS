@@ -311,11 +311,24 @@ static void test_websocket_recv_extended_len(void)
     PT_INIT(&pt);
     SYN_Task task;
     task.user_data = &ws;
-    for (int i = 0; i < 300; i++) {
-        syn_websocket_task(&pt, &task);
-    }
+    syn_websocket_task(&pt, &task);
     TEST_ASSERT_EQUAL(1, s_msg_callback_count);
     TEST_ASSERT_EQUAL(0x01, s_last_opcode);
+
+    /* Masked text frame with 2-byte extended length = 130 bytes */
+    uint8_t masked_ext_frame[138];
+    masked_ext_frame[0] = 0x81;
+    masked_ext_frame[1] = 0xFE; /* Mask=1, Len=126 */
+    masked_ext_frame[2] = 0x00;
+    masked_ext_frame[3] = 0x82; /* 130 */
+    masked_ext_frame[4] = 0x11;
+    masked_ext_frame[5] = 0x22;
+    masked_ext_frame[6] = 0x33;
+    masked_ext_frame[7] = 0x44;
+    memset(&masked_ext_frame[8], 'C', 130);
+    mock_sock_set_response(masked_ext_frame, sizeof(masked_ext_frame));
+    syn_websocket_task(&pt, &task);
+    TEST_ASSERT_EQUAL(2, s_msg_callback_count);
 }
 
 /** Recv: close frame — exercises lines 378-380 */
@@ -473,6 +486,27 @@ static void test_websocket_frame_masking_and_runt_payloads(void)
     PT_INIT(&null_pt);
     TEST_ASSERT_EQUAL(PT_EXITED, syn_websocket_task(&null_pt, &null_task));
     TEST_ASSERT_EQUAL(PT_EXITED, syn_websocket_task(&null_pt, NULL));
+
+    /* 5. 0-length payload frame parsing (e.g. empty unmasked PING, empty masked text) */
+    SYN_WebsocketSession ws_empty;
+    memset(&ws_empty, 0, sizeof(ws_empty));
+    ws_empty.sock = 11;
+    ws_empty.state = SYN_WS_STATE_CONNECTED;
+    ws_empty.on_message = on_ws_message;
+    s_msg_callback_count = 0;
+    mock_port_reset();
+    mock_sock_connected = true;
+
+    /* Frame 1: Unmasked Empty PING (0x89, 0x00), Frame 2: Masked Empty Text (0x81, 0x80, M1..M4) */
+    uint8_t empty_frames[] = {0x89, 0x00, 0x81, 0x80, 0x11, 0x22, 0x33, 0x44};
+    mock_sock_set_response(empty_frames, sizeof(empty_frames));
+    SYN_PT pt_empty;
+    PT_INIT(&pt_empty);
+    SYN_Task task_empty = {.user_data = &ws_empty};
+    syn_websocket_task(&pt_empty, &task_empty);
+    TEST_ASSERT_EQUAL(1, s_msg_callback_count);
+    TEST_ASSERT_EQUAL(0, s_last_len);
+    TEST_ASSERT_EQUAL_HEX8(0x01, s_last_opcode);
 }
 
 void run_websocket_tests(void)

@@ -188,6 +188,13 @@ void test_httpd_wildcard_route(void)
     syn_httpd_step(&srv);
     TEST_ASSERT_TRUE(handler_called);
     TEST_ASSERT_EQUAL_STRING("/api/other", last_path);
+
+    /* Test path shorter than wildcard prefix */
+    handler_called = false;
+    const char *short_request = "GET /a HTTP/1.1\r\nHost: test\r\n\r\n";
+    mock_sock_set_response(short_request, strlen(short_request));
+    syn_httpd_step(&srv);
+    TEST_ASSERT_FALSE(handler_called);
 }
 
 void test_httpd_404_not_found(void)

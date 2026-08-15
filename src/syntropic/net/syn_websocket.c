@@ -325,6 +325,27 @@ static bool ws_has_work(const SYN_WebsocketSession *ws)
     return false;
 }
 
+static void dispatch_ws_frame(SYN_WebsocketSession *ws)
+{
+    if (ws->opcode == 0x08) {
+        /* CLOSE frame */
+        syn_port_sock_close(ws->sock);
+        ws->state = SYN_WS_STATE_CLOSED;
+    } else if (ws->opcode == 0x09) {
+        /* PING, reply with PONG */
+        syn_websocket_send(ws, 0x0A, ws->rx_buf,
+                           ws->payload_len < sizeof(ws->rx_buf) ? ws->payload_len
+                                                                : sizeof(ws->rx_buf));
+    } else if (ws->opcode == 0x01 || ws->opcode == 0x02) {
+        /* Text/Binary message */
+        if (ws->on_message != NULL) {
+            size_t act_len =
+                ws->payload_len < sizeof(ws->rx_buf) ? ws->payload_len : sizeof(ws->rx_buf);
+            ws->on_message(ws->rx_buf, act_len, ws->opcode, ws->ctx);
+        }
+    }
+}
+
 SYN_PT_Status syn_websocket_task(SYN_PT *pt, SYN_Task *task)
 {
     if (task == NULL || task->user_data == NULL)
@@ -353,8 +374,15 @@ SYN_PT_Status syn_websocket_task(SYN_PT *pt, SYN_Task *task)
                     uint8_t l = b & 0x7F;
                     if (l < 126) {
                         ws->payload_len = l;
-                        ws->rx_state = ws->masked ? 2 : 3;
                         ws->bytes_read = 0;
+                        if (ws->masked) {
+                            ws->rx_state = 2;
+                        } else if (ws->payload_len == 0) {
+                            dispatch_ws_frame(ws);
+                            ws->rx_state = 0;
+                        } else {
+                            ws->rx_state = 3;
+                        }
                     } else if (l == 126) {
                         /* 2 byte length */
                         ws->payload_len = 0;
@@ -376,8 +404,13 @@ SYN_PT_Status syn_websocket_task(SYN_PT *pt, SYN_Task *task)
                     /* Read Masking Key */
                     ws->mask_key[ws->bytes_read++] = b;
                     if (ws->bytes_read == 4) {
-                        ws->rx_state = 3;
                         ws->bytes_read = 0;
+                        if (ws->payload_len == 0) {
+                            dispatch_ws_frame(ws);
+                            ws->rx_state = 0;
+                        } else {
+                            ws->rx_state = 3;
+                        }
                     }
                 } else if (ws->rx_state == 3) {
                     /* Read Payload */
@@ -390,26 +423,7 @@ SYN_PT_Status syn_websocket_task(SYN_PT *pt, SYN_Task *task)
                     ws->bytes_read++;
                     if (ws->bytes_read == ws->payload_len) {
                         /* Finished reading frame */
-                        if (ws->opcode == 0x08) {
-                            /* CLOSE frame */
-                            syn_port_sock_close(ws->sock);
-                            ws->state = SYN_WS_STATE_CLOSED;
-                            break;
-                        } else if (ws->opcode == 0x09) {
-                            /* PING, reply with PONG */
-                            syn_websocket_send(ws, 0x0A, ws->rx_buf,
-                                               ws->payload_len < sizeof(ws->rx_buf)
-                                                   ? ws->payload_len
-                                                   : sizeof(ws->rx_buf));
-                        } else if (ws->opcode == 0x01 || ws->opcode == 0x02) {
-                            /* Text/Binary message */
-                            if (ws->on_message != NULL) {
-                                size_t act_len = ws->payload_len < sizeof(ws->rx_buf)
-                                                     ? ws->payload_len
-                                                     : sizeof(ws->rx_buf);
-                                ws->on_message(ws->rx_buf, act_len, ws->opcode, ws->ctx);
-                            }
-                        }
+                        dispatch_ws_frame(ws);
                         ws->rx_state = 0;
                     }
                 }

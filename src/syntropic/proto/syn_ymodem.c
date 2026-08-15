@@ -262,7 +262,8 @@ SYN_YMODEM_Status syn_ymodem_receive(SYN_YMODEM_Receiver *rx)
             /* Calculate chunk size based on remaining filesize */
             size_t chunk_len = data_payload_len;
             if (rx->filesize > 0U) {
-                uint32_t remaining = rx->filesize - rx->bytes_received;
+                uint32_t remaining =
+                    (rx->bytes_received < rx->filesize) ? (rx->filesize - rx->bytes_received) : 0U;
                 if (remaining < chunk_len) {
                     chunk_len = (size_t)remaining;
                 }

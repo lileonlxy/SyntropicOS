@@ -199,6 +199,10 @@ static const SYN_HttpdRoute *match_route(const SYN_Httpd *srv, const SYN_HttpdRe
         size_t plen = strlen(r->path);
         if (plen > 0 && r->path[plen - 1] == '*') {
             /* Prefix match: "/api/" with wildcard */
+            size_t req_plen = strlen(req->path);
+            if (req_plen < plen - 1) {
+                continue;
+            }
             bool match = true;
             for (size_t k = 0; k < plen - 1; k++) {
                 if (req->path[k] != r->path[k]) {

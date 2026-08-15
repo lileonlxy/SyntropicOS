@@ -92,6 +92,11 @@ void syn_dmx512_slave_rx_break(SYN_DMX512_Slave *slave)
     if (slave == NULL)
         return;
 
+    if (slave->rx_state == SYN_DMX512_STATE_READ_SLOTS &&
+        slave->current_slot >= slave->start_address) {
+        slave->frame_complete = true;
+    }
+
     slave->rx_state = SYN_DMX512_STATE_WAIT_START;
     slave->current_slot = 0;
 }
