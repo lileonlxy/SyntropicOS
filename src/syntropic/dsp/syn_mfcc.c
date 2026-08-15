@@ -39,7 +39,7 @@ SYN_Status syn_mfcc_process_frame(SYN_MFCC *mfcc, const int16_t *pcm_in,
     /* 1. Windowing and Q16 conversion */
     for (uint16_t i = 0U; i < N; i++) {
         /* Convert int16 PCM to Q16.16 */
-        mfcc->fft_real[i] = ((q16_t)pcm_in[i]) << 1;
+        mfcc->fft_real[i] = (q16_t)pcm_in[i] * 2;
         mfcc->fft_imag[i] = 0;
     }
 

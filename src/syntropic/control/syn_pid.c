@@ -80,8 +80,9 @@ int32_t syn_pid_update(SYN_PID *pid, int32_t setpoint, int32_t measured, uint32_
 
     /* Optional EMA filter on derivative */
     if (pid->cfg.d_filter_alpha > 0 && pid->cfg.d_filter_alpha < 255) {
-        int32_t alpha = pid->cfg.d_filter_alpha;
-        pid->prev_d_filtered += (alpha * (d_raw - pid->prev_d_filtered)) >> 8;
+        int64_t alpha = pid->cfg.d_filter_alpha;
+        int64_t diff = (int64_t)d_raw - pid->prev_d_filtered;
+        pid->prev_d_filtered += (int32_t)((alpha * diff) >> 8);
         d_raw = pid->prev_d_filtered;
     }
 
@@ -93,7 +94,7 @@ int32_t syn_pid_update(SYN_PID *pid, int32_t setpoint, int32_t measured, uint32_
 
     /* Anti-windup: if output is saturated, freeze integral */
     if ((output == pid->cfg.out_max && error > 0) || (output == pid->cfg.out_min && error < 0)) {
-        pid->integral -= error * (int32_t)dt_ms;
+        pid->integral -= (int64_t)error * (int32_t)dt_ms;
     }
 
     pid->output = output;

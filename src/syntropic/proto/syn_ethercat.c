@@ -756,7 +756,9 @@ SYN_PT_Status syn_ecat_master_scan_task(SYN_PT *pt, SYN_EcatMaster *m)
     syn_ecat_decode_scan_bus(m, m->rx_frame_len);
 
     /* 2. Assign station addresses for each slave */
-    for (m->current_slave_idx = 0; m->current_slave_idx < m->slave_count; m->current_slave_idx++) {
+    uint8_t limit =
+        (m->slave_count > SYN_ECAT_MAX_SLAVES) ? (uint8_t)SYN_ECAT_MAX_SLAVES : m->slave_count;
+    for (m->current_slave_idx = 0; m->current_slave_idx < limit; m->current_slave_idx++) {
         m->slaves[m->current_slave_idx].station_addr = (uint16_t)(0x1001 + m->current_slave_idx);
         m->tx_frame_len = (uint16_t)syn_ecat_encode_assign_addr(
             m, m->current_slave_idx, m->slaves[m->current_slave_idx].station_addr);
@@ -789,7 +791,9 @@ SYN_PT_Status syn_ecat_master_transition_task(SYN_PT *pt, SYN_EcatMaster *m,
 
     PT_BEGIN(pt);
 
-    for (m->current_slave_idx = 0; m->current_slave_idx < m->slave_count; m->current_slave_idx++) {
+    uint8_t trans_limit =
+        (m->slave_count > SYN_ECAT_MAX_SLAVES) ? (uint8_t)SYN_ECAT_MAX_SLAVES : m->slave_count;
+    for (m->current_slave_idx = 0; m->current_slave_idx < trans_limit; m->current_slave_idx++) {
         uint16_t st_addr = syn_ecat_get_slave_station_addr(m, m->current_slave_idx);
 
         /* If moving to PREOP, write SyncManager 0 & 1 default mailbox settings */

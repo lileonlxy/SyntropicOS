@@ -266,7 +266,7 @@ static int32_t read_i32_leb128(const uint8_t *bytes, uint32_t max_size, uint32_t
 
     while (cur < max_size) {
         byte = bytes[cur++];
-        result |= (int32_t)(byte & 0x7F) << shift;
+        result |= (int32_t)((uint32_t)(byte & 0x7FU) << shift);
         shift += 7;
         if ((byte & 0x80) == 0) {
             break;
@@ -279,7 +279,7 @@ static int32_t read_i32_leb128(const uint8_t *bytes, uint32_t max_size, uint32_t
     }
 
     if ((shift < 32) && (byte & 0x40)) {
-        result |= (~0U << shift);
+        result |= (int32_t)(~0U << shift);
     }
 
     *offset = cur;
@@ -295,7 +295,7 @@ static int64_t read_i64_leb128(const uint8_t *bytes, uint32_t max_size, uint32_t
 
     while (cur < max_size) {
         byte = bytes[cur++];
-        result |= ((int64_t)(byte & 0x7F)) << shift;
+        result |= (int64_t)(((uint64_t)(byte & 0x7FU)) << shift);
         shift += 7;
         if ((byte & 0x80) == 0) {
             break;
@@ -309,7 +309,7 @@ static int64_t read_i64_leb128(const uint8_t *bytes, uint32_t max_size, uint32_t
 
     /* LCOV_EXCL_START: Negative LEB128 sign extension */
     if ((shift < 64) && (byte & 0x40)) {
-        result |= (~0ULL << shift);
+        result |= (int64_t)(~0ULL << shift);
     }
     /* LCOV_EXCL_STOP */
 

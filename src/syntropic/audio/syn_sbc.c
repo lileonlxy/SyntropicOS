@@ -267,7 +267,7 @@ SYN_Status syn_sbc_decode_frame(SYN_SBC_Decoder *dec, const uint8_t *in, size_t 
                 int32_t sum = 0;
                 for (uint8_t sb = 0U; sb < sbs; sb++) {
                     int32_t cos_val = (sbs == 4U) ? syn_cos4[i][sb] : syn_cos8[i][sb];
-                    sum += (dec->audio_sample[blk][ch][sb] * cos_val) >> 8;
+                    sum += (int32_t)(((int64_t)dec->audio_sample[blk][ch][sb] * cos_val) >> 8);
                 }
                 dec->V[ch][i] = sum;
             }
@@ -277,7 +277,8 @@ SYN_Status syn_sbc_decode_frame(SYN_SBC_Decoder *dec, const uint8_t *in, size_t 
                 int32_t pcm_val = 0;
                 for (int idx = 0; idx < 10; idx++) {
                     int32_t coef = (sbs == 4U) ? proto4_40[idx * 4 + sb] : proto8_80[idx * 8 + sb];
-                    pcm_val += (dec->V[ch][idx * 2 * (int)sbs + (int)sb] * coef) >> 8;
+                    pcm_val +=
+                        (int32_t)(((int64_t)dec->V[ch][idx * 2 * (int)sbs + (int)sb] * coef) >> 8);
                 }
                 pcm_out[pcm_idx++] = clamp_s16(pcm_val);
             }
