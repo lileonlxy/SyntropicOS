@@ -127,6 +127,7 @@ void test_ocpp_heartbeat_and_status_formatting(void)
 
     TEST_ASSERT_EQUAL(SYN_OK, syn_ocpp_format_heartbeat(&g_ocpp_client, buf, sizeof(buf), &len));
     TEST_ASSERT_NOT_NULL(strstr(buf, "Heartbeat"));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ocpp_format_heartbeat(&g_ocpp_client, buf, 10, &len));
 
     TEST_ASSERT_EQUAL(
         SYN_OK, syn_ocpp_format_status_notification(&g_ocpp_client, 1, SYN_OCPP_STATUS_CHARGING,

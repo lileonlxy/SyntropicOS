@@ -230,7 +230,7 @@ SYN_Status syn_bacnet_node_process(SYN_BACnet_Node *node, const SYN_BACnet_MSTP_
             bool found = false;
 
             for (size_t i = 0; i < node->object_count; i++) {
-                if (node->objects[i].instance_id == req_instance || req_instance == 0) {
+                if (node->objects[i].instance_id == req_instance) {
                     val = node->objects[i].present_value;
                     found = true;
                     break;
@@ -276,7 +276,7 @@ SYN_Status syn_bacnet_node_process(SYN_BACnet_Node *node, const SYN_BACnet_MSTP_
 
             /* Update object value */
             for (size_t i = 0; i < node->object_count; i++) {
-                if (node->objects[i].instance_id == req_instance || req_instance == 0) {
+                if (node->objects[i].instance_id == req_instance) {
                     node->objects[i].present_value = new_val;
                     break;
                 }

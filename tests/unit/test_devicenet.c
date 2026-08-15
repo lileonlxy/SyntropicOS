@@ -119,6 +119,15 @@ static void test_devicenet_explicit_and_polled_messaging(void)
     syn_devicenet_on_can_rx(&g_dnet, exp_req_id, req_get_asm, 4, &tx_can_id, tx_data, &tx_len);
     TEST_ASSERT_EQUAL_UINT8(0x11, tx_data[2]);
 
+    /* Test Assembly read with 8-byte input buffer (clamped to 6 bytes payload) */
+    uint8_t big_in[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    syn_devicenet_set_assembly(&g_dnet, big_in, 8, g_out_buf, 4);
+    syn_devicenet_on_can_rx(&g_dnet, exp_req_id, req_get_asm, 4, &tx_can_id, tx_data, &tx_len);
+    TEST_ASSERT_EQUAL_UINT8(8, tx_len);
+    TEST_ASSERT_EQUAL_UINT8(1, tx_data[2]);
+    TEST_ASSERT_EQUAL_UINT8(6, tx_data[7]);
+    syn_devicenet_set_assembly(&g_dnet, g_in_buf, 4, g_out_buf, 4);
+
     /* Set_Attribute_Single (Class 0x01 Identity, Attr 9 QuickConnect) */
     uint8_t req_set_qc[5] = {6, 0x10, 0x01, 9, 1};
     TEST_ASSERT_TRUE(

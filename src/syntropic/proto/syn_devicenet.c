@@ -199,8 +199,11 @@ static bool handle_explicit_message(SYN_DeviceNet_Node *node, const uint8_t *dat
             }
         } else if (class_id == 0x04U) { /* Assembly Object */
             if ((node->assembly.input_buf != NULL) && (node->assembly.input_len > 0U)) {
-                memcpy(&tx_data[out_idx], node->assembly.input_buf, node->assembly.input_len);
-                out_idx += node->assembly.input_len;
+                uint8_t copy_len = (node->assembly.input_len > (8U - out_idx))
+                                       ? (8U - out_idx)
+                                       : node->assembly.input_len;
+                memcpy(&tx_data[out_idx], node->assembly.input_buf, copy_len);
+                out_idx += copy_len;
             }
         } else {
             tx_data[1] = 0x94U;

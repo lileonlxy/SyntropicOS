@@ -120,6 +120,22 @@ static void test_bacnet_read_property(void)
     float val = 0.0f;
     memcpy(&val, &tx_frame.payload[4], sizeof(float));
     TEST_ASSERT_EQUAL_FLOAT(42.0f, val);
+
+    /* Test reading object with instance_id == 0 */
+    syn_bacnet_add_object(&node, SYN_BACNET_OBJ_ANALOG_INPUT, 0, 99.0f, "AI_0");
+    SYN_BACnet_MSTP_Frame req_inst0 = {.frame_type = SYN_BACNET_MSTP_FRAME_DATA_EXPECTING_REPLY,
+                                       .destination_mac = 7,
+                                       .source_mac = 3,
+                                       .data_len = 9,
+                                       .payload = {0x00, 0x05, 0x01,
+                                                   SYN_BACNET_SERVICE_CONFIRMED_READ_PROPERTY, 0x0C,
+                                                   0x00, 0x00, 0x00, 0x00}};
+    has_tx = false;
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_bacnet_node_process(&node, &req_inst0, &tx_frame, &has_tx));
+    TEST_ASSERT_TRUE(has_tx);
+    val = 0.0f;
+    memcpy(&val, &tx_frame.payload[4], sizeof(float));
+    TEST_ASSERT_EQUAL_FLOAT(99.0f, val);
 }
 
 static void test_bacnet_write_property(void)

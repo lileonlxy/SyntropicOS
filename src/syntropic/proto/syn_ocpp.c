@@ -114,6 +114,10 @@ SYN_Status syn_ocpp_format_heartbeat(SYN_OCPP_Client *client, char *out_buf, siz
     int written = snprintf(out_buf, max_len, "[2,\"%u\",\"Heartbeat\",{}]",
                            (unsigned int)client->message_counter);
 
+    /* LCOV_EXCL_START: Defensive snprintf truncation check */
+    if (written < 0 || (size_t)written >= max_len)
+        return SYN_ERROR;
+    /* LCOV_EXCL_STOP */
     *out_len = (size_t)written;
     return SYN_OK;
 }
