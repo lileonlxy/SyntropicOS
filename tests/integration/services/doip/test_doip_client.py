@@ -276,6 +276,36 @@ def main():
     assert resp == b'\x7F\x22\x31', f"NRC 0x31 expected, got {resp.hex()}"
     print("[DoIP UDS] NRC Caught OK: RequestOutOfRange (0x31)")
 
+    # Test 17: Diagnostic Message NACK for Unknown Target Address (0x2000)
+    print("\n--- Test 17: Diagnostic Message NACK (Unknown Target Address) ---")
+    req = encode_uds_doip_req(tester_addr, 0x2000, b'\x22\xF1\x90')
+    tcp_sock.sendall(req)
+    nack_data = tcp_sock.recv(4096)
+    p_type, _, p_load = decode_doip(nack_data)
+    assert p_type == 0x8003, f"Expected Diagnostic Message NACK (0x8003), got 0x{p_type:04X}"
+    assert p_load[4] == 0x02, f"Expected Unknown Target Address code 0x02, got 0x{p_load[4]:02X}"
+    print("[DoIP UDS] Diagnostic Message NACK (0x8003, Code 0x02) Caught OK!")
+
+    # Test 18: DoIP Generic NACK for Unknown Payload Type (0x9999)
+    print("\n--- Test 18: Generic NACK (Unknown Payload Type) ---")
+    unknown_req = encode_doip(0x9999, b'\x00\x00')
+    tcp_sock.sendall(unknown_req)
+    nack_data = tcp_sock.recv(4096)
+    p_type, _, p_load = decode_doip(nack_data)
+    assert p_type == 0x0000, f"Expected Generic NACK (0x0000), got 0x{p_type:04X}"
+    assert p_load[0] == 0x01, f"Expected Unknown Payload Type code 0x01, got 0x{p_load[0]:02X}"
+    print("[DoIP UDS] Generic NACK (Unknown Payload Type 0x01) Caught OK!")
+
+    # Test 19: DoIP Generic NACK for Header Inverse Protocol Version Mismatch
+    print("\n--- Test 19: Generic NACK (Incorrect Header Pattern) ---")
+    bad_hdr = struct.pack(">BBHI", 0x02, 0x00, 0x0001, 0) # 0x00 instead of ~0x02 (0xFD)
+    tcp_sock.sendall(bad_hdr)
+    nack_data = tcp_sock.recv(4096)
+    p_type, _, p_load = decode_doip(nack_data)
+    assert p_type == 0x0000, f"Expected Generic NACK (0x0000), got 0x{p_type:04X}"
+    assert p_load[0] == 0x00, f"Expected Incorrect Pattern code 0x00, got 0x{p_load[0]:02X}"
+    print("[DoIP UDS] Generic NACK (Incorrect Pattern 0x00) Caught OK!")
+
     tcp_sock.close()
 
     print("\n==================================================")
