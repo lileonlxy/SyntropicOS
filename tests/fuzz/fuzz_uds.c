@@ -27,7 +27,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     uint16_t resp_len = 0;
 
     /* Feed arbitrary fuzzed request payload into UDS server processor */
-    syn_uds_process_request(&server, data, (uint16_t)size, resp_buf, sizeof(resp_buf), &resp_len);
+    syn_uds_process_request(&server, data, (uint16_t)size, resp_buf, sizeof(resp_buf), &resp_len,
+                            (SYN_UDS_AddrMode)(data[0] & 0x01));
 
     /* Step S3 timer with fuzzed tick */
     syn_uds_tick(&server, (uint32_t)(data[0] & 0x7F));

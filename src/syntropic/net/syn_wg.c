@@ -608,7 +608,7 @@ static void wg_replay_commit(SYN_WgSession *s, uint64_t counter)
  * @param counter Received counter value.
  * @return true if counter is new and within window.
  */
-static bool wg_replay_check(SYN_WgSession *s, uint64_t counter)
+SYN_UNUSED static bool wg_replay_check(SYN_WgSession *s, uint64_t counter)
 {
     if (!wg_replay_test(s, counter)) {
         return false;

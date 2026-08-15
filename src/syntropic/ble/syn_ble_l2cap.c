@@ -82,6 +82,9 @@ SYN_Status syn_ble_l2cap_process_acl(SYN_BLE_L2CAP *l2cap, uint16_t conn_handle,
                 break;
             }
         }
+        if (conn == NULL) {
+            return SYN_ERROR;
+        }
     }
 
     uint8_t pb_flags = pb_bc_flags & 0x03U;
