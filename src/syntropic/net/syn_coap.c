@@ -16,6 +16,62 @@
 
 #include <string.h>
 
+size_t syn_coap_encode_block_opt(const SYN_CoapBlock *block, uint8_t buf[3])
+{
+    if (block == NULL || buf == NULL || block->szx > 6) {
+        return 0;
+    }
+
+    uint32_t val = (block->num << 4U) | ((block->more ? 1U : 0U) << 3U) | (block->szx & 0x07U);
+
+    if (val <= 0xFFU) {
+        buf[0] = (uint8_t)val;
+        return 1;
+    } else if (val <= 0xFFFFU) {
+        buf[0] = (uint8_t)(val >> 8U);
+        buf[1] = (uint8_t)(val & 0xFFU);
+        return 2;
+    } else if (val <= 0xFFFFFFU) {
+        buf[0] = (uint8_t)(val >> 16U);
+        buf[1] = (uint8_t)(val >> 8U);
+        buf[2] = (uint8_t)(val & 0xFFU);
+        return 3;
+    }
+
+    return 0;
+}
+
+bool syn_coap_decode_block_opt(const uint8_t *opt_val, size_t opt_len, SYN_CoapBlock *block)
+{
+    if (block == NULL) {
+        return false;
+    }
+    if (opt_len > 3) {
+        return false;
+    }
+
+    uint32_t val = 0;
+    if (opt_len > 0 && opt_val == NULL) {
+        return false;
+    }
+
+    if (opt_len == 1) {
+        val = opt_val[0];
+    } else if (opt_len == 2) {
+        val = ((uint32_t)opt_val[0] << 8U) | opt_val[1];
+    } else if (opt_len == 3) {
+        val = ((uint32_t)opt_val[0] << 16U) | ((uint32_t)opt_val[1] << 8U) | opt_val[2];
+    }
+
+    block->szx = (uint8_t)(val & 0x07U);
+    if (block->szx > 6) {
+        return false;
+    }
+    block->more = ((val & 0x08U) != 0);
+    block->num = val >> 4U;
+    return true;
+}
+
 size_t syn_coap_serialize(const SYN_CoapMsg *msg, const SYN_CoapOption *options,
                           size_t option_count, uint8_t *buf, size_t max_buf_len)
 {

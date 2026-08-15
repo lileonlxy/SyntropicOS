@@ -28,25 +28,92 @@ SYN_METRIC_DECLARE(mqtt_rx_msgs, "mqtt_rx_msgs", "Total MQTT messages received",
 SYN_METRIC_DECLARE(mqtt_errors, "mqtt_errors", "Total MQTT client errors", SYN_METRIC_TYPE_COUNTER);
 #endif
 
-/* ── Remaining Length Helper ────────────────────────────────────────────── */
+/* ── Remaining Length & Varint Helpers ──────────────────────────────────── */
+
+size_t syn_mqtt_encode_varint(uint32_t val, uint8_t buf[4])
+{
+    if (buf == NULL || val > 268435455U) {
+        return 0;
+    }
+    size_t bytes = 0;
+    do {
+        uint8_t d = (uint8_t)(val % 128U);
+        val /= 128U;
+        if (val > 0U) {
+            d |= 0x80U;
+        }
+        buf[bytes++] = d;
+    } while (val > 0U && bytes < 4U);
+    return bytes;
+}
+
+bool syn_mqtt_decode_varint(const uint8_t *buf, size_t buf_len, uint32_t *val, size_t *bytes_read)
+{
+    if (buf == NULL || val == NULL || bytes_read == NULL || buf_len == 0) {
+        return false;
+    }
+    uint32_t multiplier = 1;
+    uint32_t value = 0;
+    size_t pos = 0;
+    uint8_t encoded_byte;
+
+    do {
+        if (pos >= buf_len || pos >= 4) {
+            return false;
+        }
+        encoded_byte = buf[pos++];
+        value += (encoded_byte & 0x7FU) * multiplier;
+        if (multiplier > 128U * 128U * 128U) {
+            return false; /* LCOV_EXCL_LINE: Defensive guard */
+        }
+        multiplier *= 128U;
+    } while ((encoded_byte & 0x80U) != 0);
+
+    *val = value;
+    *bytes_read = pos;
+    return true;
+}
+
+size_t syn_mqtt5_encode_user_prop(const char *key, const char *val, uint8_t *buf,
+                                  size_t max_buf_len)
+{
+    if (key == NULL || val == NULL || buf == NULL) {
+        return 0;
+    }
+    size_t klen = strlen(key);
+    size_t vlen = strlen(val);
+    if (klen > 65535 || vlen > 65535) {
+        return 0; /* LCOV_EXCL_LINE: Defensive length check */
+    }
+    size_t total = 1 + 2 + klen + 2 + vlen; /* Identifier (1) + Key (2+klen) + Val (2+vlen) */
+    if (max_buf_len < total) {
+        return 0;
+    }
+
+    size_t pos = 0;
+    buf[pos++] = SYN_MQTT5_PROP_USER_PROPERTY;
+    buf[pos++] = (uint8_t)(klen >> 8U);
+    buf[pos++] = (uint8_t)(klen & 0xFFU);
+    memcpy(&buf[pos], key, klen);
+    pos += klen;
+
+    buf[pos++] = (uint8_t)(vlen >> 8U);
+    buf[pos++] = (uint8_t)(vlen & 0xFFU);
+    memcpy(&buf[pos], val, vlen);
+    pos += vlen;
+
+    return pos;
+}
 
 /**
- * @brief Encode MQTT remaining length into variable-length bytes.
- * @param buf  Output buffer (at least 4 bytes).
- * @param len  Length value to encode.
+ * @brief Encode remaining length field.
+ * @param[out] buf Destination buffer.
+ * @param[in] len Length value to encode.
  * @return Number of bytes written.
  */
 static size_t encode_remaining_len(uint8_t *buf, uint32_t len)
 {
-    size_t bytes = 0;
-    do {
-        uint8_t d = (uint8_t)(len % 128);
-        len /= 128;
-        if (len > 0)
-            d |= 128;
-        buf[bytes++] = d;
-    } while (len > 0);
-    return bytes;
+    return syn_mqtt_encode_varint(len, buf);
 }
 
 /* ── Connection Packets ─────────────────────────────────────────────────── */

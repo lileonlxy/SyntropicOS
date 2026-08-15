@@ -208,6 +208,8 @@ void run_foc_tests(void);
 void run_modbus_tcp_tests(void);
 void run_nmea_tests(void);
 void run_interpolator_tests(void);
+void run_p256_tests(void);
+void run_dnssd_tests(void);
 
 #define RUN_TEST_GROUP(file, fn)                           \
     do {                                                   \
@@ -382,6 +384,7 @@ int main(void)
 
     /* Networking */
     run_sntp_tests();
+    run_dnssd_tests();
 
     /* Control */
     run_control_stats_tests();
@@ -861,6 +864,7 @@ int main(void)
     RUN_TEST(test_ble_l2cap_errors_and_edge_cases);
     RUN_TEST(test_ble_l2cap_encode_pdu);
     RUN_TEST(test_ble_att_encoders);
+    run_p256_tests();
 
     return UNITY_END();
 }

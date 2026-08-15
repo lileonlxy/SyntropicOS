@@ -3,6 +3,7 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_coap.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_dhcp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_dns.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_dnssd.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_eth.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_heartbeat.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_http.c

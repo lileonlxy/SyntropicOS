@@ -6,14 +6,20 @@
 #include "syntropic/crypto/syn_x509.h"
 
 #include "syntropic/crypto/syn_ed25519.h"
+#include "syntropic/crypto/syn_p256.h"
+#include "syntropic/util/syn_sha256.h"
 
 #include <string.h>
 
 /** @cond INTERNAL */
 
 /* Standard OID Byte Sequences */
-static const uint8_t OID_ED25519[] = {0x2B, 0x65, 0x70};     /* 1.3.101.112 ed25519 */
-static const uint8_t OID_COMMON_NAME[] = {0x55, 0x04, 0x03}; /* 2.5.4.3 id-at-commonName */
+static const uint8_t OID_ED25519[] = {0x2B, 0x65, 0x70}; /* 1.3.101.112 ed25519 */
+static const uint8_t OID_EC_PUBKEY[] = {0x2A, 0x86, 0x48, 0xCE,
+                                        0x3D, 0x02, 0x01}; /* 1.2.840.10045.2.1 id-ecPublicKey */
+static const uint8_t OID_ECDSA_SHA256[] = {0x2A, 0x86, 0x48, 0xCE,
+                                           0x3D, 0x04, 0x03, 0x02}; /* 1.2.840.10045.4.3.2 */
+static const uint8_t OID_COMMON_NAME[] = {0x55, 0x04, 0x03};        /* 2.5.4.3 id-at-commonName */
 
 static void parse_rdn_cn(const SYN_ASN1_Element *name_container, char *cn_out, size_t max_len)
 {
@@ -59,7 +65,6 @@ static void parse_rdn_cn(const SYN_ASN1_Element *name_container, char *cn_out, s
                             /* LCOV_EXCL_STOP */
                             memcpy(cn_out, val_elem.value, copy_len);
                             cn_out[copy_len] = '\0';
-                            return;
                         }
                     }
                 }
@@ -78,70 +83,70 @@ bool syn_x509_parse(const uint8_t *der, size_t der_len, SYN_X509_Cert *cert_out)
 
     memset(cert_out, 0, sizeof(SYN_X509_Cert));
 
-    SYN_ASN1_Element cert_seq;
-    if (!syn_asn1_parse_element(der, der_len, &cert_seq) || cert_seq.tag != SYN_ASN1_TAG_SEQUENCE) {
+    SYN_ASN1_Element root_seq;
+    const uint8_t *ptr = der;
+    size_t rem = der_len;
+
+    if (!syn_asn1_step(&ptr, &rem, &root_seq) || root_seq.tag != SYN_ASN1_TAG_SEQUENCE) {
         return false;
     }
 
-    const uint8_t *cur;
-    size_t len;
-    if (!syn_asn1_enter_container(&cert_seq, &cur, &len)) {
-        return false; /* LCOV_EXCL_LINE: Defensive check if outer X.509 certificate sequence
-                         container payload is truncated */
+    const uint8_t *cert_cur;
+    size_t cert_len;
+    if (!syn_asn1_enter_container(&root_seq, &cert_cur, &cert_len)) {
+        return false;
     }
 
-    /* 1. TBSCertificate */
+    /* 1. TBSCertificate (To Be Signed) */
     SYN_ASN1_Element tbs_elem;
-    if (!syn_asn1_step(&cur, &len, &tbs_elem) || tbs_elem.tag != SYN_ASN1_TAG_SEQUENCE) {
+    if (!syn_asn1_step(&cert_cur, &cert_len, &tbs_elem) || tbs_elem.tag != SYN_ASN1_TAG_SEQUENCE) {
         return false;
     }
+
     cert_out->tbs_bytes = tbs_elem.value - tbs_elem.header_len;
     cert_out->tbs_len = tbs_elem.header_len + tbs_elem.length;
 
-    /* Parse inside TBSCertificate */
     const uint8_t *tbs_cur;
     size_t tbs_len;
     if (!syn_asn1_enter_container(&tbs_elem, &tbs_cur, &tbs_len)) {
-        return false; /* LCOV_EXCL_LINE: Defensive check if TBSCertificate sequence container
-                         payload is truncated */
+        return false;
     }
 
-    SYN_ASN1_Element next_elem;
-    if (!syn_asn1_step(&tbs_cur, &tbs_len, &next_elem)) {
-        return false; /* LCOV_EXCL_LINE: Defensive check if TBSCertificate sequence payload is empty
-                       */
+    /* Check Version (Optional [0] EXPLICIT INTEGER) */
+    SYN_ASN1_Element first_elem;
+    if (!syn_asn1_step(&tbs_cur, &tbs_len, &first_elem)) {
+        return false;
     }
 
-    /* Version (optional explicit tag [0]) */
-    if (next_elem.tag_class == SYN_ASN1_CLASS_CONTEXT_SPECIFIC && next_elem.tag_number == 0) {
+    if (first_elem.tag_class == SYN_ASN1_CLASS_CONTEXT_SPECIFIC && first_elem.tag_number == 0) {
         const uint8_t *v_cur;
         size_t v_len;
-        if (syn_asn1_enter_container(&next_elem, &v_cur, &v_len)) {
+        if (syn_asn1_enter_container(&first_elem, &v_cur, &v_len)) {
             SYN_ASN1_Element ver_elem;
             if (syn_asn1_step(&v_cur, &v_len, &ver_elem)) {
                 const uint8_t *v_bytes;
                 size_t v_bytes_len;
                 if (syn_asn1_get_integer(&ver_elem, &v_bytes, &v_bytes_len) && v_bytes_len > 0) {
-                    cert_out->version = v_bytes[v_bytes_len - 1] + 1;
+                    cert_out->version = v_bytes[v_bytes_len - 1] + 1U; /* v1=0, v2=1, v3=2 */
                 }
             }
         }
-        if (!syn_asn1_step(&tbs_cur, &tbs_len, &next_elem)) {
+        /* Read next for Serial Number */
+        if (!syn_asn1_step(&tbs_cur, &tbs_len, &first_elem)) {
             return false;
         }
     } else {
-        cert_out->version = 1;
+        cert_out->version = 1U; /* Default v1 */
     }
 
     /* Serial Number */
-    if (!syn_asn1_get_integer(&next_elem, &cert_out->serial, &cert_out->serial_len)) {
-        return false; /* LCOV_EXCL_LINE: Defensive check if serial number element is not a valid DER
-                         INTEGER */
+    if (!syn_asn1_get_integer(&first_elem, &cert_out->serial, &cert_out->serial_len)) {
+        return false;
     }
 
-    /* Signature Algorithm */
-    SYN_ASN1_Element sig_alg_elem;
-    if (!syn_asn1_step(&tbs_cur, &tbs_len, &sig_alg_elem)) {
+    /* Signature Algorithm Identifier */
+    SYN_ASN1_Element sig_algo_elem;
+    if (!syn_asn1_step(&tbs_cur, &tbs_len, &sig_algo_elem)) {
         return false;
     }
 
@@ -184,6 +189,11 @@ bool syn_x509_parse(const uint8_t *der, size_t der_len, SYN_X509_Cert *cert_out)
                 if (syn_asn1_step(&algo_cur, &algo_len, &oid_elem)) {
                     if (syn_asn1_match_oid(&oid_elem, OID_ED25519, sizeof(OID_ED25519))) {
                         cert_out->pubkey_algo = SYN_X509_ALGO_ED25519;
+                    } else if (syn_asn1_match_oid(&oid_elem, OID_EC_PUBKEY,
+                                                  sizeof(OID_EC_PUBKEY)) ||
+                               syn_asn1_match_oid(&oid_elem, OID_ECDSA_SHA256,
+                                                  sizeof(OID_ECDSA_SHA256))) {
+                        cert_out->pubkey_algo = SYN_X509_ALGO_ECDSA_P256;
                     }
                 }
             }
@@ -199,15 +209,15 @@ bool syn_x509_parse(const uint8_t *der, size_t der_len, SYN_X509_Cert *cert_out)
         }
     }
 
-    /* 2. Outer Signature Algorithm */
-    SYN_ASN1_Element outer_sig_alg;
-    if (!syn_asn1_step(&cur, &len, &outer_sig_alg)) {
+    /* 2. SignatureAlgorithm outer Sequence */
+    SYN_ASN1_Element outer_sig_algo;
+    if (!syn_asn1_step(&cert_cur, &cert_len, &outer_sig_algo)) {
         return false;
     }
 
-    /* 3. Outer Signature Value */
+    /* 3. SignatureValue BIT STRING */
     SYN_ASN1_Element sig_bits_elem;
-    if (!syn_asn1_step(&cur, &len, &sig_bits_elem)) {
+    if (!syn_asn1_step(&cert_cur, &cert_len, &sig_bits_elem)) {
         return false;
     }
 
@@ -239,6 +249,26 @@ bool syn_x509_verify_signature(const SYN_X509_Cert *cert, const uint8_t *issuer_
                              length is invalid */
         }
         return syn_ed25519_verify(cert->signature, cert->tbs_bytes, cert->tbs_len, issuer_pubkey);
+    }
+
+    if (algo == SYN_X509_ALGO_ECDSA_P256) {
+        const uint8_t *px = issuer_pubkey;
+        const uint8_t *py = issuer_pubkey + 32;
+        if (issuer_pubkey_len == 65 && issuer_pubkey[0] == 0x04) {
+            px = issuer_pubkey + 1;
+            py = issuer_pubkey + 33;
+        } else if (issuer_pubkey_len != 64) {
+            return false;
+        }
+
+        if (cert->signature_len != 64) {
+            return false;
+        }
+
+        uint8_t hash[SYN_SHA256_DIGEST_SIZE];
+        syn_sha256(cert->tbs_bytes, cert->tbs_len, hash);
+
+        return syn_p256_verify_ecdsa(hash, cert->signature, cert->signature + 32, px, py);
     }
 
     return false;

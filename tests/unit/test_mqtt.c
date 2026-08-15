@@ -989,6 +989,64 @@ void test_mqtt_subscribe_does_not_corrupt_retransmit_buffer(void)
     TEST_ASSERT_EQUAL(0, c.retransmit_len);
 }
 
+static void test_mqtt5_varint_and_properties(void)
+{
+    /* 1. Variable Byte Integer boundary encoding */
+    uint8_t buf[4];
+    TEST_ASSERT_EQUAL_UINT(1, syn_mqtt_encode_varint(0, buf));
+    TEST_ASSERT_EQUAL_HEX8(0x00, buf[0]);
+
+    TEST_ASSERT_EQUAL_UINT(1, syn_mqtt_encode_varint(127, buf));
+    TEST_ASSERT_EQUAL_HEX8(0x7F, buf[0]);
+
+    TEST_ASSERT_EQUAL_UINT(2, syn_mqtt_encode_varint(128, buf));
+    TEST_ASSERT_EQUAL_HEX8(0x80, buf[0]);
+    TEST_ASSERT_EQUAL_HEX8(0x01, buf[1]);
+
+    TEST_ASSERT_EQUAL_UINT(2, syn_mqtt_encode_varint(16383, buf));
+    TEST_ASSERT_EQUAL_HEX8(0xFF, buf[0]);
+    TEST_ASSERT_EQUAL_HEX8(0x7F, buf[1]);
+
+    TEST_ASSERT_EQUAL_UINT(3, syn_mqtt_encode_varint(16384, buf));
+    TEST_ASSERT_EQUAL_HEX8(0x80, buf[0]);
+    TEST_ASSERT_EQUAL_HEX8(0x80, buf[1]);
+    TEST_ASSERT_EQUAL_HEX8(0x01, buf[2]);
+
+    TEST_ASSERT_EQUAL_UINT(4, syn_mqtt_encode_varint(268435455, buf));
+    TEST_ASSERT_EQUAL_HEX8(0xFF, buf[0]);
+    TEST_ASSERT_EQUAL_HEX8(0xFF, buf[1]);
+    TEST_ASSERT_EQUAL_HEX8(0xFF, buf[2]);
+    TEST_ASSERT_EQUAL_HEX8(0x7F, buf[3]);
+
+    /* Varint overflow rejection */
+    TEST_ASSERT_EQUAL_UINT(0, syn_mqtt_encode_varint(268435456, buf));
+    TEST_ASSERT_EQUAL_UINT(0, syn_mqtt_encode_varint(0, NULL));
+
+    /* 2. Variable Byte Integer decoding */
+    uint32_t val = 0;
+    size_t bread = 0;
+    TEST_ASSERT_TRUE(syn_mqtt_decode_varint(buf, 4, &val, &bread));
+    TEST_ASSERT_EQUAL_UINT32(268435455, val);
+    TEST_ASSERT_EQUAL_UINT(4, bread);
+
+    /* Incomplete buffer */
+    TEST_ASSERT_FALSE(syn_mqtt_decode_varint(buf, 3, &val, &bread));
+    TEST_ASSERT_FALSE(syn_mqtt_decode_varint(NULL, 4, &val, &bread));
+
+    /* 3. User Property encoding */
+    uint8_t prop_buf[64];
+    size_t prop_len =
+        syn_mqtt5_encode_user_prop("device_id", "syn-node-01", prop_buf, sizeof(prop_buf));
+    TEST_ASSERT_TRUE(prop_len > 0);
+    TEST_ASSERT_EQUAL_HEX8(SYN_MQTT5_PROP_USER_PROPERTY, prop_buf[0]);
+
+    /* Error bounds */
+    TEST_ASSERT_EQUAL_UINT(0, syn_mqtt5_encode_user_prop(NULL, "val", prop_buf, sizeof(prop_buf)));
+    TEST_ASSERT_EQUAL_UINT(0, syn_mqtt5_encode_user_prop("key", NULL, prop_buf, sizeof(prop_buf)));
+    TEST_ASSERT_EQUAL_UINT(
+        0, syn_mqtt5_encode_user_prop("key", "val", prop_buf, 4)); /* Small buffer */
+}
+
 void run_mqtt_tests(void)
 {
     RUN_TEST(test_mqtt_connect);
@@ -1013,4 +1071,5 @@ void run_mqtt_tests(void)
     RUN_TEST(test_mqtt_disconnect);
     RUN_TEST(test_mqtt_qos2_handshake_and_keepalive_ping);
     RUN_TEST(test_mqtt_subscribe_does_not_corrupt_retransmit_buffer);
+    RUN_TEST(test_mqtt5_varint_and_properties);
 }

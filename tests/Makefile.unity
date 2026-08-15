@@ -188,7 +188,9 @@ SYN_SRCS := \
 	src/syntropic/crypto/syn_hkdf.c \
 	src/syntropic/crypto/syn_asn1.c \
 	src/syntropic/crypto/syn_ed25519.c \
+	src/syntropic/crypto/syn_p256.c \
 	src/syntropic/crypto/syn_x509.c \
+	src/syntropic/net/syn_dnssd.c \
 	src/syntropic/net/syn_tls.c \
 	src/syntropic/vm/syn_wasm.c
 

@@ -97,3 +97,37 @@ void sha256_demo(const uint8_t *data, size_t len, uint8_t hash[32]) {
 }
 ```
 
+---
+
+## 5. NIST P-256 (secp256r1) Elliptic Curve Engine (`crypto/syn_p256.h`)
+
+Full cleanroom implementation of NIST P-256 ECC arithmetic in Jacobian projective coordinates featuring:
+- **Solinas Fast Modular Reduction** ($p = 2^{256} - 2^{224} + 2^{192} + 2^{96} - 1$ per FIPS 186-4 §D.2.1).
+- **Constant-Time Scalar Multiplication** (`point_cmov` 4-bit fixed windowing) with zero side-channel branching.
+- **ECDH Key Agreement** (RFC 5903).
+- **ECDSA Sign & Verify** (RFC 6979 / ANSI X9.62).
+
+```c
+#include <syntropic/crypto/syn_p256.h>
+
+void p256_ecdh_and_ecdsa_demo(void) {
+    uint8_t priv_key[32] = { /* 256-bit scalar */ };
+    uint8_t pub_x[32], pub_y[32];
+
+    // Derive public key: Q = d * G
+    syn_p256_base_mul(priv_key, pub_x, pub_y);
+
+    // Compute shared ECDH secret: S = d * Peer_Q
+    uint8_t peer_x[32], peer_y[32], shared_secret[32];
+    syn_p256_ecdh(priv_key, peer_x, peer_y, shared_secret);
+
+    // Sign SHA-256 digest with ECDSA
+    uint8_t hash[32], nonce_k[32], r[32], s[32];
+    syn_p256_sign_ecdsa(priv_key, nonce_k, hash, r, s);
+
+    // Verify ECDSA signature
+    bool valid = syn_p256_verify_ecdsa(hash, r, s, pub_x, pub_y);
+}
+```
+
+

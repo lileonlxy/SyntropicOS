@@ -17,6 +17,55 @@ extern "C" {
 #endif
 
 /**
+ * @brief MQTT Protocol Version.
+ */
+typedef enum {
+    SYN_MQTT_VERSION_3_1_1 = 4, /**< MQTT 3.1.1 */
+    SYN_MQTT_VERSION_5_0 = 5    /**< MQTT 5.0   */
+} SYN_MqttVersion;
+
+/**
+ * @name MQTT v5.0 Property Identifiers
+ * @{
+ */
+#define SYN_MQTT5_PROP_PAYLOAD_FORMAT_INDICATOR 0x01U /**< Payload Format Indicator */
+#define SYN_MQTT5_PROP_MESSAGE_EXPIRY_INTERVAL 0x02U  /**< Message Expiry Interval */
+#define SYN_MQTT5_PROP_CONTENT_TYPE 0x03U             /**< Content Type */
+#define SYN_MQTT5_PROP_RESPONSE_TOPIC 0x08U           /**< Response Topic */
+#define SYN_MQTT5_PROP_CORRELATION_DATA 0x09U         /**< Correlation Data */
+#define SYN_MQTT5_PROP_SUBSCRIPTION_IDENTIFIER 0x0BU  /**< Subscription Identifier */
+#define SYN_MQTT5_PROP_SESSION_EXPIRY_INTERVAL 0x11U  /**< Session Expiry Interval */
+#define SYN_MQTT5_PROP_ASSIGNED_CLIENT_ID 0x12U       /**< Assigned Client Identifier */
+#define SYN_MQTT5_PROP_SERVER_KEEP_ALIVE 0x13U        /**< Server Keep Alive */
+#define SYN_MQTT5_PROP_AUTH_METHOD 0x15U              /**< Authentication Method */
+#define SYN_MQTT5_PROP_AUTH_DATA 0x16U                /**< Authentication Data */
+#define SYN_MQTT5_PROP_REQ_PROBLEM_INFO 0x17U         /**< Request Problem Information */
+#define SYN_MQTT5_PROP_WILL_DELAY_INTERVAL 0x18U      /**< Will Delay Interval */
+#define SYN_MQTT5_PROP_REQ_RESPONSE_INFO 0x19U        /**< Request Response Information */
+#define SYN_MQTT5_PROP_RESPONSE_INFO 0x1AU            /**< Response Information */
+#define SYN_MQTT5_PROP_SERVER_REFERENCE 0x1CU         /**< Server Reference */
+#define SYN_MQTT5_PROP_REASON_STRING 0x1FU            /**< Reason String */
+#define SYN_MQTT5_PROP_RECEIVE_MAXIMUM 0x21U          /**< Receive Maximum */
+#define SYN_MQTT5_PROP_TOPIC_ALIAS_MAXIMUM 0x22U      /**< Topic Alias Maximum */
+#define SYN_MQTT5_PROP_TOPIC_ALIAS 0x23U              /**< Topic Alias */
+#define SYN_MQTT5_PROP_MAXIMUM_QOS 0x24U              /**< Maximum QoS */
+#define SYN_MQTT5_PROP_RETAIN_AVAILABLE 0x25U         /**< Retain Available */
+#define SYN_MQTT5_PROP_USER_PROPERTY 0x26U            /**< User Property */
+#define SYN_MQTT5_PROP_MAX_PACKET_SIZE 0x27U          /**< Maximum Packet Size */
+#define SYN_MQTT5_PROP_WILDCARD_SUB_AVAIL 0x28U       /**< Wildcard Subscription Available */
+#define SYN_MQTT5_PROP_SUB_ID_AVAIL 0x29U             /**< Subscription Identifiers Available */
+#define SYN_MQTT5_PROP_SHARED_SUB_AVAIL 0x2AU         /**< Shared Subscription Available */
+/** @} */
+
+/**
+ * @brief MQTT v5.0 Key-Value User Property.
+ */
+typedef struct {
+    const char *key; /**< Property Name/Key   */
+    const char *val; /**< Property Value      */
+} SYN_Mqtt5_UserProp;
+
+/**
  * @brief MQTT client connection states.
  */
 typedef enum {
@@ -165,6 +214,38 @@ void syn_mqtt_disconnect(SYN_MqttClient *client);
  * @return PT_WAITING or PT_EXITED status.
  */
 SYN_PT_Status syn_mqtt_task(SYN_PT *pt, SYN_Task *task);
+
+/**
+ * @brief Encode a Variable Byte Integer (MQTT 3.1.1 & MQTT 5.0).
+ *
+ * @param val Value to encode (0..268435455).
+ * @param buf [out] Output buffer (must have at least 4 bytes capacity).
+ * @return Number of bytes written (1..4).
+ */
+size_t syn_mqtt_encode_varint(uint32_t val, uint8_t buf[4]);
+
+/**
+ * @brief Decode a Variable Byte Integer (MQTT 3.1.1 & MQTT 5.0).
+ *
+ * @param buf        Buffer containing varint bytes.
+ * @param buf_len    Available bytes in buffer.
+ * @param val        [out] Parsed integer value.
+ * @param bytes_read [out] Number of bytes consumed (1..4).
+ * @return true on success, false if incomplete or malformed (> 4 bytes).
+ */
+bool syn_mqtt_decode_varint(const uint8_t *buf, size_t buf_len, uint32_t *val, size_t *bytes_read);
+
+/**
+ * @brief Encode an MQTT 5.0 User Property (Key-Value string pair).
+ *
+ * @param key         Property key string.
+ * @param val         Property value string.
+ * @param buf         [out] Output buffer.
+ * @param max_buf_len Capacity of output buffer.
+ * @return Number of bytes written, or 0 on error/overflow.
+ */
+size_t syn_mqtt5_encode_user_prop(const char *key, const char *val, uint8_t *buf,
+                                  size_t max_buf_len);
 
 #ifdef __cplusplus
 }

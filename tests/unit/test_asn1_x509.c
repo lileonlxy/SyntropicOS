@@ -5,7 +5,9 @@
 
 #include "syntropic/crypto/syn_asn1.h"
 #include "syntropic/crypto/syn_ed25519.h"
+#include "syntropic/crypto/syn_p256.h"
 #include "syntropic/crypto/syn_x509.h"
+#include "syntropic/util/syn_sha256.h"
 #include "unity/unity.h"
 
 #include <string.h>
@@ -393,10 +395,111 @@ void test_x509_cert_parse_and_chain(void)
     TEST_ASSERT_EQUAL(SYN_X509_ALGO_ED25519, parsed_cert.pubkey_algo);
 }
 
+void test_x509_ecdsa_p256_verification_and_chain(void)
+{
+    /* 1. Generate P-256 Key pair and signature over TBS data */
+    static const uint8_t PRIV[32] = {0xC9, 0xAF, 0xA9, 0xD8, 0x45, 0xBA, 0x75, 0x16,
+                                     0x6B, 0x5C, 0x21, 0x57, 0x67, 0xB1, 0xD6, 0x93,
+                                     0x4E, 0x50, 0xC3, 0xDB, 0x36, 0xE8, 0x9B, 0x12,
+                                     0x7B, 0x8A, 0x62, 0x2B, 0x12, 0x0F, 0x67, 0x21};
+    static const uint8_t NONCE_K[32] = {0xA6, 0xE3, 0xC5, 0x7D, 0xD0, 0x1A, 0xBE, 0x90,
+                                        0x08, 0x65, 0x38, 0x39, 0x83, 0x55, 0xDD, 0x4C,
+                                        0x3B, 0x17, 0xAA, 0x87, 0x33, 0x82, 0xB0, 0xF2,
+                                        0x4D, 0x61, 0x29, 0x49, 0x3D, 0x8A, 0xAD, 0x60};
+    uint8_t pub_x[32], pub_y[32];
+    TEST_ASSERT_TRUE(syn_p256_base_mul(PRIV, pub_x, pub_y));
+
+    static const uint8_t tbs_data[] = "SyntropicOS TBS Certificate Payload";
+    uint8_t hash[32];
+    syn_sha256(tbs_data, sizeof(tbs_data) - 1, hash);
+
+    uint8_t sig_r[32], sig_s[32];
+    TEST_ASSERT_TRUE(syn_p256_sign_ecdsa(PRIV, NONCE_K, hash, sig_r, sig_s));
+
+    SYN_X509_Cert cert;
+    memset(&cert, 0, sizeof(cert));
+    cert.tbs_bytes = tbs_data;
+    cert.tbs_len = sizeof(tbs_data) - 1;
+    memcpy(cert.signature, sig_r, 32);
+    memcpy(cert.signature + 32, sig_s, 32);
+    cert.signature_len = 64;
+    cert.sig_algo = SYN_X509_ALGO_ECDSA_P256;
+    strncpy(cert.subject_cn, "test.syntropic.io", sizeof(cert.subject_cn));
+
+    /* 65-byte uncompressed pubkey (0x04 || X || Y) */
+    uint8_t pubkey_65[65];
+    pubkey_65[0] = 0x04;
+    memcpy(pubkey_65 + 1, pub_x, 32);
+    memcpy(pubkey_65 + 33, pub_y, 32);
+
+    TEST_ASSERT_TRUE(syn_x509_verify_signature(&cert, pubkey_65, 65, SYN_X509_ALGO_ECDSA_P256));
+
+    /* 64-byte raw pubkey (X || Y) */
+    uint8_t pubkey_64[64];
+    memcpy(pubkey_64, pub_x, 32);
+    memcpy(pubkey_64 + 32, pub_y, 32);
+    TEST_ASSERT_TRUE(syn_x509_verify_signature(&cert, pubkey_64, 64, SYN_X509_ALGO_ECDSA_P256));
+
+    /* Invalid public key length */
+    TEST_ASSERT_FALSE(syn_x509_verify_signature(&cert, pubkey_65, 63, SYN_X509_ALGO_ECDSA_P256));
+    TEST_ASSERT_FALSE(syn_x509_verify_signature(&cert, pubkey_65, 66, SYN_X509_ALGO_ECDSA_P256));
+
+    /* Invalid signature length */
+    cert.signature_len = 63;
+    TEST_ASSERT_FALSE(syn_x509_verify_signature(&cert, pubkey_65, 65, SYN_X509_ALGO_ECDSA_P256));
+    cert.signature_len = 64;
+
+    /* Validate chain */
+    SYN_X509_Cert ca_cert;
+    memset(&ca_cert, 0, sizeof(ca_cert));
+    memcpy(ca_cert.pubkey, pubkey_65, 65);
+    ca_cert.pubkey_len = 65;
+    ca_cert.pubkey_algo = SYN_X509_ALGO_ECDSA_P256;
+
+    TEST_ASSERT_TRUE(syn_x509_validate_chain(&cert, &ca_cert, "test.syntropic.io"));
+    TEST_ASSERT_TRUE(syn_x509_validate_chain(&cert, &ca_cert, NULL)); /* Ignore CN */
+    TEST_ASSERT_FALSE(syn_x509_validate_chain(&cert, &ca_cert, "mismatched.domain.com"));
+    TEST_ASSERT_FALSE(syn_x509_validate_chain(NULL, &ca_cert, "test.syntropic.io"));
+    TEST_ASSERT_FALSE(syn_x509_validate_chain(&cert, NULL, "test.syntropic.io"));
+}
+
+void test_x509_parse_ecdsa_cert(void)
+{
+    /* Valid X.509 cert DER with OID_EC_PUBKEY in SPKI */
+    static const uint8_t ec_cert_der[] = {
+        0x30, 0x81, 0x98,                         /* SEQUENCE length 152 */
+        0x30, 0x56,                               /* TBSCertificate length 86 */
+        0xA0, 0x03, 0x02, 0x01, 0x02,             /* [0] Version 3 */
+        0x02, 0x01, 0x01,                         /* Serial Number 1 */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, /* Sig Algo */
+        0x30, 0x12, 0x31, 0x10, 0x30, 0x0E, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x07, 'T',
+        'e',  's',  't',  ' ',  'C',  'A', /* Issuer CN "Test CA" */
+        0x30, 0x00,                        /* Validity empty */
+        0x30, 0x16, 0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x0B, 'T',
+        'e',  's',  't',  ' ',  'S',  'e',  'r',  'v',  'e',  'r', /* Subject CN "Test Server" */
+        0x30, 0x17,                                                /* SPKI (23 bytes) */
+        0x30, 0x09, 0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02, 0x01, /* SPKI Algo ecPublicKey
+                                                                           */
+        0x03, 0x0A, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, /* Pubkey bits */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70,                               /* Outer Sig Algo */
+        0x03, 0x37, 0x00, /* Outer Sig bits (54 bytes) */
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
+        0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B,
+        0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
+        0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
+
+    SYN_X509_Cert parsed_ec_cert;
+    TEST_ASSERT_TRUE(syn_x509_parse(ec_cert_der, sizeof(ec_cert_der), &parsed_ec_cert));
+    TEST_ASSERT_EQUAL(SYN_X509_ALGO_ECDSA_P256, parsed_ec_cert.pubkey_algo);
+    TEST_ASSERT_EQUAL(SYN_X509_ALGO_ECDSA_P256, parsed_ec_cert.sig_algo);
+}
+
 void run_asn1_x509_tests(void)
 {
     RUN_TEST(test_asn1_basic_tlv_parse);
     RUN_TEST(test_asn1_invalid_and_bounds_checks);
     RUN_TEST(test_ed25519_verify_basic);
     RUN_TEST(test_x509_cert_parse_and_chain);
+    RUN_TEST(test_x509_ecdsa_p256_verification_and_chain);
+    RUN_TEST(test_x509_parse_ecdsa_cert);
 }

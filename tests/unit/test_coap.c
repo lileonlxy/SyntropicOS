@@ -509,6 +509,87 @@ static void test_coap_large_delta_and_length_2byte_ext(void)
     TEST_ASSERT_EQUAL_INT(300, parsed_opt[0].len);
 }
 
+static void test_coap_blockwise_and_observe(void)
+{
+    /* 1. Block1 & Block2 encoding/decoding */
+    SYN_CoapBlock blk1 = {.num = 0, .more = true, .szx = 6}; /* 1024 bytes block */
+    uint8_t buf[3];
+    size_t enc_len = syn_coap_encode_block_opt(&blk1, buf);
+    TEST_ASSERT_EQUAL_UINT(1, enc_len);
+
+    SYN_CoapBlock dec_blk1;
+    TEST_ASSERT_TRUE(syn_coap_decode_block_opt(buf, enc_len, &dec_blk1));
+    TEST_ASSERT_EQUAL_UINT32(0, dec_blk1.num);
+    TEST_ASSERT_TRUE(dec_blk1.more);
+    TEST_ASSERT_EQUAL_UINT8(6, dec_blk1.szx);
+
+    /* Multibyte block parameter */
+    SYN_CoapBlock blk2 = {.num = 1234, .more = false, .szx = 4}; /* 256 bytes block */
+    enc_len = syn_coap_encode_block_opt(&blk2, buf);
+    TEST_ASSERT_TRUE(enc_len >= 2);
+
+    SYN_CoapBlock dec_blk2;
+    TEST_ASSERT_TRUE(syn_coap_decode_block_opt(buf, enc_len, &dec_blk2));
+    TEST_ASSERT_EQUAL_UINT32(1234, dec_blk2.num);
+    TEST_ASSERT_FALSE(dec_blk2.more);
+    TEST_ASSERT_EQUAL_UINT8(4, dec_blk2.szx);
+
+    /* 3-byte block parameter */
+    SYN_CoapBlock blk3 = {.num = 100000, .more = true, .szx = 5};
+    enc_len = syn_coap_encode_block_opt(&blk3, buf);
+    TEST_ASSERT_EQUAL_UINT(3, enc_len);
+
+    SYN_CoapBlock dec_blk3;
+    TEST_ASSERT_TRUE(syn_coap_decode_block_opt(buf, enc_len, &dec_blk3));
+    TEST_ASSERT_EQUAL_UINT32(100000, dec_blk3.num);
+    TEST_ASSERT_TRUE(dec_blk3.more);
+    TEST_ASSERT_EQUAL_UINT8(5, dec_blk3.szx);
+
+    /* Huge block number overflow */
+    SYN_CoapBlock blk_huge = {.num = 0x1000000, .more = false, .szx = 0};
+    TEST_ASSERT_EQUAL_UINT(0, syn_coap_encode_block_opt(&blk_huge, buf));
+
+    /* Error bounds */
+    TEST_ASSERT_EQUAL_UINT(0, syn_coap_encode_block_opt(NULL, buf));
+    SYN_CoapBlock invalid_szx = {.num = 0, .more = false, .szx = 7};
+    TEST_ASSERT_EQUAL_UINT(0, syn_coap_encode_block_opt(&invalid_szx, buf));
+    TEST_ASSERT_FALSE(syn_coap_decode_block_opt(NULL, 1, &dec_blk2));
+    TEST_ASSERT_FALSE(syn_coap_decode_block_opt(buf, 4, &dec_blk2)); /* > 3 bytes */
+    TEST_ASSERT_FALSE(syn_coap_decode_block_opt(buf, 1, NULL));
+
+    /* Invalid szx in decode buffer */
+    uint8_t bad_szx_buf[1] = {0x07}; /* szx = 7 */
+    TEST_ASSERT_FALSE(syn_coap_decode_block_opt(bad_szx_buf, 1, &dec_blk2));
+
+    /* 2. CoAP message roundtrip with Block2 and Observe options */
+    SYN_CoapMsg req = {
+        .type = COAP_TYPE_CON, .code = COAP_CODE_GET, .msg_id = 0x4321, .token_len = 0};
+    SYN_CoapOption opts[2];
+    uint8_t obs_val = 0;
+    opts[0].num = COAP_OPT_OBSERVE;
+    opts[0].val = &obs_val;
+    opts[0].len = 1;
+
+    uint8_t blk_val[3];
+    size_t blk_len = syn_coap_encode_block_opt(&blk1, blk_val);
+    opts[1].num = COAP_OPT_BLOCK2;
+    opts[1].val = blk_val;
+    opts[1].len = blk_len;
+
+    uint8_t ser_buf[128];
+    size_t ser_len = syn_coap_serialize(&req, opts, 2, ser_buf, sizeof(ser_buf));
+    TEST_ASSERT_TRUE(ser_len > 0);
+
+    SYN_CoapMsg parsed_msg;
+    SYN_CoapOption parsed_opts[4];
+    size_t parsed_cnt = 0;
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_coap_parse(&parsed_msg, parsed_opts, 4, &parsed_cnt, ser_buf, ser_len));
+    TEST_ASSERT_EQUAL_INT(2, parsed_cnt);
+    TEST_ASSERT_EQUAL_UINT16(COAP_OPT_OBSERVE, parsed_opts[0].num);
+    TEST_ASSERT_EQUAL_UINT16(COAP_OPT_BLOCK2, parsed_opts[1].num);
+}
+
 void run_coap_tests(void)
 {
     RUN_TEST(test_coap_serialization);
@@ -519,4 +600,5 @@ void run_coap_tests(void)
     RUN_TEST(test_coap_malformed_parsing);
     RUN_TEST(test_coap_serialization_overflow_and_socket_failures);
     RUN_TEST(test_coap_large_delta_and_length_2byte_ext);
+    RUN_TEST(test_coap_blockwise_and_observe);
 }

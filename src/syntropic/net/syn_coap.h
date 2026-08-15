@@ -78,10 +78,21 @@ extern "C" {
 #define COAP_OPT_URI_QUERY 15      /**< Uri-Query         */
 #define COAP_OPT_ACCEPT 17         /**< Accept            */
 #define COAP_OPT_LOCATION_QUERY 20 /**< Location-Query   */
+#define COAP_OPT_BLOCK2 23         /**< Block2 (Response Blockwise - RFC 7959) */
+#define COAP_OPT_BLOCK1 27         /**< Block1 (Request Blockwise - RFC 7959)  */
 #define COAP_OPT_PROXY_URI 35      /**< Proxy-Uri         */
 #define COAP_OPT_PROXY_SCHEME 39   /**< Proxy-Scheme      */
 #define COAP_OPT_SIZE1 60          /**< Size1             */
 /** @} */
+
+/**
+ * @brief CoAP Blockwise Transfer Parameter (RFC 7959).
+ */
+typedef struct {
+    uint32_t num; /**< Block sequence number (0..1048575) */
+    bool more;    /**< More blocks follow (true/false)     */
+    uint8_t szx;  /**< Size exponent (0=16B, 1=32B, 2=64B, 3=128B, 4=256B, 5=512B, 6=1024B) */
+} SYN_CoapBlock;
 
 /**
  * @brief Single CoAP option (number + opaque value).
@@ -91,6 +102,25 @@ typedef struct {
     const uint8_t *val; /**< Pointer to option value bytes          */
     size_t len;         /**< Length of option value in bytes         */
 } SYN_CoapOption;
+
+/**
+ * @brief Encode a CoAP Blockwise Option (Block1 / Block2) value (RFC 7959).
+ *
+ * @param block  Block parameters.
+ * @param buf    [out] Output buffer for encoded uint (up to 3 bytes).
+ * @return Number of bytes encoded (1, 2, or 3 bytes).
+ */
+size_t syn_coap_encode_block_opt(const SYN_CoapBlock *block, uint8_t buf[3]);
+
+/**
+ * @brief Decode a CoAP Blockwise Option (Block1 / Block2) value (RFC 7959).
+ *
+ * @param opt_val Pointer to option value bytes.
+ * @param opt_len Option length in bytes (1, 2, or 3).
+ * @param block   [out] Parsed block parameters.
+ * @return true on success, false on invalid length or format.
+ */
+bool syn_coap_decode_block_opt(const uint8_t *opt_val, size_t opt_len, SYN_CoapBlock *block);
 
 /**
  * @brief Parsed or to-be-serialized CoAP message header.
