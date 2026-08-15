@@ -136,7 +136,16 @@ void test_ocpp_client_against_python_csms(void)
                       syn_ocpp_process_message(&g_client, json, strlen(json), NULL, 0, NULL));
     TEST_ASSERT_EQUAL(SYN_OCPP_REGISTRATION_ACCEPTED, g_client.registration_status);
 
-    /* 3. Send StatusNotification */
+    /* 3. Send Heartbeat */
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_ocpp_format_heartbeat(&g_client, tx_payload, sizeof(tx_payload), &payload_len));
+    frame_len = format_client_ws_frame(tx_payload, payload_len, ws_frame);
+    send(sock, ws_frame, frame_len, 0);
+
+    json = recv_ocpp_json(sock, rx_buf, sizeof(rx_buf));
+    TEST_ASSERT_NOT_NULL(json);
+
+    /* 4. Send StatusNotification */
     TEST_ASSERT_EQUAL(SYN_OK, syn_ocpp_format_status_notification(
                                   &g_client, 1, SYN_OCPP_STATUS_CHARGING, "NoError", tx_payload,
                                   sizeof(tx_payload), &payload_len));
@@ -146,7 +155,7 @@ void test_ocpp_client_against_python_csms(void)
     json = recv_ocpp_json(sock, rx_buf, sizeof(rx_buf));
     TEST_ASSERT_NOT_NULL(json);
 
-    /* 4. Send Authorize */
+    /* 5. Send Authorize */
     TEST_ASSERT_EQUAL(SYN_OK, syn_ocpp_format_authorize(&g_client, "RFID-TAG-123", tx_payload,
                                                         sizeof(tx_payload), &payload_len));
     frame_len = format_client_ws_frame(tx_payload, payload_len, ws_frame);
@@ -155,7 +164,7 @@ void test_ocpp_client_against_python_csms(void)
     json = recv_ocpp_json(sock, rx_buf, sizeof(rx_buf));
     TEST_ASSERT_NOT_NULL(json);
 
-    /* 5. Send StartTransaction */
+    /* 6. Send StartTransaction */
     TEST_ASSERT_EQUAL(SYN_OK, syn_ocpp_format_start_transaction(&g_client, 1, "RFID-TAG-123", 1000,
                                                                 tx_payload, sizeof(tx_payload),
                                                                 &payload_len));
@@ -168,7 +177,17 @@ void test_ocpp_client_against_python_csms(void)
                       syn_ocpp_process_message(&g_client, json, strlen(json), NULL, 0, NULL));
     TEST_ASSERT_EQUAL(1001, g_client.active_transaction_id);
 
-    /* 6. Send StopTransaction */
+    /* 7. Send MeterValues */
+    SYN_OCPP_MeterValues meter = {5000, 230, 160, 3680, 50};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ocpp_format_meter_values(&g_client, 1, &meter, tx_payload,
+                                                           sizeof(tx_payload), &payload_len));
+    frame_len = format_client_ws_frame(tx_payload, payload_len, ws_frame);
+    send(sock, ws_frame, frame_len, 0);
+
+    json = recv_ocpp_json(sock, rx_buf, sizeof(rx_buf));
+    TEST_ASSERT_NOT_NULL(json);
+
+    /* 8. Send StopTransaction */
     TEST_ASSERT_EQUAL(SYN_OK, syn_ocpp_format_stop_transaction(&g_client, 1001, 15000,
                                                                "EVDisconnected", tx_payload,
                                                                sizeof(tx_payload), &payload_len));
