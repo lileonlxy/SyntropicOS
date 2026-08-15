@@ -257,6 +257,53 @@ static void test_dlt645_frame_checksum_and_address_mismatch(void)
     TEST_ASSERT_EQUAL_size_t(0, syn_dlt645_encode(&bad_enc_frame, enc_buf, sizeof(enc_buf)));
 }
 
+static void test_dlt645_decoder_embedded_eof_and_null_cb(void)
+{
+    /* 1. Decoder with NULL callback */
+    SYN_DLT645_Frame tx_frame;
+    memset(&tx_frame, 0, sizeof(tx_frame));
+    tx_frame.version = SYN_DLT645_VER_2007;
+    tx_frame.control = SYN_DLT645_CMD_READ_DATA;
+    tx_frame.data_id = 0x00010000;
+    memset(tx_frame.address, 0x22, 6);
+
+    uint8_t raw[64];
+    size_t enc_len = syn_dlt645_encode(&tx_frame, raw, sizeof(raw));
+
+    SYN_DLT645_Decoder dec_nocb;
+    syn_dlt645_decoder_init(&dec_nocb, SYN_DLT645_VER_2007, NULL, NULL);
+    for (size_t i = 0; i < enc_len; i++) {
+        syn_dlt645_decoder_feed(&dec_nocb, raw[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, dec_nocb.rx_len); /* Resets on frame completion even with NULL cb */
+
+    /* 2. Payload contains 0x16 (which after +0x33 becomes 0x49, but unencoded payload 0xE3 after
+     * +0x33 is 0x16) */
+    SYN_DLT645_Frame tx_embed;
+    memset(&tx_embed, 0, sizeof(tx_embed));
+    tx_embed.version = SYN_DLT645_VER_2007;
+    tx_embed.control = SYN_DLT645_CMD_READ_DATA_RESP;
+    tx_embed.data_id = 0x00010000;
+    memset(tx_embed.address, 0x33, 6);
+    tx_embed.payload[0] = 0xE3; /* 0xE3 + 0x33 = 0x16 (embedded EOF byte!) */
+    tx_embed.payload[1] = 0x55;
+    tx_embed.payload_len = 2;
+
+    uint8_t embed_raw[64];
+    size_t embed_len = syn_dlt645_encode(&tx_embed, embed_raw, sizeof(embed_raw));
+    TEST_ASSERT_TRUE(embed_len > 0);
+
+    callback_count = 0;
+    SYN_DLT645_Decoder dec_embed;
+    syn_dlt645_decoder_init(&dec_embed, SYN_DLT645_VER_2007, on_frame_decoded, NULL);
+    for (size_t i = 0; i < embed_len; i++) {
+        syn_dlt645_decoder_feed(&dec_embed, embed_raw[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(1, callback_count);
+    TEST_ASSERT_EQUAL_UINT8(SYN_DLT645_CMD_READ_DATA_RESP, last_decoded_frame.control);
+    TEST_ASSERT_EQUAL_UINT8(0xE3, last_decoded_frame.payload[0]);
+}
+
 void run_dlt645_tests(void)
 {
     RUN_TEST(test_dlt645_checksum);
@@ -265,4 +312,5 @@ void run_dlt645_tests(void)
     RUN_TEST(test_dlt645_streaming_decoder);
     RUN_TEST(test_dlt645_error_handling);
     RUN_TEST(test_dlt645_frame_checksum_and_address_mismatch);
+    RUN_TEST(test_dlt645_decoder_embedded_eof_and_null_cb);
 }
