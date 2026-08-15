@@ -304,6 +304,23 @@ bool syn_tls_handshake(SYN_TLS_Context *ctx)
     }
 
     if (ctx->state == SYN_TLS_STATE_HANDSHAKE_KEYS_DERIVED) {
+        if (ctx->config.mode == SYN_TLS_AUTH_MODE_X509_SERVER ||
+            ctx->config.mode == SYN_TLS_AUTH_MODE_MTLS) {
+            if (ctx->config.root_ca != NULL && ctx->config.client_cert_der != NULL &&
+                ctx->config.client_cert_len > 0) {
+                SYN_X509_Cert server_cert;
+                if (!syn_x509_parse(ctx->config.client_cert_der, ctx->config.client_cert_len,
+                                    &server_cert)) {
+                    ctx->state = SYN_TLS_STATE_ERROR;
+                    return false;
+                }
+                if (!syn_x509_validate_chain(&server_cert, ctx->config.root_ca,
+                                             ctx->config.server_name)) {
+                    ctx->state = SYN_TLS_STATE_ERROR;
+                    return false;
+                }
+            }
+        }
         ctx->state = SYN_TLS_STATE_CERTIFICATE_VERIFIED;
     }
 

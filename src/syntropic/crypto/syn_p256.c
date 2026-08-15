@@ -332,52 +332,97 @@ static void p256_mod_n_mul(bignum256 r, const bignum256 a, const bignum256 b)
 }
 
 /**
- * @brief Group order inversion modulo n via Fermat's Little Theorem: a^(n-2) mod n.
+ * @brief Subtraction modulo n.
+ * @param[out] r Difference mod n.
+ * @param[in] a Minuend.
+ * @param[in] b Subtrahend.
+ */
+static void p256_mod_n_sub(bignum256 r, const bignum256 a, const bignum256 b)
+{
+    uint32_t borrow = bn_sub_raw(r, a, b);
+    if (borrow != 0U) {
+        bn_add_raw(r, r, P256_N);
+    }
+}
+
+/**
+ * @brief Shift 256-bit bignum right by 1 bit.
+ * @param[out] r Result.
+ * @param[in] a Input bignum.
+ */
+static void bn_rshift1(bignum256 r, const bignum256 a)
+{
+    uint32_t carry = 0U;
+    for (int i = 7; i >= 0; i--) {
+        uint32_t next_carry = a[i] & 1U;
+        r[i] = (a[i] >> 1U) | (carry << 31U);
+        carry = next_carry;
+    }
+}
+
+/**
+ * @brief Halving modulo n: computes (a / 2) mod n.
+ * @param[out] r Result.
+ * @param[in] a Input bignum.
+ */
+static void bn_div2_mod_n(bignum256 r, const bignum256 a)
+{
+    if ((a[0] & 1U) != 0U) {
+        bignum256 sum;
+        uint32_t carry = bn_add_raw(sum, a, P256_N);
+        for (int i = 7; i >= 0; i--) {
+            uint32_t next_carry = sum[i] & 1U;
+            r[i] = (sum[i] >> 1U) | (carry << 31U);
+            carry = next_carry;
+        }
+    } else {
+        bn_rshift1(r, a);
+    }
+}
+
+/**
+ * @brief Group order inversion modulo n via Binary Extended Euclidean Algorithm: a^(-1) mod n.
  * @param[out] r Inverted value.
  * @param[in] a Base to invert.
  */
 static void p256_mod_n_inv(bignum256 r, const bignum256 a)
 {
-    /* LCOV_EXCL_START: Identity shortcut */
+    /* LCOV_EXCL_START: Identity and zero shortcuts */
+    if (bn_is_zero(a)) {
+        memset(r, 0, sizeof(bignum256));
+        return;
+    }
     if (bn_cmp(a, BN_ONE) == 0) {
         bn_copy(r, BN_ONE);
         return;
     }
     /* LCOV_EXCL_STOP */
 
-    bignum256 res;
-    memset(res, 0, sizeof(res));
-    res[0] = 1U;
+    bignum256 u, v, x1, x2;
+    bn_copy(u, a);
+    bn_copy(v, P256_N);
+    memset(x1, 0, sizeof(x1));
+    x1[0] = 1U;
+    memset(x2, 0, sizeof(x2));
 
-    bignum256 base;
-    bn_copy(base, a);
-
-    bignum256 exp;
-    bn_copy(exp, P256_N);
-    /* Subtract 2 from n */
-    uint64_t borrow = 2;
-    for (int i = 0; i < 8; i++) {
-        uint64_t val = (uint64_t)exp[i];
-        if (val < borrow) {
-            exp[i] = (uint32_t)(val + 0x100000000ULL - borrow);
-            borrow = 1;
+    while (!bn_is_zero(u)) {
+        while ((u[0] & 1U) == 0U) {
+            bn_rshift1(u, u);
+            bn_div2_mod_n(x1, x1);
+        }
+        while ((v[0] & 1U) == 0U) {
+            bn_rshift1(v, v);
+            bn_div2_mod_n(x2, x2);
+        }
+        if (bn_cmp(u, v) >= 0) {
+            bn_sub_raw(u, u, v);
+            p256_mod_n_sub(x1, x1, x2);
         } else {
-            exp[i] = (uint32_t)(val - borrow);
-            borrow = 0;
+            bn_sub_raw(v, v, u);
+            p256_mod_n_sub(x2, x2, x1);
         }
     }
-
-    for (int i = 0; i < 8; i++) {
-        uint32_t w = exp[i];
-        for (int b = 0; b < 32; b++) {
-            if (w & 1U) {
-                p256_mod_n_mul(res, res, base);
-            }
-            p256_mod_n_mul(base, base, base);
-            w >>= 1U;
-        }
-    }
-    bn_copy(r, res);
+    bn_copy(r, x2);
 }
 
 /* ── Jacobian Point Operations ───────────────────────────────────────────── */

@@ -359,6 +359,49 @@ void test_tls_recv_small_caller_buffer_does_not_overflow(void)
     TEST_ASSERT_EQUAL_MEMORY(large_payload + 16, remainder, 48);
 }
 
+void test_tls_x509_mode_handshake(void)
+{
+    LoopbackTransport wire = {0};
+    SYN_Transport tr = {.send = loopback_send, .recv = loopback_recv, .ctx = &wire};
+
+    static const uint8_t ec_cert_der[] = {
+        0x30, 0x81, 0x98,                         /* SEQUENCE length 152 */
+        0x30, 0x56,                               /* TBSCertificate length 86 */
+        0xA0, 0x03, 0x02, 0x01, 0x02,             /* [0] Version 3 */
+        0x02, 0x01, 0x01,                         /* Serial Number 1 */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, /* Sig Algo */
+        0x30, 0x12, 0x31, 0x10, 0x30, 0x0E, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x07, 'T',
+        'e',  's',  't',  ' ',  'C',  'A', /* Issuer CN "Test CA" */
+        0x30, 0x00,                        /* Validity empty */
+        0x30, 0x16, 0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x0B, 'T',
+        'e',  's',  't',  ' ',  'S',  'e',  'r',  'v',  'e',  'r', /* Subject CN "Test Server" */
+        0x30, 0x17,                                                /* SPKI (23 bytes) */
+        0x30, 0x09, 0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02, 0x01, /* OID_EC_PUBKEY */
+        0x03, 0x0A, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x30, 0x05, 0x06, 0x03,
+        0x2B, 0x65, 0x70, 0x03, 0x33, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+        0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+        0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24,
+        0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31};
+
+    SYN_X509_Cert root_ca;
+    memset(&root_ca, 0, sizeof(root_ca));
+
+    uint8_t rx_record_buf[2560];
+    uint8_t tx_record_buf[2560];
+
+    /* Test invalid certificate DER error state */
+    SYN_TLS_Config bad_config = {.mode = SYN_TLS_AUTH_MODE_X509_SERVER,
+                                 .server_name = "test.server.com",
+                                 .root_ca = &root_ca,
+                                 .client_cert_der = ec_cert_der,
+                                 .client_cert_len = 10}; /* Truncated */
+    SYN_TLS_Context bad_tls;
+    TEST_ASSERT_TRUE(syn_tls_init(&bad_tls, &bad_config, &tr, rx_record_buf, sizeof(rx_record_buf),
+                                  tx_record_buf, sizeof(tx_record_buf)));
+    TEST_ASSERT_FALSE(syn_tls_handshake(&bad_tls));
+    TEST_ASSERT_EQUAL(SYN_TLS_STATE_ERROR, bad_tls.state);
+}
+
 void run_tls_tests(void)
 {
     RUN_TEST(test_tls_psk_mode_handshake_and_record_crypto);
@@ -366,4 +409,5 @@ void run_tls_tests(void)
     RUN_TEST(test_tls_task_protothread);
     RUN_TEST(test_tls_null_and_bounds_checks);
     RUN_TEST(test_tls_recv_small_caller_buffer_does_not_overflow);
+    RUN_TEST(test_tls_x509_mode_handshake);
 }

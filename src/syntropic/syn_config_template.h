@@ -102,6 +102,8 @@
 #define SYN_USE_BLAKE2S 1          /**< BLAKE2s hash + keyed MAC (RFC 7693) */
 #define SYN_USE_CHACHA20POLY1305 1 /**< ChaCha20-Poly1305 AEAD (RFC 8439)  */
 #define SYN_USE_X25519 1           /**< X25519 Diffie-Hellman (RFC 7748)   */
+#define SYN_USE_P256 1             /**< NIST P-256 / secp256r1 ECC          */
+#define SYN_P256_USE_COMB_TABLE 0  /**< Precomputed G comb table (opt-in)   */
 
 /* ── Bluetooth Low Energy ───────────────────────────────────────────────── */
 

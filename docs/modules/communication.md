@@ -363,15 +363,24 @@ Cleanroom multicast DNS-SD responder (RFC 6763 / RFC 6762) on UDP port 5353 (`22
 - **Resource Records**: Automatic encoding of PTR (service type), SRV (port + hostname), TXT (attributes), and A (IPv4) records.
 - **Gratuitous Announcement**: `syn_dnssd_announce()` broadcasts multicast announcements on service registration.
 - **Query Demuxing**: `syn_dnssd_process_query()` matches incoming queries and replies with authoritative response packets.
+- **Active Service Browsing**: `syn_dnssd_browser_init()` and cooperative protothread coroutine `syn_dnssd_browse_task()` query and stream discovered nodes to application callbacks.
 
 ```c
 #include <syntropic/net/syn_dnssd.h>
 
 static SYN_DnsSd g_dnssd;
+static SYN_DnsSd_Browser g_browser;
+
+static void on_node_found(const SYN_DnsSd_Discovered *svc, void *user_data) {
+    printf("Discovered %s on %d.%d.%d.%d:%u (host: %s, txt: %s)\n",
+           svc->instance_name, svc->ip[0], svc->ip[1], svc->ip[2], svc->ip[3],
+           svc->port, svc->hostname, svc->txt);
+}
 
 void dnssd_setup(void) {
     syn_dnssd_init(&g_dnssd);
 
+    /* 1. Register and announce local service */
     SYN_DnsSd_Service svc = {
         .instance_name = "Syntropic Sensor Node",
         .service_type = "_http._tcp",
@@ -381,12 +390,14 @@ void dnssd_setup(void) {
         .txt_records = {"version=1.0", "vendor=Syntropic"},
         .txt_count = 2
     };
-
     syn_dnssd_register(&g_dnssd, &svc);
 
     uint8_t buf[1024];
     size_t len = 0;
     syn_dnssd_announce(&g_dnssd, 0, buf, sizeof(buf), &len);
+
+    /* 2. Start cooperative service discovery browser (5-second window) */
+    syn_dnssd_browser_init(&g_browser, &g_dnssd, "_coap._udp", on_node_found, NULL, 5000);
 }
 ```
 
