@@ -13,7 +13,7 @@ def main():
     
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_sock.bind(('127.0.0.1', 10886))
+    server_sock.bind(('0.0.0.0', 10886))
     server_sock.listen(5)
     
     print("[3rd-Party UDS Daemon] Listening for SyntropicOS UDS integration client...")
