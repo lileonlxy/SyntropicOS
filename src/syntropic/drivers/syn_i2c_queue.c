@@ -51,18 +51,18 @@ SYN_Status syn_i2c_queue_process(SYN_I2C_Queue *q)
     }
 
     while (q->count > 0 && !q->active) {
-        SYN_I2C_Transaction *tx = &q->ring[q->head];
+        SYN_I2C_Transaction tx = q->ring[q->head];
         q->head = (uint16_t)((q->head + 1) % SYN_I2C_QUEUE_MAX_DEPTH);
         q->count--;
         q->active = true;
 
-        SYN_Status status = syn_port_i2c_transfer(q->bus, tx->addr, tx->tx_data, tx->tx_len,
-                                                  tx->rx_data, tx->rx_len);
+        SYN_Status status =
+            syn_port_i2c_transfer(q->bus, tx.addr, tx.tx_data, tx.tx_len, tx.rx_data, tx.rx_len);
 
         q->active = false;
 
-        if (tx->callback != NULL) {
-            tx->callback(q->bus, status, tx->user_data);
+        if (tx.callback != NULL) {
+            tx.callback(q->bus, status, tx.user_data);
         }
     }
 

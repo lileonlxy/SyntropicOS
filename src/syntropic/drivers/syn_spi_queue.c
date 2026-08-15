@@ -52,26 +52,26 @@ SYN_Status syn_spi_queue_process(SYN_SPI_Queue *q)
     }
 
     while (q->count > 0 && !q->active) {
-        SYN_SPI_Transaction *tx = &q->ring[q->head];
+        SYN_SPI_Transaction tx = q->ring[q->head];
         q->head = (uint16_t)((q->head + 1) % SYN_SPI_QUEUE_MAX_DEPTH);
         q->count--;
         q->active = true;
 
         /* Assert target CS pin */
-        syn_port_gpio_write(tx->cs_pin, SYN_GPIO_LOW);
+        syn_port_gpio_write(tx.cs_pin, SYN_GPIO_LOW);
 
         /* Execute full duplex transfer */
-        SYN_Status status = syn_port_spi_transfer(q->bus, tx->tx_data, tx->rx_data, tx->len);
+        SYN_Status status = syn_port_spi_transfer(q->bus, tx.tx_data, tx.rx_data, tx.len);
 
         /* Deassert CS pin if keep_cs_active is false */
-        if (!tx->keep_cs_active) {
-            syn_port_gpio_write(tx->cs_pin, SYN_GPIO_HIGH);
+        if (!tx.keep_cs_active) {
+            syn_port_gpio_write(tx.cs_pin, SYN_GPIO_HIGH);
         }
 
         q->active = false;
 
-        if (tx->callback != NULL) {
-            tx->callback(q->bus, status, tx->user_data);
+        if (tx.callback != NULL) {
+            tx.callback(q->bus, status, tx.user_data);
         }
     }
 
