@@ -165,6 +165,66 @@ def main():
         print(f"[isotp] FAIL: Large Multi-Frame (512B) Echo mismatch! Length={len(rx_payload) if rx_payload else 0}")
         failures += 1
 
+    # 4. Exact Max Single Frame (SF) Boundary (7 bytes)
+    print("\n--- Test 4: Max Single Frame (SF) Boundary Transmission (7 bytes) ---")
+    payload4 = b"1234567"
+    stack.send(payload4)
+
+    t0 = time.time()
+    rx_payload = None
+    while time.time() - t0 < 3.0:
+        stack.process()
+        if stack.available():
+            rx_payload = stack.recv()
+            break
+        time.sleep(0.001)
+
+    if rx_payload == payload4:
+        print(f"[isotp] SF Boundary (7B) Echo Received OK: {rx_payload.decode('ascii')}")
+    else:
+        print(f"[isotp] FAIL: SF Boundary (7B) Echo mismatch! Expected {payload4}, got {rx_payload}")
+        failures += 1
+
+    # 5. Exact Min Multi-Frame (FF + CF) Boundary (8 bytes)
+    print("\n--- Test 5: Min Multi-Frame Boundary Transmission (8 bytes) ---")
+    payload5 = b"12345678"
+    stack.send(payload5)
+
+    t0 = time.time()
+    rx_payload = None
+    while time.time() - t0 < 3.0:
+        stack.process()
+        if stack.available():
+            rx_payload = stack.recv()
+            break
+        time.sleep(0.001)
+
+    if rx_payload == payload5:
+        print(f"[isotp] Min Multi-Frame (8B) Echo Received OK: {rx_payload.decode('ascii')}")
+    else:
+        print(f"[isotp] FAIL: Min Multi-Frame (8B) Echo mismatch! Expected {payload5}, got {rx_payload}")
+        failures += 1
+
+    # 6. Intermediate Multi-Frame (128 bytes)
+    print("\n--- Test 6: Intermediate Multi-Frame Transmission (128 bytes) ---")
+    payload6 = bytes([(i % 256) for i in range(128)])
+    stack.send(payload6)
+
+    t0 = time.time()
+    rx_payload = None
+    while time.time() - t0 < 4.0:
+        stack.process()
+        if stack.available():
+            rx_payload = stack.recv()
+            break
+        time.sleep(0.002)
+
+    if rx_payload == payload6:
+        print(f"[isotp] Intermediate Multi-Frame (128B) Echo Received OK! Length={len(rx_payload)}")
+    else:
+        print(f"[isotp] FAIL: Intermediate Multi-Frame (128B) Echo mismatch! Length={len(rx_payload) if rx_payload else 0}")
+        failures += 1
+
     print("\n==================================================")
     if failures == 0:
         print("=== 3rd-Party isotp Python Client Integration PASS ===")
