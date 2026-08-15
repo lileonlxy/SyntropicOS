@@ -775,9 +775,11 @@ SYN_PT_Status syn_ecat_master_scan_task(SYN_PT *pt, SYN_EcatMaster *m)
 
 static uint16_t syn_ecat_get_slave_station_addr(const SYN_EcatMaster *m, uint8_t idx)
 {
+    /* LCOV_EXCL_START: Static helper defensive bounds guard */
     if (m == NULL || idx >= SYN_ECAT_MAX_SLAVES) {
         return 0x1001;
     }
+    /* LCOV_EXCL_STOP */
     uint16_t addr = m->slaves[idx].station_addr;
     return (addr != 0) ? addr : (uint16_t)(0x1001 + idx);
 }
