@@ -600,6 +600,25 @@ static void test_modbus_master_exception_response_handling(void)
     /* Advance time to trigger timeout */
     syn_modbus_master_queue_step(&m, &q_cb, 600);
     TEST_ASSERT_TRUE(cb_called);
+
+    /* 5. Large coil read (> 125 bytes, up to 200 bytes) */
+    SYN_ModbusMaster m_coils;
+    syn_modbus_master_init(&m_coils, 500);
+    m_coils.state = SYN_MB_MASTER_STATE_WAITING_RESPONSE;
+    m_coils.slave_addr = 1;
+    m_coils.func_code = SYN_MB_FC_READ_COILS;
+    uint8_t coil_resp[205];
+    coil_resp[0] = 1;
+    coil_resp[1] = SYN_MB_FC_READ_COILS;
+    coil_resp[2] = 200; /* 200 bytes of coils */
+    memset(&coil_resp[3], 0xAA, 200);
+    syn_poke_u16_le(syn_crc16_modbus(coil_resp, 203), coil_resp, 203);
+    for (size_t i = 0; i < 205; i++) {
+        syn_modbus_master_feed(&m_coils, coil_resp[i]);
+    }
+    TEST_ASSERT_EQUAL(SYN_MB_MASTER_STATE_COMPLETE, syn_modbus_master_process(&m_coils, 100));
+    TEST_ASSERT_EQUAL_UINT16(200, m_coils.read_count);
+    TEST_ASSERT_EQUAL_HEX16(0xAA, m_coils.read_data[199]);
 }
 
 void run_modbus_master_tests(void)

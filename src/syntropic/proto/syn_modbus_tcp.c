@@ -61,6 +61,8 @@ static uint16_t get_response_pdu_len(const uint8_t *buf)
     case SYN_MB_FC_READ_HOLDING:
     case SYN_MB_FC_READ_INPUT:
     case SYN_MB_FC_REPORT_SERVER_ID:
+    case SYN_MB_FC_READ_FILE_RECORD:
+    case SYN_MB_FC_WRITE_FILE_RECORD:
         return (uint16_t)(2 + buf[2]);
 
     case SYN_MB_FC_WRITE_SINGLE_COIL:
@@ -75,7 +77,22 @@ static uint16_t get_response_pdu_len(const uint8_t *buf)
     case SYN_MB_FC_MASK_WRITE_REGISTER:
         return 7;
 
-    /* LCOV_EXCL_START: Defensive bounds check / hardware port fallback */
+    case SYN_MB_FC_READ_FIFO_QUEUE:
+        return (uint16_t)(3 + (((uint16_t)buf[2] << 8) | buf[3]));
+
+    case SYN_MB_FC_READ_DEVICE_INFO: {
+        uint16_t len = 7;
+        uint8_t obj_count = buf[7];
+        size_t p = 8;
+        for (uint8_t i = 0; i < obj_count; i++) {
+            uint8_t olen = buf[p + 1];
+            p += 2 + olen;
+            len += 2 + olen;
+        }
+        return len;
+    }
+
+    /* LCOV_EXCL_START: Fallback for custom or unrecognized function codes */
     default:
         return (uint16_t)(2 + buf[2]);
         /* LCOV_EXCL_STOP */

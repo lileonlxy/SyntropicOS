@@ -47,35 +47,32 @@ SYN_Status syn_spi_queue_process(SYN_SPI_Queue *q)
         return SYN_INVALID_PARAM;
     }
 
-    if (q->active || q->count == 0) {
+    if (q->active) {
         return SYN_OK;
     }
 
-    SYN_SPI_Transaction *tx = &q->ring[q->head];
-    q->head = (uint16_t)((q->head + 1) % SYN_SPI_QUEUE_MAX_DEPTH);
-    q->count--;
-    q->active = true;
+    while (q->count > 0 && !q->active) {
+        SYN_SPI_Transaction *tx = &q->ring[q->head];
+        q->head = (uint16_t)((q->head + 1) % SYN_SPI_QUEUE_MAX_DEPTH);
+        q->count--;
+        q->active = true;
 
-    /* Assert target CS pin */
-    syn_port_gpio_write(tx->cs_pin, SYN_GPIO_LOW);
+        /* Assert target CS pin */
+        syn_port_gpio_write(tx->cs_pin, SYN_GPIO_LOW);
 
-    /* Execute full duplex transfer */
-    SYN_Status status = syn_port_spi_transfer(q->bus, tx->tx_data, tx->rx_data, tx->len);
+        /* Execute full duplex transfer */
+        SYN_Status status = syn_port_spi_transfer(q->bus, tx->tx_data, tx->rx_data, tx->len);
 
-    /* Deassert CS pin if keep_cs_active is false */
-    if (!tx->keep_cs_active) {
-        syn_port_gpio_write(tx->cs_pin, SYN_GPIO_HIGH);
-    }
+        /* Deassert CS pin if keep_cs_active is false */
+        if (!tx->keep_cs_active) {
+            syn_port_gpio_write(tx->cs_pin, SYN_GPIO_HIGH);
+        }
 
-    q->active = false;
+        q->active = false;
 
-    if (tx->callback != NULL) {
-        tx->callback(q->bus, status, tx->user_data);
-    }
-
-    /* Process next pending item if available */
-    if (q->count > 0) {
-        (void)syn_spi_queue_process(q);
+        if (tx->callback != NULL) {
+            tx->callback(q->bus, status, tx->user_data);
+        }
     }
 
     return SYN_OK;

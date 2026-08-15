@@ -46,27 +46,24 @@ SYN_Status syn_i2c_queue_process(SYN_I2C_Queue *q)
         return SYN_INVALID_PARAM;
     }
 
-    if (q->active || q->count == 0) {
+    if (q->active) {
         return SYN_OK;
     }
 
-    SYN_I2C_Transaction *tx = &q->ring[q->head];
-    q->head = (uint16_t)((q->head + 1) % SYN_I2C_QUEUE_MAX_DEPTH);
-    q->count--;
-    q->active = true;
+    while (q->count > 0 && !q->active) {
+        SYN_I2C_Transaction *tx = &q->ring[q->head];
+        q->head = (uint16_t)((q->head + 1) % SYN_I2C_QUEUE_MAX_DEPTH);
+        q->count--;
+        q->active = true;
 
-    SYN_Status status =
-        syn_port_i2c_transfer(q->bus, tx->addr, tx->tx_data, tx->tx_len, tx->rx_data, tx->rx_len);
+        SYN_Status status = syn_port_i2c_transfer(q->bus, tx->addr, tx->tx_data, tx->tx_len,
+                                                  tx->rx_data, tx->rx_len);
 
-    q->active = false;
+        q->active = false;
 
-    if (tx->callback != NULL) {
-        tx->callback(q->bus, status, tx->user_data);
-    }
-
-    /* Process next pending item if available */
-    if (q->count > 0) {
-        (void)syn_i2c_queue_process(q);
+        if (tx->callback != NULL) {
+            tx->callback(q->bus, status, tx->user_data);
+        }
     }
 
     return SYN_OK;

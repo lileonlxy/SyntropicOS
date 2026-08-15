@@ -209,6 +209,23 @@ void test_modbus_tcp_header_length_mismatch(void)
     uint8_t fc07_adu[10] = {0, 7, 0, 0, 0, 2, 1, 0x07};
     TEST_ASSERT_TRUE(
         syn_modbus_tcp_process_slave(&mb, fc07_adu, 8, resp_adu, sizeof(resp_adu), &resp_len));
+
+    /* FC 0x18 (Read FIFO Queue) test */
+    static uint16_t fifo_data[4] = {0x1111, 0x2222, 0x3333, 0x4444};
+    cfg.fifo_queue = fifo_data;
+    cfg.fifo_count = 4;
+    syn_modbus_init(&mb, &cfg, mb_buf, sizeof(mb_buf));
+    uint8_t fc18_adu[12] = {0, 8, 0, 0, 0, 4, 1, 0x18, 0x00, 0x01};
+    TEST_ASSERT_TRUE(
+        syn_modbus_tcp_process_slave(&mb, fc18_adu, 10, resp_adu, sizeof(resp_adu), &resp_len));
+    TEST_ASSERT_EQUAL(20,
+                      resp_len); /* 7 MBAP + 1 FC + 2 byte_count + 2 fifo_count + 8 bytes data */
+
+    /* FC 0x2B (Read Device Info) test */
+    uint8_t fc2b_adu[12] = {0, 9, 0, 0, 0, 5, 1, 0x2B, 0x0E, 0x01, 0x00};
+    TEST_ASSERT_TRUE(
+        syn_modbus_tcp_process_slave(&mb, fc2b_adu, 11, resp_adu, sizeof(resp_adu), &resp_len));
+    TEST_ASSERT_TRUE(resp_len > 14);
 }
 
 void run_modbus_tcp_tests(void)

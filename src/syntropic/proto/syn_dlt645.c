@@ -36,7 +36,7 @@ size_t syn_dlt645_encode(const SYN_DLT645_Frame *frame, uint8_t *out_buf, size_t
     size_t data_len = di_len + frame->payload_len;
     size_t total_len = 10 + data_len + 2; /* 10 header + data_len + 1 CS + 1 EOF */
 
-    if (out_capacity < total_len) {
+    if (out_capacity < total_len || data_len > 255 || frame->payload_len > sizeof(frame->payload)) {
         return 0;
     }
 

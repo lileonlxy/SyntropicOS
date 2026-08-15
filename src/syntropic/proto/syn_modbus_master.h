@@ -43,8 +43,10 @@ typedef struct {
     uint8_t response_fc;    /**< Response function code             */
     uint8_t exception_code; /**< Exception code if error            */
 
-    uint16_t read_data[125]; /**< Received read data buffer          */
-    uint16_t read_count;     /**< Number of registers read           */
+#define SYN_MODBUS_MASTER_MAX_READ_DATA 250 /**< Max response registers or byte values */
+
+    uint16_t read_data[SYN_MODBUS_MASTER_MAX_READ_DATA]; /**< Received read data buffer */
+    uint16_t read_count;                                 /**< Number of registers read */
 } SYN_ModbusMaster;
 
 /**

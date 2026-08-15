@@ -247,6 +247,14 @@ static void test_dlt645_frame_checksum_and_address_mismatch(void)
         syn_dlt645_decoder_feed(&dec_overflow, 0x11);
     }
     TEST_ASSERT_EQUAL_INT(0, dec_overflow.rx_len);
+
+    /* 8. syn_dlt645_encode data_len > 255 guard */
+    SYN_DLT645_Frame bad_enc_frame;
+    memset(&bad_enc_frame, 0, sizeof(bad_enc_frame));
+    bad_enc_frame.version = SYN_DLT645_VER_2007;
+    bad_enc_frame.payload_len = 253;
+    uint8_t enc_buf[300];
+    TEST_ASSERT_EQUAL_size_t(0, syn_dlt645_encode(&bad_enc_frame, enc_buf, sizeof(enc_buf)));
 }
 
 void run_dlt645_tests(void)
