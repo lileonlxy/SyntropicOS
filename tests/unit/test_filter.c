@@ -225,6 +225,37 @@ static void test_filter_biquad_bandpass_and_notch(void)
     TEST_ASSERT_NOT_EQUAL(0, notch_out);
 }
 
+static void test_filter_median_sorting_patterns(void)
+{
+    SYN_FilterMedian med;
+    syn_filter_median_init(&med, 5);
+
+    /* Reverse sorted input: 50, 40, 30, 20, 10 */
+    syn_filter_median_update(&med, 50);
+    syn_filter_median_update(&med, 40);
+    syn_filter_median_update(&med, 30);
+    syn_filter_median_update(&med, 20);
+    int16_t m_rev = syn_filter_median_update(&med, 10);
+    TEST_ASSERT_EQUAL_INT(30, m_rev);
+
+    /* Already sorted input: 10, 20, 30, 40, 50 */
+    syn_filter_median_reset(&med);
+    syn_filter_median_update(&med, 10);
+    syn_filter_median_update(&med, 20);
+    syn_filter_median_update(&med, 30);
+    syn_filter_median_update(&med, 40);
+    int16_t m_sort = syn_filter_median_update(&med, 50);
+    TEST_ASSERT_EQUAL_INT(30, m_sort);
+
+    /* Moving average with negative numbers */
+    SYN_FilterMA ma;
+    syn_filter_ma_init(&ma, 3);
+    syn_filter_ma_update(&ma, -30);
+    syn_filter_ma_update(&ma, -60);
+    int16_t ma_neg = syn_filter_ma_update(&ma, -90);
+    TEST_ASSERT_EQUAL_INT(-60, ma_neg);
+}
+
 void run_filter_tests(void)
 {
     RUN_TEST(test_filters);
@@ -236,4 +267,5 @@ void run_filter_tests(void)
     RUN_TEST(test_filter_biquad_allpass_and_peaking_eq);
     RUN_TEST(test_biquad_cascade_and_edge_cases);
     RUN_TEST(test_filter_biquad_bandpass_and_notch);
+    RUN_TEST(test_filter_median_sorting_patterns);
 }
