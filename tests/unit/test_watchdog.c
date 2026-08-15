@@ -118,9 +118,29 @@ static void test_watchdog_double_unregister(void)
     TEST_ASSERT_EQUAL_UINT8(1, wdt.count);
 }
 
+static void test_watchdog_timeout_without_callback_or_errlog(void)
+{
+    mock_tick_ms = 0;
+    SYN_Watchdog wdt;
+    SYN_WDT_Entry entries[2];
+    /* Init with NULL callback and NULL errlog */
+    syn_watchdog_init(&wdt, entries, 2, NULL, NULL);
+
+    int8_t id = syn_watchdog_register(&wdt, "nocb", 50);
+    TEST_ASSERT_TRUE(id >= 0);
+
+    /* Advance time beyond timeout */
+    mock_tick_advance(100);
+    syn_watchdog_update(&wdt);
+
+    /* Last checkin should have been reset to now (100) */
+    TEST_ASSERT_EQUAL_UINT32(100, entries[id].last_checkin);
+}
+
 void run_watchdog_tests(void)
 {
     RUN_TEST(test_watchdog);
     RUN_TEST(test_watchdog_table_full_and_errlog);
     RUN_TEST(test_watchdog_double_unregister);
+    RUN_TEST(test_watchdog_timeout_without_callback_or_errlog);
 }

@@ -205,6 +205,44 @@ static void test_menu_null_item_pointers(void)
     TEST_ASSERT_NULL(syn_menu_selected_item(&empty_menu));
 }
 
+static void test_menu_selected_item_and_render(void)
+{
+    TEST_ASSERT_NULL(syn_menu_selected_item(NULL));
+
+    SYN_Menu menu;
+    memset(&menu, 0, sizeof(menu));
+    TEST_ASSERT_NULL(syn_menu_selected_item(&menu));
+
+    static bool toggle_val = false;
+    static const SYN_MenuItem items[] = {
+        SYN_MENU_TOGGLE("Test1", &toggle_val),
+        SYN_MENU_TOGGLE("Test2", &toggle_val),
+    };
+    SYN_MENU_ROOT(root_sel, items);
+
+    mnu_render_n = 0;
+    syn_menu_init(&menu, &root_sel, mnu_render, NULL);
+    TEST_ASSERT_EQUAL_UINT8(2, syn_menu_item_count(&menu));
+
+    const SYN_MenuItem *sel = syn_menu_selected_item(&menu);
+    TEST_ASSERT_NOT_NULL(sel);
+    TEST_ASSERT_EQUAL_STRING("Test1", sel->label);
+
+    /* Test selection index out of bounds */
+    menu.selected = 10;
+    TEST_ASSERT_NULL(syn_menu_selected_item(&menu));
+    menu.selected = 0;
+
+    /* Force manual render */
+    int prev_render = mnu_render_n;
+    syn_menu_render(&menu);
+    TEST_ASSERT_EQUAL_INT(prev_render + 1, mnu_render_n);
+
+    /* Render with NULL callback */
+    menu.render = NULL;
+    syn_menu_render(&menu);
+}
+
 void run_menu_tests(void)
 {
     RUN_TEST(test_menu);
@@ -212,4 +250,5 @@ void run_menu_tests(void)
     RUN_TEST(test_menu_back_while_editing);
     RUN_TEST(test_menu_max_depth);
     RUN_TEST(test_menu_null_item_pointers);
+    RUN_TEST(test_menu_selected_item_and_render);
 }

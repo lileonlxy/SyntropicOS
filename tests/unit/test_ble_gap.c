@@ -75,6 +75,8 @@ void test_ble_gap_process_events(void)
     syn_ble_hci_init(&hci, NULL);
     SYN_BLE_GAP gap;
     syn_ble_gap_init(&gap, &hci, test_gap_cb, NULL);
+    uint8_t tx_buf[64];
+    uint16_t tx_len = 0;
 
     /* Disconnect Complete Event */
     gap_evt_called = false;
@@ -164,4 +166,66 @@ void test_ble_gap_process_events(void)
     uint8_t dummy_evt[] = {0x00};
     TEST_ASSERT_EQUAL(SYN_OK,
                       syn_ble_gap_process_hci_evt(&gap, 0xFF, dummy_evt, sizeof(dummy_evt)));
+
+    /* 0-length advertising data */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_set_adv_data(&gap, NULL, 0, tx_buf, &tx_len));
+
+    /* Non-zero status error codes in HCI events */
+    gap_evt_called = false;
+    uint8_t disconn_fail[] = {0x05, 0x01, 0x00, 0x13};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_process_hci_evt(&gap, SYN_BLE_HCI_EVT_DISCONN_COMPLETE,
+                                                          disconn_fail, sizeof(disconn_fail)));
+    TEST_ASSERT_FALSE(gap_evt_called);
+
+    uint8_t conn_fail[] = {SYN_BLE_HCI_LE_SUBEVT_CONN_COMPLETE,
+                           0x02,
+                           0x01,
+                           0x00,
+                           0x00,
+                           0x00,
+                           0xAA,
+                           0xBB,
+                           0xCC,
+                           0xDD,
+                           0xEE,
+                           0xFF,
+                           0x18,
+                           0x00,
+                           0x00,
+                           0x00,
+                           0x40,
+                           0x00,
+                           0x00};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_process_hci_evt(&gap, SYN_BLE_HCI_EVT_LE_META, conn_fail,
+                                                          sizeof(conn_fail)));
+    TEST_ASSERT_FALSE(gap_evt_called);
+
+    /* Zero reports in advertising report event */
+    uint8_t zero_adv_report[] = {SYN_BLE_HCI_LE_SUBEVT_ADV_REPORT,
+                                 0x00,
+                                 0x00,
+                                 0x00,
+                                 0x00,
+                                 0x00,
+                                 0x00,
+                                 0x00,
+                                 0x00,
+                                 0x00,
+                                 0x00};
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_ble_gap_process_hci_evt(&gap, SYN_BLE_HCI_EVT_LE_META, zero_adv_report,
+                                                  sizeof(zero_adv_report)));
+    TEST_ASSERT_FALSE(gap_evt_called);
+
+    /* Events with NULL callback */
+    SYN_BLE_GAP gap_nocb;
+    syn_ble_gap_init(&gap_nocb, &hci, NULL, NULL);
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_ble_gap_process_hci_evt(&gap_nocb, SYN_BLE_HCI_EVT_DISCONN_COMPLETE,
+                                                  disconn_evt, sizeof(disconn_evt)));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_ble_gap_process_hci_evt(&gap_nocb, SYN_BLE_HCI_EVT_LE_META,
+                                                  conn_complete_evt, sizeof(conn_complete_evt)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_gap_process_hci_evt(&gap_nocb, SYN_BLE_HCI_EVT_LE_META,
+                                                          adv_report_evt, sizeof(adv_report_evt)));
 }

@@ -295,6 +295,20 @@ static void test_json_write_max_depth_overflow(void)
     TEST_ASSERT_TRUE(w.overflow);
 }
 
+static void test_json_close_zero_depth(void)
+{
+    reset();
+    /* Closing at depth 0 should not underflow depth */
+    syn_json_obj_close(&w);
+    TEST_ASSERT_EQUAL_UINT8(0, w.depth);
+    TEST_ASSERT_EQUAL_STRING("}", syn_json_str(&w));
+
+    reset();
+    syn_json_arr_close(&w);
+    TEST_ASSERT_EQUAL_UINT8(0, w.depth);
+    TEST_ASSERT_EQUAL_STRING("]", syn_json_str(&w));
+}
+
 void run_json_write_tests(void)
 {
     RUN_TEST(test_json_empty_object);
@@ -320,4 +334,5 @@ void run_json_write_tests(void)
     RUN_TEST(test_json_null_writer_and_comma_checks);
     RUN_TEST(test_json_write_jw_puts_overflow_branch);
     RUN_TEST(test_json_write_max_depth_overflow);
+    RUN_TEST(test_json_close_zero_depth);
 }

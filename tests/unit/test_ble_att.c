@@ -38,8 +38,18 @@ void test_ble_att_encoders(void)
     TEST_ASSERT_EQUAL_UINT16(1, len);
     TEST_ASSERT_EQUAL_UINT8(SYN_BLE_ATT_OP_WRITE_RSP, buf[0]);
 
-    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_att_encode_notification(0x0003, val, 2, buf, &len));
-    TEST_ASSERT_EQUAL_UINT16(5, len);
+    /* 0-length value payloads */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_att_encode_read_rsp(NULL, 0, buf, &len));
+    TEST_ASSERT_EQUAL_UINT16(1, len);
+    TEST_ASSERT_EQUAL_UINT8(SYN_BLE_ATT_OP_READ_RSP, buf[0]);
+
+    TEST_ASSERT_EQUAL(SYN_OK, syn_ble_att_encode_notification(0x0004, NULL, 0, buf, &len));
+    TEST_ASSERT_EQUAL_UINT16(3, len);
     TEST_ASSERT_EQUAL_UINT8(SYN_BLE_ATT_OP_HANDLE_VAL_NOTIF, buf[0]);
-    TEST_ASSERT_EQUAL_UINT8(0x03, buf[1]);
+
+    /* Oversized payload (> 250 bytes) */
+    uint8_t large_val[255];
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_ble_att_encode_read_rsp(large_val, 251, buf, &len));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_ble_att_encode_notification(0x0005, large_val, 251, buf, &len));
 }

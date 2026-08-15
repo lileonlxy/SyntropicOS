@@ -63,8 +63,40 @@ void test_vector_stats(void)
     TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(20), v_clamped[3]);
 }
 
+void test_vector_edge_cases(void)
+{
+    /* Single element vector */
+    q16_t single[1] = {Q16_FROM_INT(-42)};
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(-42), syn_vec_min(single, 1));
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(-42), syn_vec_max(single, 1));
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(-42), syn_vec_mean(single, 1));
+    TEST_ASSERT_EQUAL_INT32(0, syn_vec_variance(single, 1));
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(42), syn_vec_rms(single, 1));
+
+    /* Negative vector scaling and operations */
+    q16_t v_neg[3] = {Q16_FROM_INT(-5), Q16_FROM_INT(-15), Q16_FROM_INT(-10)};
+    q16_t v_scaled[3];
+    syn_vec_scale(v_neg, -Q16_FROM_INT(2), v_scaled, 3);
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(10), v_scaled[0]);
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(30), v_scaled[1]);
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(20), v_scaled[2]);
+
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(-15), syn_vec_min(v_neg, 3));
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(-5), syn_vec_max(v_neg, 3));
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(-10), syn_vec_mean(v_neg, 3));
+
+    /* Clamping with both bounds exceeded */
+    q16_t v_clamp_in[3] = {Q16_FROM_INT(-100), Q16_FROM_INT(50), Q16_FROM_INT(100)};
+    q16_t v_clamp_out[3];
+    syn_vec_clamp(v_clamp_in, -Q16_FROM_INT(20), Q16_FROM_INT(20), v_clamp_out, 3);
+    TEST_ASSERT_EQUAL_INT32(-Q16_FROM_INT(20), v_clamp_out[0]);
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(20), v_clamp_out[1]);
+    TEST_ASSERT_EQUAL_INT32(Q16_FROM_INT(20), v_clamp_out[2]);
+}
+
 void run_vector_tests(void)
 {
     RUN_TEST(test_vector_basic_ops);
     RUN_TEST(test_vector_stats);
+    RUN_TEST(test_vector_edge_cases);
 }
