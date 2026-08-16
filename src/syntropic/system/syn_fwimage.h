@@ -68,6 +68,9 @@ typedef struct {
 #if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
     uint8_t image_hmac[32]; /**< HMAC-SHA256 over the firmware binary  */
 #endif
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+    uint8_t image_sig[64]; /**< Ed25519 digital signature over the firmware binary */
+#endif
     uint32_t header_crc; /**< CRC-32 over all preceding fields      */
 } SYN_FwImageHeader;
 
@@ -121,6 +124,22 @@ static inline bool syn_fwimage_is_bootable(const SYN_FwImageHeader *hdr)
     return (hdr->state == SYN_FW_STATE_NEW || hdr->state == SYN_FW_STATE_TESTING ||
             hdr->state == SYN_FW_STATE_CONFIRMED);
 }
+
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+/**
+ * @brief Verify the Ed25519 digital signature of a firmware image stored in flash.
+ *
+ * Reads the firmware binary in chunks from flash and verifies against
+ * hdr->image_sig using the provided Ed25519 public key.
+ *
+ * @param hdr         Validated image header.
+ * @param slot_addr   Flash base address of the slot.
+ * @param public_key  32-byte Ed25519 public key.
+ * @return true if signature is valid, false otherwise.
+ */
+bool syn_fwimage_verify_signature(const SYN_FwImageHeader *hdr, uint32_t slot_addr,
+                                  const uint8_t *public_key);
+#endif
 
 #ifdef __cplusplus
 }

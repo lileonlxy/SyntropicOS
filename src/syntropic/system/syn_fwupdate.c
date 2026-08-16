@@ -15,6 +15,10 @@
 #include "syn_fwimage.h"
 #include "syn_fwupdate.h"
 
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+#include "../crypto/syn_ed25519.h"
+#endif
+
 #include <string.h>
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
@@ -147,6 +151,9 @@ SYN_Status syn_fwupdate_finish(SYN_FwUpdate *upd, uint32_t expected_crc,
 #if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
                                const uint8_t *expected_hmac,
 #endif
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+                               const uint8_t *expected_sig,
+#endif
                                uint32_t version_code)
 {
     SYN_ASSERT(upd != NULL);
@@ -194,6 +201,26 @@ SYN_Status syn_fwupdate_finish(SYN_FwUpdate *upd, uint32_t expected_crc,
     }
 #endif
 
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+    /* Verify Ed25519 digital signature if public key was set and expected signature provided */
+    if (expected_sig != NULL && upd->pubkey_set) {
+        SYN_FwImageHeader test_hdr;
+        memset(&test_hdr, 0, sizeof(test_hdr));
+        test_hdr.magic = SYN_FW_MAGIC;
+        test_hdr.version_code = version_code;
+        test_hdr.image_size = upd->bytes_written;
+        test_hdr.image_crc = computed_crc;
+        test_hdr.state = SYN_FW_STATE_NEW;
+        memcpy(test_hdr.image_sig, expected_sig, 64);
+        syn_fwimage_seal_header(&test_hdr);
+
+        if (!syn_fwimage_verify_signature(&test_hdr, upd->slot_addr, upd->public_key)) {
+            syn_fwupdate_abort(upd);
+            return SYN_ERROR;
+        }
+    }
+#endif
+
     /* Write the final header with state = NEW */
     SYN_FwImageHeader hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -207,6 +234,13 @@ SYN_Status syn_fwupdate_finish(SYN_FwUpdate *upd, uint32_t expected_crc,
     /* Store HMAC in header if key was set */
     if (upd->key_set) {
         memcpy(hdr.image_hmac, computed_hmac, 32);
+    }
+#endif
+
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+    /* Store Ed25519 signature in header if provided */
+    if (expected_sig != NULL && upd->pubkey_set) {
+        memcpy(hdr.image_sig, expected_sig, 64);
     }
 #endif
 
@@ -256,5 +290,52 @@ void syn_fwupdate_set_key(SYN_FwUpdate *upd, const void *key, size_t key_len)
 }
 
 #endif /* SYN_FW_USE_HMAC */
+
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+
+void syn_fwupdate_set_public_key(SYN_FwUpdate *upd, const uint8_t *public_key)
+{
+    SYN_ASSERT(upd != NULL);
+    SYN_ASSERT(public_key != NULL);
+    memcpy(upd->public_key, public_key, 32);
+    upd->pubkey_set = true;
+}
+
+bool syn_fwimage_verify_signature(const SYN_FwImageHeader *hdr, uint32_t slot_addr,
+                                  const uint8_t *public_key)
+{
+    if (hdr == NULL || public_key == NULL || !syn_fwimage_header_valid(hdr)) {
+        return false;
+    }
+
+    uint32_t data_addr = slot_addr + (uint32_t)sizeof(SYN_FwImageHeader);
+    uint32_t remaining = hdr->image_size;
+
+    SYN_SHA512_Ctx hash_ctx;
+    syn_sha512_init(&hash_ctx);
+    syn_sha512_update(&hash_ctx, hdr->image_sig, 32U);
+    syn_sha512_update(&hash_ctx, public_key, 32U);
+
+    uint8_t chunk[256];
+    uint32_t offset = 0;
+    while (remaining > 0) {
+        uint32_t to_read =
+            (remaining > (uint32_t)sizeof(chunk)) ? (uint32_t)sizeof(chunk) : remaining;
+        SYN_Status st = syn_port_flash_read(data_addr + offset, chunk, to_read);
+        if (st != SYN_OK) {
+            return false;
+        }
+        syn_sha512_update(&hash_ctx, chunk, to_read);
+        offset += to_read;
+        remaining -= to_read;
+    }
+
+    uint8_t h[64];
+    syn_sha512_final(&hash_ctx, h);
+
+    return syn_ed25519_verify_hash(hdr->image_sig, h, public_key);
+}
+
+#endif /* SYN_FW_USE_ED25519 */
 
 #endif /* SYN_USE_BOOT */

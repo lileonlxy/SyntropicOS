@@ -183,7 +183,8 @@
 
 /* ── Firmware Security ─────────────────────────────────────────────────── */
 
-#define SYN_FW_USE_HMAC 0 /**< HMAC-signed firmware images (requires: SHA256, BOOT) */
+#define SYN_FW_USE_HMAC 0    /**< HMAC-signed firmware images (requires: SHA256, BOOT) */
+#define SYN_FW_USE_ED25519 1 /**< Ed25519-signed firmware images (requires: ED25519, BOOT) */
 
 /* ── DMA ───────────────────────────────────────────────────────────────── */
 

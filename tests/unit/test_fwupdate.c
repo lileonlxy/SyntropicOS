@@ -20,6 +20,20 @@
 #define SLOT_B_ADDR 0x0800u
 #define SLOT_SIZE (2048u - (uint32_t)sizeof(SYN_FwImageHeader))
 
+#if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+#define TEST_FWUPDATE_FINISH(u, crc, ver) syn_fwupdate_finish((u), (crc), NULL, NULL, (ver))
+#else
+#define TEST_FWUPDATE_FINISH(u, crc, ver) syn_fwupdate_finish((u), (crc), NULL, (ver))
+#endif
+#else
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+#define TEST_FWUPDATE_FINISH(u, crc, ver) syn_fwupdate_finish((u), (crc), NULL, (ver))
+#else
+#define TEST_FWUPDATE_FINISH(u, crc, ver) syn_fwupdate_finish((u), (crc), (ver))
+#endif
+#endif
+
 /* ── Image header tests ─────────────────────────────────────────────────── */
 
 void test_fwimage_seal_and_validate(void)
@@ -123,7 +137,7 @@ void test_fwupdate_basic(void)
 
     TEST_ASSERT_EQUAL(128, syn_fwupdate_progress(&upd) + upd.page_buf_used);
 
-    st = syn_fwupdate_finish(&upd, expected_crc, NULL, 0x00010200);
+    st = TEST_FWUPDATE_FINISH(&upd, expected_crc, 0x00010200);
     TEST_ASSERT_EQUAL(SYN_OK, st);
     TEST_ASSERT_FALSE(syn_fwupdate_active(&upd));
 
@@ -163,7 +177,7 @@ void test_fwupdate_multi_sector(void)
         TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_write(&upd, fw_large + i, len));
     }
 
-    st = syn_fwupdate_finish(&upd, expected_crc, NULL, 0x00020000);
+    st = TEST_FWUPDATE_FINISH(&upd, expected_crc, 0x00020000);
     TEST_ASSERT_EQUAL(SYN_OK, st);
 }
 
@@ -181,7 +195,7 @@ void test_fwupdate_crc_mismatch(void)
     syn_fwupdate_write(&upd, firmware, sizeof(firmware));
 
     /* Provide wrong CRC */
-    SYN_Status st = syn_fwupdate_finish(&upd, 0xBADBAD00, NULL, 0x00010000);
+    SYN_Status st = TEST_FWUPDATE_FINISH(&upd, 0xBADBAD00, 0x00010000);
     TEST_ASSERT_EQUAL(SYN_ERROR, st);
 
     /* Slot should be marked INVALID */
@@ -348,7 +362,7 @@ static void test_fwupdate_write_header_fail(void)
     /* Fail the header write in finish() */
     mock_flash_write_fail_next = true;
     uint32_t crc = syn_crc32_final(SYN_CRC32_INIT);
-    st = syn_fwupdate_finish(&upd, crc, NULL, 1);
+    st = TEST_FWUPDATE_FINISH(&upd, crc, 1);
     TEST_ASSERT_EQUAL(SYN_ERROR, st);
     TEST_ASSERT_TRUE(upd.error);
     TEST_ASSERT_FALSE(upd.active);
@@ -390,7 +404,7 @@ static void test_fwupdate_finish_flush_fail(void)
     /* Fail the flush write that happens inside finish() */
     mock_flash_write_fail_next = true;
     uint32_t crc = syn_crc32_final(syn_crc32_update(SYN_CRC32_INIT, data, sizeof(data)));
-    st = syn_fwupdate_finish(&upd, crc, NULL, 1);
+    st = TEST_FWUPDATE_FINISH(&upd, crc, 1);
     TEST_ASSERT_EQUAL(SYN_ERROR, st);
     TEST_ASSERT_TRUE(upd.error);
 }
@@ -464,7 +478,7 @@ static void test_fwupdate_parameter_and_state_guards(void)
     memset(&upd, 0, sizeof(upd));
     upd.active = false;
     TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_write(&upd, pbuf, 10));
-    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_finish(&upd, 0, NULL, 0));
+    TEST_ASSERT_EQUAL(SYN_ERROR, TEST_FWUPDATE_FINISH(&upd, 0, 0));
 
     syn_fwupdate_begin(&upd, SLOT_A_ADDR, SLOT_SIZE, pbuf, sizeof(pbuf));
     TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_write(&upd, NULL, 0));
@@ -474,7 +488,7 @@ static void test_fwupdate_parameter_and_state_guards(void)
     syn_fwupdate_write(&upd, fw, sizeof(fw));
     uint32_t crc = syn_crc32(fw, sizeof(fw));
     mock_flash_fail_at = SLOT_A_ADDR;
-    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_finish(&upd, crc, NULL, 0x00010000));
+    TEST_ASSERT_EQUAL(SYN_ERROR, TEST_FWUPDATE_FINISH(&upd, crc, 0x00010000));
     mock_flash_fail_at = -1;
 
     /* 4. Flush page flash write failure (lines 47-49) */

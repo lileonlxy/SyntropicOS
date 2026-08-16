@@ -112,13 +112,7 @@ static const uint8_t sha512_iv[64] = {
     0x51, 0x0e, 0x52, 0x7f, 0xad, 0xe6, 0x82, 0xd1, 0x9b, 0x05, 0x68, 0x8c, 0x2b, 0x3e, 0x6c, 0x1f,
     0x1f, 0x83, 0xd9, 0xab, 0xfb, 0x41, 0xbd, 0x6b, 0x5b, 0xe0, 0xcd, 0x19, 0x13, 0x7e, 0x21, 0x79};
 
-typedef struct {
-    uint64_t state[8];
-    uint64_t count;
-    uint8_t buffer[128];
-} SYN_SHA512_Ctx;
-
-static void sha512_init(SYN_SHA512_Ctx *ctx)
+void syn_sha512_init(SYN_SHA512_Ctx *ctx)
 {
     ctx->count = 0;
     for (int i = 0; i < 8; i++) {
@@ -126,7 +120,7 @@ static void sha512_init(SYN_SHA512_Ctx *ctx)
     }
 }
 
-static void sha512_update(SYN_SHA512_Ctx *ctx, const uint8_t *data, size_t len)
+void syn_sha512_update(SYN_SHA512_Ctx *ctx, const uint8_t *data, size_t len)
 {
     size_t left = (size_t)(ctx->count % 128U);
     ctx->count += (uint64_t)len;
@@ -168,7 +162,7 @@ static void sha512_update(SYN_SHA512_Ctx *ctx, const uint8_t *data, size_t len)
     }
 }
 
-static void sha512_final(SYN_SHA512_Ctx *ctx, uint8_t digest[64])
+void syn_sha512_final(SYN_SHA512_Ctx *ctx, uint8_t digest[64])
 {
     uint8_t pad[256];
     (void)memset(pad, 0, sizeof(pad));
@@ -551,9 +545,9 @@ bool syn_ed25519_publickey(const uint8_t secret_key[SYN_ED25519_SECRET_KEY_SIZE]
     gf p[4];
 
     SYN_SHA512_Ctx hash_ctx;
-    sha512_init(&hash_ctx);
-    sha512_update(&hash_ctx, secret_key, SYN_ED25519_SECRET_KEY_SIZE);
-    sha512_final(&hash_ctx, d);
+    syn_sha512_init(&hash_ctx);
+    syn_sha512_update(&hash_ctx, secret_key, SYN_ED25519_SECRET_KEY_SIZE);
+    syn_sha512_final(&hash_ctx, d);
 
     d[0] &= 248U;
     d[31] &= 127U;
@@ -602,21 +596,21 @@ bool syn_ed25519_sign(const uint8_t *msg, size_t msg_len,
     gf p[4];
 
     SYN_SHA512_Ctx hash_ctx;
-    sha512_init(&hash_ctx);
-    sha512_update(&hash_ctx, secret_key, SYN_ED25519_SECRET_KEY_SIZE);
-    sha512_final(&hash_ctx, d);
+    syn_sha512_init(&hash_ctx);
+    syn_sha512_update(&hash_ctx, secret_key, SYN_ED25519_SECRET_KEY_SIZE);
+    syn_sha512_final(&hash_ctx, d);
 
     d[0] &= 248U;
     d[31] &= 127U;
     d[31] |= 64U;
 
     /* Nonce r = SHA-512(d[32..63] || msg) */
-    sha512_init(&hash_ctx);
-    sha512_update(&hash_ctx, d + 32, 32U);
+    syn_sha512_init(&hash_ctx);
+    syn_sha512_update(&hash_ctx, d + 32, 32U);
     if (msg != NULL && msg_len > 0U) {
-        sha512_update(&hash_ctx, msg, msg_len);
+        syn_sha512_update(&hash_ctx, msg, msg_len);
     }
-    sha512_final(&hash_ctx, r);
+    syn_sha512_final(&hash_ctx, r);
     reduce(r);
 
     /* R = r * B */
@@ -624,14 +618,14 @@ bool syn_ed25519_sign(const uint8_t *msg, size_t msg_len,
     pack(sig, p);
 
     /* Challenge h = SHA-512(R || pk || msg) */
-    sha512_init(&hash_ctx);
-    sha512_update(&hash_ctx, sig, 32U);
-    sha512_update(&hash_ctx, pk, 32U);
+    syn_sha512_init(&hash_ctx);
+    syn_sha512_update(&hash_ctx, sig, 32U);
+    syn_sha512_update(&hash_ctx, pk, 32U);
     if (msg != NULL && msg_len > 0U) {
-        sha512_update(&hash_ctx, msg, msg_len);
+        syn_sha512_update(&hash_ctx, msg, msg_len);
     }
     uint8_t h[64];
-    sha512_final(&hash_ctx, h);
+    syn_sha512_final(&hash_ctx, h);
     reduce(h);
 
     /* S = (r + h * d) mod L */
@@ -659,10 +653,10 @@ bool syn_ed25519_sign(const uint8_t *msg, size_t msg_len,
     return true;
 }
 
-bool syn_ed25519_verify(const uint8_t sig[SYN_ED25519_SIGNATURE_SIZE], const uint8_t *msg,
-                        size_t msg_len, const uint8_t public_key[SYN_ED25519_PUBLIC_KEY_SIZE])
+bool syn_ed25519_verify_hash(const uint8_t sig[SYN_ED25519_SIGNATURE_SIZE], const uint8_t h[64],
+                             const uint8_t public_key[SYN_ED25519_PUBLIC_KEY_SIZE])
 {
-    if (sig == NULL || (msg == NULL && msg_len > 0U) || public_key == NULL) {
+    if (sig == NULL || h == NULL || public_key == NULL) {
         return false;
     }
 
@@ -675,19 +669,13 @@ bool syn_ed25519_verify(const uint8_t sig[SYN_ED25519_SIGNATURE_SIZE], const uin
         return false;
     }
 
-    /* Challenge h = SHA-512(R || pk || msg) */
-    SYN_SHA512_Ctx hash_ctx;
-    sha512_init(&hash_ctx);
-    sha512_update(&hash_ctx, sig, 32U);
-    sha512_update(&hash_ctx, public_key, 32U);
-    if (msg != NULL && msg_len > 0U) {
-        sha512_update(&hash_ctx, msg, msg_len);
+    uint8_t h_reduced[64];
+    for (size_t i = 0; i < 64U; i++) {
+        h_reduced[i] = h[i];
     }
-    uint8_t h[64];
-    sha512_final(&hash_ctx, h);
-    reduce(h);
+    reduce(h_reduced);
 
-    scalarmult(p, q, h);
+    scalarmult(p, q, h_reduced);
     scalarbase(q, sig + 32);
     add(p, q);
 
@@ -695,4 +683,25 @@ bool syn_ed25519_verify(const uint8_t sig[SYN_ED25519_SIGNATURE_SIZE], const uin
     pack(t, p);
 
     return (crypto_verify_32(sig, t) == 0);
+}
+
+bool syn_ed25519_verify(const uint8_t sig[SYN_ED25519_SIGNATURE_SIZE], const uint8_t *msg,
+                        size_t msg_len, const uint8_t public_key[SYN_ED25519_PUBLIC_KEY_SIZE])
+{
+    if (sig == NULL || (msg == NULL && msg_len > 0U) || public_key == NULL) {
+        return false;
+    }
+
+    /* Challenge h = SHA-512(R || pk || msg) */
+    SYN_SHA512_Ctx hash_ctx;
+    syn_sha512_init(&hash_ctx);
+    syn_sha512_update(&hash_ctx, sig, 32U);
+    syn_sha512_update(&hash_ctx, public_key, 32U);
+    if (msg != NULL && msg_len > 0U) {
+        syn_sha512_update(&hash_ctx, msg, msg_len);
+    }
+    uint8_t h[64];
+    syn_sha512_final(&hash_ctx, h);
+
+    return syn_ed25519_verify_hash(sig, h, public_key);
 }

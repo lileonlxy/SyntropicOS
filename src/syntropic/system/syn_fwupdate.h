@@ -38,6 +38,10 @@
 #include "../util/syn_hmac.h"
 #endif
 
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+#include "../crypto/syn_ed25519.h"
+#endif
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -66,6 +70,12 @@ typedef struct {
 #if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
     SYN_HMAC_SHA256 hmac_ctx; /**< Running HMAC-SHA256 context           */
     bool key_set;             /**< HMAC key was provided?                */
+#endif
+
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+    SYN_SHA512_Ctx sha512_ctx; /**< Running SHA-512 context for Ed25519   */
+    uint8_t public_key[32];    /**< Expected Ed25519 public key           */
+    bool pubkey_set;           /**< Public key was provided?              */
 #endif
 } SYN_FwUpdate;
 
@@ -117,6 +127,9 @@ SYN_Status syn_fwupdate_finish(SYN_FwUpdate *upd, uint32_t expected_crc,
 #if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
                                const uint8_t *expected_hmac,
 #endif
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+                               const uint8_t *expected_sig,
+#endif
                                uint32_t version_code);
 
 /**
@@ -161,6 +174,20 @@ static inline bool syn_fwupdate_active(const SYN_FwUpdate *upd)
  * @param key_len  Key length in bytes.
  */
 void syn_fwupdate_set_key(SYN_FwUpdate *upd, const void *key, size_t key_len);
+#endif
+
+#if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519
+/**
+ * @brief Set the Ed25519 public key for the current update.
+ *
+ * Must be called after syn_fwupdate_begin() and before the first
+ * syn_fwupdate_write(). When set, the updater computes a running
+ * SHA-512 challenge digest alongside the CRC-32.
+ *
+ * @param upd         Updater instance.
+ * @param public_key  32-byte Ed25519 public key.
+ */
+void syn_fwupdate_set_public_key(SYN_FwUpdate *upd, const uint8_t *public_key);
 #endif
 
 #ifdef __cplusplus

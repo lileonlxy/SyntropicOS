@@ -195,6 +195,7 @@ void run_dma_tests(void);
 void run_i2c_async_tests(void);
 void run_spi_async_tests(void);
 void run_fwupdate_hmac_tests(void);
+void run_fwupdate_ed25519_tests(void);
 void run_timer_expiry_tests(void);
 void run_multicore_tests(void);
 void run_crypto_tests(void);
@@ -377,6 +378,7 @@ int main(void)
     run_i2c_async_tests();
     run_spi_async_tests();
     run_fwupdate_hmac_tests();
+    run_fwupdate_ed25519_tests();
     run_timer_expiry_tests();
 
     /* Multicore (AMP) */
