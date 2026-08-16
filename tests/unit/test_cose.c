@@ -389,11 +389,60 @@ void test_cose_null_and_boundary_checks(void)
                                          wrong_array_enc0, sizeof(wrong_array_enc0), key32, NULL, 0,
                                          small_dec, sizeof(small_dec), &small_dec_len, NULL));
 
-    /* Huge external AAD > 512 bytes for Encrypt0 decrypt */
+    /* Huge external AAD > 512 bytes for Encrypt0 create -> build_enc_structure fails */
+    TEST_ASSERT_EQUAL_INT(
+        SYN_ERROR, syn_cose_encrypt0_create(SYN_COSE_ALGO_CHACHA20_POLY1305, key32, iv12, 12, NULL,
+                                            0, sample_pt, 10, huge_payload, sizeof(huge_payload),
+                                            huge_out, sizeof(huge_out), &huge_len));
+
+    /* EdDSA verify with invalid public key length (!= 32) */
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_sign1_verify(empty_sign_msg, empty_sign_len, ed_pub,
+                                                           16, NULL, 0, NULL));
+
+    /* Protected header with extra/unknown labels in Encrypt0 */
+    uint8_t extra_prot_enc0[64] = {
+        0x83,                                     /* Array of 3 */
+        0x45, 0xA2, 0x01, 0x18, 0x18, 0x0A, 0x05, /* Protected: { 1: 24, 10: 5 } */
+        0xA1, 0x05, 0x4C, 0,    0,    0,    0,    0, 0, 0, 0, 0, 0, 0, 0,      /* Unprotected: { 5:
+                                                                                * 12-byte IV }
+                                                                                */
+        0x50, 0,    0,    0,    0,    0,    0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0 /* 16-byte tag */
+    };
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_encrypt0_decrypt(
+                                         extra_prot_enc0, sizeof(extra_prot_enc0), key32, NULL, 0,
+                                         small_dec, sizeof(small_dec), &small_dec_len, NULL));
+
+    /* Unprotected header is not a map in Encrypt0 */
+    uint8_t not_map_unprot_enc0[] = {
+        0x83,                         /* Array of 3 */
+        0x44, 0xA1, 0x01, 0x18, 0x18, /* Protected: { 1: 24 } */
+        0x01,                         /* Unprotected: 1 (not a map) */
+        0x50, 0,    0,    0,    0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 /* 16-byte tag */
+    };
+    TEST_ASSERT_EQUAL_INT(
+        SYN_ERROR,
+        syn_cose_encrypt0_decrypt(not_map_unprot_enc0, sizeof(not_map_unprot_enc0), key32, NULL, 0,
+                                  small_dec, sizeof(small_dec), &small_dec_len, NULL));
+
+    /* Unprotected header with extra/unknown labels in Encrypt0 */
+    uint8_t extra_unprot_enc0[64] = {
+        0x83,                                                       /* Array of 3 */
+        0x44, 0xA1, 0x01, 0x18, 0x18,                               /* Protected: { 1: 24 } */
+        0xA2, 0x05, 0x4C, 0,    0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* Unprotected: { 5: 12-byte IV,
+                                                                    10: 5 } */
+        0x0A, 0x05, 0x50, 0,    0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 /* 16-byte tag */
+    };
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_encrypt0_decrypt(
+                                         extra_unprot_enc0, sizeof(extra_unprot_enc0), key32, NULL,
+                                         0, small_dec, sizeof(small_dec), &small_dec_len, NULL));
+
+    /* Huge external AAD > 512 bytes for Encrypt0 decrypt -> build_enc_structure fails */
+    uint8_t dec_buf[256];
+    size_t dec_len = 0;
     TEST_ASSERT_EQUAL_INT(SYN_ERROR,
                           syn_cose_encrypt0_decrypt(non_empty_msg, non_empty_len, key32,
-                                                    huge_payload, sizeof(huge_payload), small_dec,
-                                                    sizeof(small_dec), &small_dec_len, NULL));
+                                                    huge_payload, sizeof(huge_payload), dec_buf,
+                                                    sizeof(dec_buf), &dec_len, NULL));
 
     /* Huge external AAD > 1024 bytes for Sign1 verify */
     TEST_ASSERT_EQUAL_INT(SYN_ERROR,

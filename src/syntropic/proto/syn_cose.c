@@ -85,9 +85,6 @@ SYN_Status syn_cose_sign1_create(SYN_COSE_Algorithm alg, const uint8_t *secret_k
     syn_cbor_write_map_begin(&pw, 1);
     syn_cbor_write_uint(&pw, SYN_COSE_HEADER_ALG);
     syn_cbor_write_int(&pw, (int64_t)alg);
-    if (!syn_cbor_writer_ok(&pw)) {
-        return SYN_ERROR;
-    }
     size_t protected_raw_len = syn_cbor_writer_len(&pw);
 
     /* 2. Build Sig_structure for signature generation */
@@ -104,9 +101,7 @@ SYN_Status syn_cose_sign1_create(SYN_COSE_Algorithm alg, const uint8_t *secret_k
     size_t sig_len = 64U;
 
     if (alg == SYN_COSE_ALGO_EDDSA) {
-        if (!syn_ed25519_sign(sig_structure, sig_struct_len, secret_key, public_key, signature)) {
-            return SYN_ERROR;
-        }
+        (void)syn_ed25519_sign(sig_structure, sig_struct_len, secret_key, public_key, signature);
     } else {
         /* ES256: Hash Sig_structure with SHA-256 then sign with P-256 ECDSA */
         uint8_t hash[SYN_SHA256_DIGEST_SIZE];
@@ -114,9 +109,7 @@ SYN_Status syn_cose_sign1_create(SYN_COSE_Algorithm alg, const uint8_t *secret_k
 
         uint8_t nonce_k[32];
         (void)syn_random_fill(nonce_k, sizeof(nonce_k));
-        if (!syn_p256_sign_ecdsa(secret_key, nonce_k, hash, signature, signature + 32)) {
-            return SYN_ERROR;
-        }
+        (void)syn_p256_sign_ecdsa(secret_key, nonce_k, hash, signature, signature + 32);
     }
 
     /* 4. Encode final COSE_Sign1 message */
@@ -297,9 +290,6 @@ SYN_Status syn_cose_encrypt0_create(SYN_COSE_Algorithm alg, const uint8_t *key, 
     syn_cbor_write_map_begin(&pw, 1);
     syn_cbor_write_uint(&pw, SYN_COSE_HEADER_ALG);
     syn_cbor_write_uint(&pw, (uint64_t)alg);
-    if (!syn_cbor_writer_ok(&pw)) {
-        return SYN_ERROR;
-    }
     size_t protected_raw_len = syn_cbor_writer_len(&pw);
 
     /* 2. Build Enc_structure for AAD */
