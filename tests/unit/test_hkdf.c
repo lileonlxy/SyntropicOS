@@ -118,10 +118,155 @@ void test_hkdf_null_and_bounds_checks(void)
     TEST_ASSERT_TRUE(syn_hkdf(NULL, 0, okm, 32, NULL, 10, okm, 32));
 }
 
+void test_hkdf_sha384_rfc5869_and_expand_label(void)
+{
+    static const uint8_t ikm[22] = {0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
+                                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
+                                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b};
+    static const uint8_t salt[13] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+                                     0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c};
+    static const uint8_t info[10] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9};
+
+    uint8_t prk[SYN_SHA384_DIGEST_SIZE];
+    syn_hkdf_sha384_extract(salt, sizeof(salt), ikm, sizeof(ikm), prk);
+    TEST_ASSERT_NOT_EQUAL(0, prk[0]);
+
+    uint8_t okm[64];
+    TEST_ASSERT_TRUE(
+        syn_hkdf_sha384_expand(prk, sizeof(prk), info, sizeof(info), okm, sizeof(okm)));
+
+    /* syn_hkdf_sha384 wrapper */
+    uint8_t okm2[64];
+    TEST_ASSERT_TRUE(syn_hkdf_sha384(salt, sizeof(salt), ikm, sizeof(ikm), info, sizeof(info), okm2,
+                                     sizeof(okm2)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(okm, okm2, sizeof(okm));
+
+    /* Zero salt extract */
+    uint8_t prk_zero[SYN_SHA384_DIGEST_SIZE];
+    syn_hkdf_sha384_extract(NULL, 0, ikm, sizeof(ikm), prk_zero);
+    TEST_ASSERT_NOT_EQUAL(0, prk_zero[0]);
+
+    /* TLS 1.3 Expand-Label SHA-384 */
+    uint8_t label_out[32];
+    uint8_t label_out2[32];
+    uint8_t label_out3[32];
+    TEST_ASSERT_TRUE(syn_hkdf_sha384_expand_label(prk, sizeof(prk), "c ap traffic", 12, info,
+                                                  sizeof(info), label_out, sizeof(label_out)));
+    TEST_ASSERT_TRUE(syn_hkdf_sha384_expand_label(prk, sizeof(prk), "c ap traffic", 12, info,
+                                                  sizeof(info), label_out2, sizeof(label_out2)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(label_out, label_out2, sizeof(label_out));
+
+    TEST_ASSERT_TRUE(syn_hkdf_sha384_expand_label(prk, sizeof(prk), "s ap traffic", 12, info,
+                                                  sizeof(info), label_out3, sizeof(label_out3)));
+    TEST_ASSERT_NOT_EQUAL(0, memcmp(label_out, label_out3, sizeof(label_out)));
+}
+
+void test_hkdf_sha512_rfc5869_and_expand_label(void)
+{
+    static const uint8_t ikm[22] = {0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
+                                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
+                                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b};
+    static const uint8_t salt[13] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+                                     0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c};
+    static const uint8_t info[10] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9};
+
+    uint8_t prk[SYN_SHA512_DIGEST_SIZE];
+    syn_hkdf_sha512_extract(salt, sizeof(salt), ikm, sizeof(ikm), prk);
+    TEST_ASSERT_NOT_EQUAL(0, prk[0]);
+
+    uint8_t okm[100];
+    TEST_ASSERT_TRUE(
+        syn_hkdf_sha512_expand(prk, sizeof(prk), info, sizeof(info), okm, sizeof(okm)));
+
+    /* syn_hkdf_sha512 wrapper */
+    uint8_t okm2[100];
+    TEST_ASSERT_TRUE(syn_hkdf_sha512(salt, sizeof(salt), ikm, sizeof(ikm), info, sizeof(info), okm2,
+                                     sizeof(okm2)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(okm, okm2, sizeof(okm));
+
+    /* Zero salt extract */
+    uint8_t prk_zero[SYN_SHA512_DIGEST_SIZE];
+    syn_hkdf_sha512_extract(NULL, 0, ikm, sizeof(ikm), prk_zero);
+    TEST_ASSERT_NOT_EQUAL(0, prk_zero[0]);
+
+    /* TLS 1.3 Expand-Label SHA-512 */
+    uint8_t label_out[64];
+    uint8_t label_out2[64];
+    uint8_t label_out3[64];
+    TEST_ASSERT_TRUE(syn_hkdf_sha512_expand_label(prk, sizeof(prk), "c ap traffic", 12, info,
+                                                  sizeof(info), label_out, sizeof(label_out)));
+    TEST_ASSERT_TRUE(syn_hkdf_sha512_expand_label(prk, sizeof(prk), "c ap traffic", 12, info,
+                                                  sizeof(info), label_out2, sizeof(label_out2)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(label_out, label_out2, sizeof(label_out));
+
+    TEST_ASSERT_TRUE(syn_hkdf_sha512_expand_label(prk, sizeof(prk), "s ap traffic", 12, info,
+                                                  sizeof(info), label_out3, sizeof(label_out3)));
+    TEST_ASSERT_NOT_EQUAL(0, memcmp(label_out, label_out3, sizeof(label_out)));
+}
+
+void test_hkdf_sha384_sha512_null_and_bounds_checks(void)
+{
+    uint8_t okm[48];
+    /* SHA-384 bounds checks */
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand(NULL, 48, NULL, 0, okm, 48));
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand(okm, 24, NULL, 0, okm, 48));
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand(okm, 48, NULL, 0, NULL, 48));
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand(okm, 48, NULL, 0, okm, 0));
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand(okm, 48, NULL, 0, okm, 255 * 48 + 1));
+
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand_label(NULL, 48, "key", 3, NULL, 0, okm, 48));
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand_label(okm, 48, NULL, 3, NULL, 0, okm, 48));
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand_label(okm, 48, "key", 3, NULL, 0, NULL, 48));
+    TEST_ASSERT_FALSE(syn_hkdf_sha384_expand_label(okm, 48, "key", 3, NULL, 0, okm, 0));
+
+    syn_hkdf_sha384_extract(NULL, 0, NULL, 10, NULL);
+    uint8_t prk384[48];
+    syn_hkdf_sha384_extract(NULL, 0, NULL, 10, prk384);
+
+    char long_label[300];
+    memset(long_label, 'A', sizeof(long_label));
+    TEST_ASSERT_FALSE(
+        syn_hkdf_sha384_expand_label(okm, 48, long_label, sizeof(long_label), NULL, 0, okm, 48));
+
+    uint8_t long_ctx[300];
+    memset(long_ctx, 0xFF, sizeof(long_ctx));
+    TEST_ASSERT_FALSE(
+        syn_hkdf_sha384_expand_label(okm, 48, "label", 5, long_ctx, sizeof(long_ctx), okm, 48));
+    TEST_ASSERT_TRUE(syn_hkdf_sha384_expand(okm, 48, NULL, 10, okm, 48));
+    TEST_ASSERT_TRUE(syn_hkdf_sha384_expand_label(okm, 48, "label", 5, NULL, 10, okm, 48));
+
+    /* SHA-512 bounds checks */
+    uint8_t okm512[64];
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand(NULL, 64, NULL, 0, okm512, 64));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand(okm512, 32, NULL, 0, okm512, 64));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand(okm512, 64, NULL, 0, NULL, 64));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand(okm512, 64, NULL, 0, okm512, 0));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand(okm512, 64, NULL, 0, okm512, 255 * 64 + 1));
+
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand_label(NULL, 64, "key", 3, NULL, 0, okm512, 64));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand_label(okm512, 64, NULL, 3, NULL, 0, okm512, 64));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand_label(okm512, 64, "key", 3, NULL, 0, NULL, 64));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand_label(okm512, 64, "key", 3, NULL, 0, okm512, 0));
+
+    syn_hkdf_sha512_extract(NULL, 0, NULL, 10, NULL);
+    uint8_t prk512[64];
+    syn_hkdf_sha512_extract(NULL, 0, NULL, 10, prk512);
+
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand_label(okm512, 64, long_label, sizeof(long_label), NULL,
+                                                   0, okm512, 64));
+    TEST_ASSERT_FALSE(syn_hkdf_sha512_expand_label(okm512, 64, "label", 5, long_ctx,
+                                                   sizeof(long_ctx), okm512, 64));
+    TEST_ASSERT_TRUE(syn_hkdf_sha512_expand(okm512, 64, NULL, 10, okm512, 64));
+    TEST_ASSERT_TRUE(syn_hkdf_sha512_expand_label(okm512, 64, "label", 5, NULL, 10, okm512, 64));
+}
+
 void run_hkdf_tests(void)
 {
     RUN_TEST(test_hkdf_rfc5869_case_1);
     RUN_TEST(test_hkdf_rfc5869_case_2_zero_salt);
     RUN_TEST(test_tls13_expand_label);
     RUN_TEST(test_hkdf_null_and_bounds_checks);
+    RUN_TEST(test_hkdf_sha384_rfc5869_and_expand_label);
+    RUN_TEST(test_hkdf_sha512_rfc5869_and_expand_label);
+    RUN_TEST(test_hkdf_sha384_sha512_null_and_bounds_checks);
 }

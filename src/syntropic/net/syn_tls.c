@@ -89,10 +89,24 @@ static bool tls_transport_has_data_cb(const void *ctx)
  * @param out    Output buffer.
  * @param out_len Output length (32 for key, 12 for IV).
  */
-static void derive_traffic_key_or_iv(const uint8_t secret[32], const char *label, uint8_t *out,
-                                     size_t out_len)
+/**
+ * @brief Derive TLS 1.3 traffic key or IV using HKDF-Expand-Label.
+ * @param ctx     TLS context pointer.
+ * @param secret  Traffic secret (32 or 48 bytes).
+ * @param label   Label ("key" or "iv").
+ * @param out     [out] Output buffer.
+ * @param out_len Output length (16/32 for key, 12 for IV).
+ */
+static void derive_traffic_key_or_iv(const SYN_TLS_Context *ctx, const uint8_t *secret,
+                                     const char *label, uint8_t *out, size_t out_len)
 {
-    syn_hkdf_expand_label(secret, 32, label, strlen(label), NULL, 0, out, out_len);
+    if (ctx != NULL && ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_256_GCM_SHA384) {
+        syn_hkdf_sha384_expand_label(secret, SYN_SHA384_DIGEST_SIZE, label, strlen(label), NULL, 0,
+                                     out, out_len);
+    } else {
+        syn_hkdf_expand_label(secret, SYN_SHA256_DIGEST_SIZE, label, strlen(label), NULL, 0, out,
+                              out_len);
+    }
 }
 
 static void syn_secure_zero(void *v, size_t n)
@@ -111,55 +125,70 @@ static void derive_tls13_key_schedule(SYN_TLS_Context *ctx)
 {
     uint8_t psk[SYN_TLS_SECRET_LEN];
     memset(psk, 0, SYN_TLS_SECRET_LEN);
+    size_t copy_len = 32U;
 
     if (ctx->config.mode == SYN_TLS_AUTH_MODE_PSK && ctx->config.psk_secret != NULL) {
-        size_t copy_len = ctx->config.psk_secret_len;
+        copy_len = ctx->config.psk_secret_len;
         if (copy_len > SYN_TLS_SECRET_LEN) {
             copy_len = SYN_TLS_SECRET_LEN;
         }
         memcpy(psk, ctx->config.psk_secret, copy_len);
     }
 
-    /* Stage 1: Early Secret */
-    uint8_t zero_salt[32] = {0};
-    uint8_t early_secret[32];
-    syn_hkdf_extract(zero_salt, 32, psk, SYN_TLS_SECRET_LEN, early_secret);
+    bool is_sha384 = (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_256_GCM_SHA384);
+    size_t hash_len = is_sha384 ? SYN_SHA384_DIGEST_SIZE : SYN_SHA256_DIGEST_SIZE;
 
-    /* Stage 2: Handshake Secret */
-    uint8_t derived_1[32];
-    syn_hkdf_expand_label(early_secret, 32, "derived", 7, NULL, 0, derived_1, 32);
-
+    uint8_t zero_salt[SYN_TLS_SECRET_LEN] = {0};
+    uint8_t early_secret[SYN_TLS_SECRET_LEN];
+    uint8_t derived_1[SYN_TLS_SECRET_LEN];
     uint8_t ecdhe_shared[32];
+    uint8_t handshake_secret[SYN_TLS_SECRET_LEN];
+    uint8_t transcript_digest[SYN_TLS_SECRET_LEN];
+    uint8_t derived_2[SYN_TLS_SECRET_LEN];
+
     if (ctx->config.mode == SYN_TLS_AUTH_MODE_PSK && ctx->config.psk_secret != NULL) {
         memcpy(ecdhe_shared, psk, 32);
     } else {
         syn_x25519(ecdhe_shared, ctx->my_privkey, ctx->peer_pubkey);
     }
 
-    uint8_t handshake_secret[32];
-    syn_hkdf_extract(derived_1, 32, ecdhe_shared, 32, handshake_secret);
-
-    uint8_t transcript_digest[SYN_SHA256_DIGEST_SIZE];
-    SYN_SHA256 copy = ctx->transcript_hash;
-    syn_sha256_final(&copy, transcript_digest);
-
-    syn_hkdf_expand_label(handshake_secret, 32, "c hs traffic", 12, transcript_digest,
-                          SYN_SHA256_DIGEST_SIZE, ctx->client_handshake_secret, 32);
-
-    syn_hkdf_expand_label(handshake_secret, 32, "s hs traffic", 12, transcript_digest,
-                          SYN_SHA256_DIGEST_SIZE, ctx->server_handshake_secret, 32);
-
-    /* Stage 3: Master Secret */
-    uint8_t derived_2[32];
-    syn_hkdf_expand_label(handshake_secret, 32, "derived", 7, NULL, 0, derived_2, 32);
-
-    syn_hkdf_extract(derived_2, 32, zero_salt, 32, ctx->master_secret);
-
-    syn_hkdf_expand_label(ctx->master_secret, 32, "c ap traffic", 12, transcript_digest,
-                          SYN_SHA256_DIGEST_SIZE, ctx->client_app_secret, 32);
-
-    syn_hkdf_expand_label(ctx->master_secret, 32, "s ap traffic", 12, transcript_digest,
-                          SYN_SHA256_DIGEST_SIZE, ctx->server_app_secret, 32);
+    if (is_sha384) {
+        syn_hkdf_sha384_extract(zero_salt, hash_len, psk, copy_len, early_secret);
+        syn_hkdf_sha384_expand_label(early_secret, hash_len, "derived", 7, NULL, 0, derived_1,
+                                     hash_len);
+        syn_hkdf_sha384_extract(derived_1, hash_len, ecdhe_shared, 32, handshake_secret);
+        syn_sha384(ctx->my_pubkey, 32, transcript_digest);
+        syn_hkdf_sha384_expand_label(handshake_secret, hash_len, "c hs traffic", 12,
+                                     transcript_digest, hash_len, ctx->client_handshake_secret,
+                                     hash_len);
+        syn_hkdf_sha384_expand_label(handshake_secret, hash_len, "s hs traffic", 12,
+                                     transcript_digest, hash_len, ctx->server_handshake_secret,
+                                     hash_len);
+        syn_hkdf_sha384_expand_label(handshake_secret, hash_len, "derived", 7, NULL, 0, derived_2,
+                                     hash_len);
+        syn_hkdf_sha384_extract(derived_2, hash_len, zero_salt, hash_len, ctx->master_secret);
+        syn_hkdf_sha384_expand_label(ctx->master_secret, hash_len, "c ap traffic", 12,
+                                     transcript_digest, hash_len, ctx->client_app_secret, hash_len);
+        syn_hkdf_sha384_expand_label(ctx->master_secret, hash_len, "s ap traffic", 12,
+                                     transcript_digest, hash_len, ctx->server_app_secret, hash_len);
+    } else {
+        syn_hkdf_extract(zero_salt, hash_len, psk, copy_len, early_secret);
+        syn_hkdf_expand_label(early_secret, hash_len, "derived", 7, NULL, 0, derived_1, hash_len);
+        syn_hkdf_extract(derived_1, hash_len, ecdhe_shared, 32, handshake_secret);
+        SYN_SHA256 copy = ctx->transcript_hash;
+        syn_sha256_final(&copy, transcript_digest);
+        syn_hkdf_expand_label(handshake_secret, hash_len, "c hs traffic", 12, transcript_digest,
+                              hash_len, ctx->client_handshake_secret, hash_len);
+        syn_hkdf_expand_label(handshake_secret, hash_len, "s hs traffic", 12, transcript_digest,
+                              hash_len, ctx->server_handshake_secret, hash_len);
+        syn_hkdf_expand_label(handshake_secret, hash_len, "derived", 7, NULL, 0, derived_2,
+                              hash_len);
+        syn_hkdf_extract(derived_2, hash_len, zero_salt, hash_len, ctx->master_secret);
+        syn_hkdf_expand_label(ctx->master_secret, hash_len, "c ap traffic", 12, transcript_digest,
+                              hash_len, ctx->client_app_secret, hash_len);
+        syn_hkdf_expand_label(ctx->master_secret, hash_len, "s ap traffic", 12, transcript_digest,
+                              hash_len, ctx->server_app_secret, hash_len);
+    }
 
     /* Cache per-record traffic keys & IVs to eliminate HKDF expansion during record I/O */
     size_t key_len = (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256 ||
@@ -167,10 +196,10 @@ static void derive_tls13_key_schedule(SYN_TLS_Context *ctx)
                       ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_8_SHA256)
                          ? 16U
                          : 32U;
-    derive_traffic_key_or_iv(ctx->client_app_secret, "key", ctx->client_app_key, key_len);
-    derive_traffic_key_or_iv(ctx->client_app_secret, "iv", ctx->client_app_iv, 12);
-    derive_traffic_key_or_iv(ctx->server_app_secret, "key", ctx->server_app_key, key_len);
-    derive_traffic_key_or_iv(ctx->server_app_secret, "iv", ctx->server_app_iv, 12);
+    derive_traffic_key_or_iv(ctx, ctx->client_app_secret, "key", ctx->client_app_key, key_len);
+    derive_traffic_key_or_iv(ctx, ctx->client_app_secret, "iv", ctx->client_app_iv, 12);
+    derive_traffic_key_or_iv(ctx, ctx->server_app_secret, "key", ctx->server_app_key, key_len);
+    derive_traffic_key_or_iv(ctx, ctx->server_app_secret, "iv", ctx->server_app_iv, 12);
 
     /* Zero sensitive intermediates from stack */
     syn_secure_zero(psk, sizeof(psk));

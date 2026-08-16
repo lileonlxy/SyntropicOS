@@ -10,6 +10,7 @@
 
 #include "syn_hmac.h"
 #include "syn_sha256.h"
+#include "syn_sha512.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -66,17 +67,7 @@ bool syn_hkdf(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t i
               const uint8_t *info, size_t info_len, uint8_t *okm_out, size_t okm_len);
 
 /**
- * @brief TLS 1.3 HKDF-Expand-Label (RFC 8446 Section 7.1).
- *
- * Derives a key using the TLS 1.3 formatting:
- * HKDF-Expand-Label(Secret, Label, Context, Length) =
- *   HKDF-Expand(Secret, HkdfLabel, Length)
- *
- * Where HkdfLabel = struct {
- *   uint16 length = Length;
- *   opaque label<7..255> = "tls13 " + Label;
- *   opaque context<0..255> = Context;
- * }
+ * @brief TLS 1.3 HKDF-Expand-Label with SHA-256 (RFC 8446 Section 7.1).
  *
  * @param secret      Secret key (at least 32 bytes).
  * @param secret_len  Secret length.
@@ -91,6 +82,116 @@ bool syn_hkdf(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t i
 bool syn_hkdf_expand_label(const uint8_t *secret, size_t secret_len, const char *label,
                            size_t label_len, const uint8_t *context, size_t context_len,
                            uint8_t *out, size_t out_len);
+
+/**
+ * @brief HKDF-SHA384 Extract step (RFC 5869 Section 2.2).
+ * @param salt      Salt value (if NULL, a string of 48 zero bytes is used).
+ * @param salt_len  Salt length in bytes.
+ * @param ikm       Input keying material.
+ * @param ikm_len   IKM length in bytes.
+ * @param prk_out   [out] Output Pseudorandom Key buffer (must be at least 48 bytes).
+ */
+void syn_hkdf_sha384_extract(const uint8_t *salt, size_t salt_len, const uint8_t *ikm,
+                             size_t ikm_len, uint8_t prk_out[SYN_SHA384_DIGEST_SIZE]);
+
+/**
+ * @brief HKDF-SHA384 Expand step (RFC 5869 Section 2.3).
+ * @param prk       Pseudorandom Key (at least 48 bytes).
+ * @param prk_len   PRK length in bytes.
+ * @param info      Optional context and application specific information.
+ * @param info_len  Info length in bytes.
+ * @param okm_out   [out] Output keying material buffer.
+ * @param okm_len   Desired length of output keying material (max 255 * 48 = 12240 bytes).
+ * @return true on success, false on invalid parameters.
+ */
+bool syn_hkdf_sha384_expand(const uint8_t *prk, size_t prk_len, const uint8_t *info,
+                            size_t info_len, uint8_t *okm_out, size_t okm_len);
+
+/**
+ * @brief Complete HKDF-SHA384 (Extract then Expand).
+ * @param salt      Salt value (optional).
+ * @param salt_len  Salt length.
+ * @param ikm       Input keying material.
+ * @param ikm_len   IKM length.
+ * @param info      Context info (optional).
+ * @param info_len  Info length.
+ * @param okm_out   [out] Output keying material.
+ * @param okm_len   Desired output length.
+ * @return true on success.
+ */
+bool syn_hkdf_sha384(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len,
+                     const uint8_t *info, size_t info_len, uint8_t *okm_out, size_t okm_len);
+
+/**
+ * @brief TLS 1.3 HKDF-Expand-Label with SHA-384 (RFC 8446 Section 7.1).
+ * @param secret      Secret key (at least 48 bytes).
+ * @param secret_len  Secret length.
+ * @param label       Label string.
+ * @param label_len   Label length (excluding null terminator).
+ * @param context     Transcript hash context bytes (or NULL if 0-length).
+ * @param context_len Context length (e.g. 48 bytes for SHA-384 transcript hash).
+ * @param out         [out] Output key buffer.
+ * @param out_len     Desired output key length.
+ * @return true on success.
+ */
+bool syn_hkdf_sha384_expand_label(const uint8_t *secret, size_t secret_len, const char *label,
+                                  size_t label_len, const uint8_t *context, size_t context_len,
+                                  uint8_t *out, size_t out_len);
+
+/**
+ * @brief HKDF-SHA512 Extract step (RFC 5869 Section 2.2).
+ * @param salt      Salt value (if NULL, a string of 64 zero bytes is used).
+ * @param salt_len  Salt length in bytes.
+ * @param ikm       Input keying material.
+ * @param ikm_len   IKM length in bytes.
+ * @param prk_out   [out] Output Pseudorandom Key buffer (must be at least 64 bytes).
+ */
+void syn_hkdf_sha512_extract(const uint8_t *salt, size_t salt_len, const uint8_t *ikm,
+                             size_t ikm_len, uint8_t prk_out[SYN_SHA512_DIGEST_SIZE]);
+
+/**
+ * @brief HKDF-SHA512 Expand step (RFC 5869 Section 2.3).
+ * @param prk       Pseudorandom Key (at least 64 bytes).
+ * @param prk_len   PRK length in bytes.
+ * @param info      Optional context and application specific information.
+ * @param info_len  Info length in bytes.
+ * @param okm_out   [out] Output keying material buffer.
+ * @param okm_len   Desired length of output keying material (max 255 * 64 = 16320 bytes).
+ * @return true on success, false on invalid parameters.
+ */
+bool syn_hkdf_sha512_expand(const uint8_t *prk, size_t prk_len, const uint8_t *info,
+                            size_t info_len, uint8_t *okm_out, size_t okm_len);
+
+/**
+ * @brief Complete HKDF-SHA512 (Extract then Expand).
+ * @param salt      Salt value (optional).
+ * @param salt_len  Salt length.
+ * @param ikm       Input keying material.
+ * @param ikm_len   IKM length.
+ * @param info      Context info (optional).
+ * @param info_len  Info length.
+ * @param okm_out   [out] Output keying material.
+ * @param okm_len   Desired output length.
+ * @return true on success.
+ */
+bool syn_hkdf_sha512(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len,
+                     const uint8_t *info, size_t info_len, uint8_t *okm_out, size_t okm_len);
+
+/**
+ * @brief TLS 1.3 HKDF-Expand-Label with SHA-512 (RFC 8446 Section 7.1).
+ * @param secret      Secret key (at least 64 bytes).
+ * @param secret_len  Secret length.
+ * @param label       Label string.
+ * @param label_len   Label length (excluding null terminator).
+ * @param context     Transcript hash context bytes (or NULL if 0-length).
+ * @param context_len Context length.
+ * @param out         [out] Output key buffer.
+ * @param out_len     Desired output key length.
+ * @return true on success.
+ */
+bool syn_hkdf_sha512_expand_label(const uint8_t *secret, size_t secret_len, const char *label,
+                                  size_t label_len, const uint8_t *context, size_t context_len,
+                                  uint8_t *out, size_t out_len);
 
 #ifdef __cplusplus
 }

@@ -35,8 +35,8 @@ extern "C" {
 
 /** @brief Maximum TLS record payload size in bytes (2048). */
 #define SYN_TLS_RECORD_MAX_PAYLOAD 2048U
-/** @brief Length of TLS 1.3 secret keys in bytes (32). */
-#define SYN_TLS_SECRET_LEN 32U
+/** @brief Length of TLS 1.3 secret keys in bytes (48 for SHA-384 / SHA-256 capacity). */
+#define SYN_TLS_SECRET_LEN 48U
 
 /** TLS 1.3 Handshake State Machine States */
 typedef enum {

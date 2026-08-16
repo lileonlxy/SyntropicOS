@@ -43,8 +43,8 @@ extern "C" {
 
 /** @brief Maximum DTLS datagram record payload size in bytes (2048). */
 #define SYN_DTLS_RECORD_MAX_PAYLOAD 2048U
-/** @brief Length of DTLS 1.3 secret keys in bytes (32). */
-#define SYN_DTLS_SECRET_LEN 32U
+/** @brief Length of DTLS 1.3 secret keys in bytes (48 for SHA-384 / SHA-256 capacity). */
+#define SYN_DTLS_SECRET_LEN 48U
 /** @brief Size of anti-replay sliding window in packets (64). */
 #define SYN_DTLS_REPLAY_WINDOW_SIZE 64U
 

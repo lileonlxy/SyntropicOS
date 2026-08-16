@@ -124,6 +124,68 @@ void syn_sha512(const void *data, size_t len, uint8_t hash[SYN_SHA512_DIGEST_SIZ
 void syn_sha384(const void *data, size_t len, uint8_t hash[SYN_SHA384_DIGEST_SIZE]);
 
 /**
+ * @brief HMAC-SHA512 context — caller-owned.
+ */
+typedef struct {
+    SYN_SHA512 inner;                         /**< Inner hash context */
+    uint8_t o_key_pad[SYN_SHA512_BLOCK_SIZE]; /**< Outer key pad (K ⊕ opad) */
+} SYN_HMAC_SHA512;
+
+/**
+ * @brief HMAC-SHA384 context — caller-owned.
+ */
+typedef struct {
+    SYN_SHA512 inner;                         /**< Inner hash context */
+    uint8_t o_key_pad[SYN_SHA512_BLOCK_SIZE]; /**< Outer key pad (K ⊕ opad) */
+} SYN_HMAC_SHA384;
+
+/**
+ * @brief Initialize HMAC-SHA512 context with a key.
+ * @param ctx     HMAC-SHA512 context.
+ * @param key     Secret key buffer.
+ * @param key_len Secret key length in bytes.
+ */
+void syn_hmac_sha512_init(SYN_HMAC_SHA512 *ctx, const void *key, size_t key_len);
+
+/**
+ * @brief Feed data chunk into HMAC-SHA512 computation.
+ * @param ctx  HMAC-SHA512 context.
+ * @param data Data buffer to authenticate.
+ * @param len  Length in bytes.
+ */
+void syn_hmac_sha512_update(SYN_HMAC_SHA512 *ctx, const void *data, size_t len);
+
+/**
+ * @brief Finalize HMAC-SHA512 computation and retrieve 64-byte MAC.
+ * @param ctx HMAC-SHA512 context.
+ * @param mac Output 64-byte MAC buffer.
+ */
+void syn_hmac_sha512_final(SYN_HMAC_SHA512 *ctx, uint8_t mac[SYN_SHA512_DIGEST_SIZE]);
+
+/**
+ * @brief Initialize HMAC-SHA384 context with a key.
+ * @param ctx     HMAC-SHA384 context.
+ * @param key     Secret key buffer.
+ * @param key_len Secret key length in bytes.
+ */
+void syn_hmac_sha384_init(SYN_HMAC_SHA384 *ctx, const void *key, size_t key_len);
+
+/**
+ * @brief Feed data chunk into HMAC-SHA384 computation.
+ * @param ctx  HMAC-SHA384 context.
+ * @param data Data buffer to authenticate.
+ * @param len  Length in bytes.
+ */
+void syn_hmac_sha384_update(SYN_HMAC_SHA384 *ctx, const void *data, size_t len);
+
+/**
+ * @brief Finalize HMAC-SHA384 computation and retrieve 48-byte MAC.
+ * @param ctx HMAC-SHA384 context.
+ * @param mac Output 48-byte MAC buffer.
+ */
+void syn_hmac_sha384_final(SYN_HMAC_SHA384 *ctx, uint8_t mac[SYN_SHA384_DIGEST_SIZE]);
+
+/**
  * @brief Compute HMAC-SHA512 over data using secret key (RFC 4231).
  * @param key      Secret key buffer.
  * @param key_len  Secret key length in bytes.

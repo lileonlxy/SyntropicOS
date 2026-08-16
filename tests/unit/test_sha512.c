@@ -158,6 +158,60 @@ void test_hmac_sha384_rfc4231_vectors(void)
     TEST_ASSERT_EQUAL_MEMORY(exp6_384, mac, 48);
 }
 
+void test_hmac_sha512_sha384_streaming_and_null_checks(void)
+{
+    static const uint8_t key[20] = {0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
+                                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b};
+    static const char chunk1[] = "Hi ";
+    static const char chunk2[] = "There";
+
+    static const uint8_t exp_512[64] = {
+        0x87, 0xaa, 0x7c, 0xde, 0xa5, 0xef, 0x61, 0x9d, 0x4f, 0xf0, 0xb4, 0x24, 0x1a,
+        0x1d, 0x6c, 0xb0, 0x23, 0x79, 0xf4, 0xe2, 0xce, 0x4e, 0xc2, 0x78, 0x7a, 0xd0,
+        0xb3, 0x05, 0x45, 0xe1, 0x7c, 0xde, 0xda, 0xa8, 0x33, 0xb7, 0xd6, 0xb8, 0xa7,
+        0x02, 0x03, 0x8b, 0x27, 0x4e, 0xae, 0xa3, 0xf4, 0xe4, 0xbe, 0x9d, 0x91, 0x4e,
+        0xeb, 0x61, 0xf1, 0x70, 0x2e, 0x69, 0x6c, 0x20, 0x3a, 0x12, 0x68, 0x54};
+
+    static const uint8_t exp_384[48] = {0xaf, 0xd0, 0x39, 0x44, 0xd8, 0x48, 0x95, 0x62, 0x6b, 0x08,
+                                        0x25, 0xf4, 0xab, 0x46, 0x90, 0x7f, 0x15, 0xf9, 0xda, 0xdb,
+                                        0xe4, 0x10, 0x1e, 0xc6, 0x82, 0xaa, 0x03, 0x4c, 0x7c, 0xeb,
+                                        0xc5, 0x9c, 0xfa, 0xea, 0x9e, 0xa9, 0x07, 0x6e, 0xde, 0x7f,
+                                        0x4a, 0xf1, 0x52, 0xe8, 0xb2, 0xfa, 0x9c, 0xb6};
+
+    /* Streaming HMAC-SHA512 */
+    SYN_HMAC_SHA512 hmac512;
+    syn_hmac_sha512_init(&hmac512, key, sizeof(key));
+    syn_hmac_sha512_update(&hmac512, chunk1, strlen(chunk1));
+    syn_hmac_sha512_update(&hmac512, chunk2, strlen(chunk2));
+    uint8_t mac512[64];
+    syn_hmac_sha512_final(&hmac512, mac512);
+    TEST_ASSERT_EQUAL_MEMORY(exp_512, mac512, 64);
+
+    /* Streaming HMAC-SHA384 */
+    SYN_HMAC_SHA384 hmac384;
+    syn_hmac_sha384_init(&hmac384, key, sizeof(key));
+    syn_hmac_sha384_update(&hmac384, chunk1, strlen(chunk1));
+    syn_hmac_sha384_update(&hmac384, chunk2, strlen(chunk2));
+    uint8_t mac384[48];
+    syn_hmac_sha384_final(&hmac384, mac384);
+    TEST_ASSERT_EQUAL_MEMORY(exp_384, mac384, 48);
+
+    /* Streaming Null checks */
+    syn_hmac_sha512_init(NULL, key, sizeof(key));
+    syn_hmac_sha512_update(NULL, chunk1, strlen(chunk1));
+    syn_hmac_sha512_update(&hmac512, NULL, 5);
+    syn_hmac_sha512_update(&hmac512, chunk1, 0);
+    syn_hmac_sha512_final(NULL, mac512);
+    syn_hmac_sha512_final(&hmac512, NULL);
+
+    syn_hmac_sha384_init(NULL, key, sizeof(key));
+    syn_hmac_sha384_update(NULL, chunk1, strlen(chunk1));
+    syn_hmac_sha384_update(&hmac384, NULL, 5);
+    syn_hmac_sha384_update(&hmac384, chunk1, 0);
+    syn_hmac_sha384_final(NULL, mac384);
+    syn_hmac_sha384_final(&hmac384, NULL);
+}
+
 void test_sha512_null_and_boundary_checks(void)
 {
     uint8_t out[64];
@@ -189,5 +243,6 @@ void run_sha512_tests(void)
     RUN_TEST(test_sha384_nist_vectors);
     RUN_TEST(test_hmac_sha512_rfc4231_vectors);
     RUN_TEST(test_hmac_sha384_rfc4231_vectors);
+    RUN_TEST(test_hmac_sha512_sha384_streaming_and_null_checks);
     RUN_TEST(test_sha512_null_and_boundary_checks);
 }

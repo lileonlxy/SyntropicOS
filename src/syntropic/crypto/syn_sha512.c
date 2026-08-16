@@ -256,10 +256,9 @@ void syn_sha384(const void *data, size_t len, uint8_t hash[SYN_SHA384_DIGEST_SIZ
 
 /* ── HMAC API ────────────────────────────────────────────────────────────── */
 
-void syn_hmac_sha512(const void *key, size_t key_len, const void *data, size_t data_len,
-                     uint8_t mac[SYN_SHA512_DIGEST_SIZE])
+void syn_hmac_sha512_init(SYN_HMAC_SHA512 *ctx, const void *key, size_t key_len)
 {
-    if (mac == NULL || (key == NULL && key_len > 0U) || (data == NULL && data_len > 0U)) {
+    if (ctx == NULL) {
         return;
     }
 
@@ -273,32 +272,42 @@ void syn_hmac_sha512(const void *key, size_t key_len, const void *data, size_t d
     }
 
     uint8_t i_pad[SYN_SHA512_BLOCK_SIZE];
-    uint8_t o_pad[SYN_SHA512_BLOCK_SIZE];
     for (size_t i = 0U; i < SYN_SHA512_BLOCK_SIZE; i++) {
         i_pad[i] = (uint8_t)(k_buf[i] ^ 0x36U);
-        o_pad[i] = (uint8_t)(k_buf[i] ^ 0x5CU);
+        ctx->o_key_pad[i] = (uint8_t)(k_buf[i] ^ 0x5CU);
     }
 
-    SYN_SHA512 ctx;
-    uint8_t inner_hash[SYN_SHA512_DIGEST_SIZE];
-
-    /* Inner hash */
-    syn_sha512_init(&ctx);
-    syn_sha512_update(&ctx, i_pad, sizeof(i_pad));
-    syn_sha512_update(&ctx, data, data_len);
-    syn_sha512_final(&ctx, inner_hash);
-
-    /* Outer hash */
-    syn_sha512_init(&ctx);
-    syn_sha512_update(&ctx, o_pad, sizeof(o_pad));
-    syn_sha512_update(&ctx, inner_hash, sizeof(inner_hash));
-    syn_sha512_final(&ctx, mac);
+    syn_sha512_init(&ctx->inner);
+    syn_sha512_update(&ctx->inner, i_pad, sizeof(i_pad));
 }
 
-void syn_hmac_sha384(const void *key, size_t key_len, const void *data, size_t data_len,
-                     uint8_t mac[SYN_SHA384_DIGEST_SIZE])
+void syn_hmac_sha512_update(SYN_HMAC_SHA512 *ctx, const void *data, size_t len)
 {
-    if (mac == NULL || (key == NULL && key_len > 0U) || (data == NULL && data_len > 0U)) {
+    if (ctx == NULL || data == NULL || len == 0U) {
+        return;
+    }
+    syn_sha512_update(&ctx->inner, data, len);
+}
+
+void syn_hmac_sha512_final(SYN_HMAC_SHA512 *ctx, uint8_t mac[SYN_SHA512_DIGEST_SIZE])
+{
+    if (ctx == NULL || mac == NULL) {
+        return;
+    }
+
+    uint8_t inner_hash[SYN_SHA512_DIGEST_SIZE];
+    syn_sha512_final(&ctx->inner, inner_hash);
+
+    SYN_SHA512 outer;
+    syn_sha512_init(&outer);
+    syn_sha512_update(&outer, ctx->o_key_pad, sizeof(ctx->o_key_pad));
+    syn_sha512_update(&outer, inner_hash, sizeof(inner_hash));
+    syn_sha512_final(&outer, mac);
+}
+
+void syn_hmac_sha384_init(SYN_HMAC_SHA384 *ctx, const void *key, size_t key_len)
+{
+    if (ctx == NULL) {
         return;
     }
 
@@ -312,26 +321,63 @@ void syn_hmac_sha384(const void *key, size_t key_len, const void *data, size_t d
     }
 
     uint8_t i_pad[SYN_SHA512_BLOCK_SIZE];
-    uint8_t o_pad[SYN_SHA512_BLOCK_SIZE];
     for (size_t i = 0U; i < SYN_SHA512_BLOCK_SIZE; i++) {
         i_pad[i] = (uint8_t)(k_buf[i] ^ 0x36U);
-        o_pad[i] = (uint8_t)(k_buf[i] ^ 0x5CU);
+        ctx->o_key_pad[i] = (uint8_t)(k_buf[i] ^ 0x5CU);
     }
 
-    SYN_SHA512 ctx;
+    syn_sha384_init(&ctx->inner);
+    syn_sha512_update(&ctx->inner, i_pad, sizeof(i_pad));
+}
+
+void syn_hmac_sha384_update(SYN_HMAC_SHA384 *ctx, const void *data, size_t len)
+{
+    if (ctx == NULL || data == NULL || len == 0U) {
+        return;
+    }
+    syn_sha512_update(&ctx->inner, data, len);
+}
+
+void syn_hmac_sha384_final(SYN_HMAC_SHA384 *ctx, uint8_t mac[SYN_SHA384_DIGEST_SIZE])
+{
+    if (ctx == NULL || mac == NULL) {
+        return;
+    }
+
     uint8_t inner_hash[SYN_SHA384_DIGEST_SIZE];
+    syn_sha384_final(&ctx->inner, inner_hash);
 
-    /* Inner hash */
-    syn_sha384_init(&ctx);
-    syn_sha512_update(&ctx, i_pad, sizeof(i_pad));
-    syn_sha512_update(&ctx, data, data_len);
-    syn_sha384_final(&ctx, inner_hash);
+    SYN_SHA512 outer;
+    syn_sha384_init(&outer);
+    syn_sha512_update(&outer, ctx->o_key_pad, sizeof(ctx->o_key_pad));
+    syn_sha512_update(&outer, inner_hash, sizeof(inner_hash));
+    syn_sha384_final(&outer, mac);
+}
 
-    /* Outer hash */
-    syn_sha384_init(&ctx);
-    syn_sha512_update(&ctx, o_pad, sizeof(o_pad));
-    syn_sha512_update(&ctx, inner_hash, sizeof(inner_hash));
-    syn_sha384_final(&ctx, mac);
+void syn_hmac_sha512(const void *key, size_t key_len, const void *data, size_t data_len,
+                     uint8_t mac[SYN_SHA512_DIGEST_SIZE])
+{
+    if (mac == NULL || (key == NULL && key_len > 0U) || (data == NULL && data_len > 0U)) {
+        return;
+    }
+
+    SYN_HMAC_SHA512 ctx;
+    syn_hmac_sha512_init(&ctx, key, key_len);
+    syn_hmac_sha512_update(&ctx, data, data_len);
+    syn_hmac_sha512_final(&ctx, mac);
+}
+
+void syn_hmac_sha384(const void *key, size_t key_len, const void *data, size_t data_len,
+                     uint8_t mac[SYN_SHA384_DIGEST_SIZE])
+{
+    if (mac == NULL || (key == NULL && key_len > 0U) || (data == NULL && data_len > 0U)) {
+        return;
+    }
+
+    SYN_HMAC_SHA384 ctx;
+    syn_hmac_sha384_init(&ctx, key, key_len);
+    syn_hmac_sha384_update(&ctx, data, data_len);
+    syn_hmac_sha384_final(&ctx, mac);
 }
 
 #endif /* SYN_USE_SHA512 */
