@@ -420,6 +420,10 @@ extern "C" {
 #include "proto/syn_cobs.h"
 #endif
 
+#if !defined(SYN_USE_COSE) || SYN_USE_COSE
+#include "proto/syn_cose.h"
+#endif
+
 #if !defined(SYN_USE_LIN) || SYN_USE_LIN
 #include "proto/syn_lin.h"
 #endif

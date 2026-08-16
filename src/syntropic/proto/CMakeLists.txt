@@ -10,6 +10,7 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_cia402.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_cjt188.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_cobs.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_cose.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_crsf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_dali.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_devicenet.c
@@ -33,6 +34,7 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_msp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_n2k.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_nmea.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_ocpp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_pmbus.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_sbus.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_smbus.c

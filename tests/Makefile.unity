@@ -51,7 +51,7 @@ SYN_SRCS := \
 	src/syntropic/motor/syn_stepper.c src/syntropic/motor/syn_servo.c \
 	src/syntropic/motor/syn_dc_motor.c src/syntropic/motor/syn_motor_ctrl.c \
 	src/syntropic/motor/syn_actuator.c \
-	src/syntropic/proto/syn_cobs.c src/syntropic/proto/syn_modbus.c \
+	src/syntropic/proto/syn_cobs.c src/syntropic/proto/syn_cose.c src/syntropic/proto/syn_modbus.c \
 	src/syntropic/proto/syn_modbus_master.c \
 	src/syntropic/proto/syn_canopen.c src/syntropic/proto/syn_cia402.c \
 	src/syntropic/proto/syn_lss.c src/syntropic/proto/syn_cia401.c \

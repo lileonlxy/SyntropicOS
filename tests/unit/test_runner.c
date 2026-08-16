@@ -212,6 +212,7 @@ void run_interpolator_tests(void);
 void run_p256_tests(void);
 void run_dnssd_tests(void);
 void run_ed25519_tests(void);
+void run_cose_tests(void);
 
 #define RUN_TEST_GROUP(file, fn)                           \
     do {                                                   \
@@ -871,6 +872,7 @@ int main(void)
     RUN_TEST(test_ble_att_encoders);
     run_p256_tests();
     run_ed25519_tests();
+    run_cose_tests();
 
     return UNITY_END();
 }
