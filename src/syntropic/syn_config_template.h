@@ -83,6 +83,7 @@
 #define SYN_USE_MOTOR_CTRL 1 /**< Closed-loop motor controller (requires: PID) */
 #define SYN_USE_AUTOTUNE 1   /**< Motor auto-tuner (requires: MOTOR_CTRL) */
 #define SYN_USE_ACTUATOR 1   /**< Linear actuator (requires: PID)     */
+#define SYN_USE_GCODE 1      /**< G-Code RS-274 motion interpreter (requires: INTERPOLATOR) */
 
 /* ── DSP / Filters ──────────────────────────────────────────────────────── */
 
@@ -137,6 +138,9 @@
 #define SYN_USE_DTLS 1           /**< DTLS 1.3 datagram security (RFC 9147) */
 #define SYN_USE_LWM2M 1          /**< OMA Lightweight M2M client engine   */
 #define SYN_USE_LWM2M_TASK 1     /**< LwM2M Autonomous Client Task engine */
+#define SYN_USE_XRCE_DDS 1       /**< Micro-ROS / XRCE-DDS v1.2 client engine */
+#define SYN_USE_OPCUA 1          /**< Micro OPC UA Binary server engine (IEC 62541) */
+#define SYN_USE_IOLINK 1         /**< IO-Link (IEC 61131-9) Master & Device protocol */
 #define SYN_USE_DNS 1            /**< DNS resolver                        */
 #define SYN_USE_ETH 1            /**< Zero-heap Ethernet II & ARP engine  */
 #define SYN_ETH_ARP_CACHE_SIZE 8 /**< ARP table cache size (entries)      */

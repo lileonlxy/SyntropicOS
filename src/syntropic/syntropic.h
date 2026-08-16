@@ -405,6 +405,10 @@ extern "C" {
 #include "motor/syn_actuator.h"
 #endif
 
+#if !defined(SYN_USE_GCODE) || SYN_USE_GCODE
+#include "motor/syn_gcode.h"
+#endif
+
 /* ── Protocols ──────────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_AT_PARSER) || SYN_USE_AT_PARSER
@@ -489,6 +493,26 @@ extern "C" {
 
 #if !defined(SYN_USE_MAVLINK) || SYN_USE_MAVLINK
 #include "proto/syn_mavlink.h"
+#endif
+
+#if !defined(SYN_USE_MQTT) || SYN_USE_MQTT
+#include "net/syn_mqtt.h"
+#endif
+
+#if !defined(SYN_USE_HTTP) || SYN_USE_HTTP
+#include "net/syn_http.h"
+#endif
+
+#if !defined(SYN_USE_HTTPD) || SYN_USE_HTTPD
+#include "net/syn_httpd.h"
+#endif
+
+#if !defined(SYN_USE_WEBSOCKET) || SYN_USE_WEBSOCKET
+#include "net/syn_websocket.h"
+#endif
+
+#if !defined(SYN_USE_DNS) || SYN_USE_DNS
+#include "net/syn_dns.h"
 #endif
 
 #if !defined(SYN_USE_BLACKBOX) || SYN_USE_BLACKBOX
@@ -595,6 +619,18 @@ extern "C" {
 
 #if !defined(SYN_USE_LWM2M_TASK) || SYN_USE_LWM2M_TASK
 #include "proto/syn_lwm2m_task.h"
+#endif
+
+#if !defined(SYN_USE_XRCE_DDS) || SYN_USE_XRCE_DDS
+#include "proto/syn_xrce_dds.h"
+#endif
+
+#if !defined(SYN_USE_OPCUA) || SYN_USE_OPCUA
+#include "proto/syn_opcua.h"
+#endif
+
+#if !defined(SYN_USE_IOLINK) || SYN_USE_IOLINK
+#include "proto/syn_iolink.h"
 #endif
 
 /* ── Storage ────────────────────────────────────────────────────────────── */

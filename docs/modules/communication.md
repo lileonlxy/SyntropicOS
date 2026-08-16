@@ -27,6 +27,9 @@ SyntropicOS provides a comprehensive suite of communication protocols ranging fr
 | **Automotive** | J1939 | `proto/syn_j1939.h` | SAE J1939 heavy vehicle network protocol (PGN / SPN) |
 | **Marine** | NMEA 2000 | `proto/syn_n2k.h` | NMEA 2000 marine CAN bus protocol decoder |
 | **IoT / Edge** | OMA LwM2M Supervisor | `proto/syn_lwm2m_task.h` | Zero-heap autonomous LwM2M v1.1/v1.2 client task, DTLS 1.3, & Observe scheduler |
+| **Robotics** | Micro XRCE-DDS | `proto/syn_xrce_dds.h` | Micro-ROS & XRCE-DDS v1.2 client with CDR serialization & entity tree |
+| **Industrial** | Micro OPC UA Server | `proto/syn_opcua.h` | IEC 62541 binary server (UACP/UASC, Read, Write, Browse, Session management) |
+| **Fieldbus** | IO-Link Master & Device | `proto/syn_iolink.h` | IEC 61131-9 single-drop digital point-to-point engine with CRC-6 & ISDU |
 
 ---
 
@@ -451,3 +454,111 @@ void lwm2m_app_init(SYN_Transport *transport) {
     syn_lwm2m_task_init(&g_task, &cfg);
 }
 ```
+
+---
+
+## 11. Micro XRCE-DDS Client (`proto/syn_xrce_dds.h`)
+
+Zero-heap, deterministic client engine for Micro-ROS & eProsima Micro XRCE-DDS v1.2:
+- **CDR Serialization**: Standard Little-Endian CDR serializer/deserializer with strict alignment rules.
+- **Entity Tree**: Complete ROS 2 hierarchy (`DomainParticipant`, `Topic`, `Publisher`, `Subscriber`, `DataWriter`, `DataReader`).
+- **Framing & Transports**: XRCE submessage framing over any `SYN_Transport` (UART, UDP, CAN).
+
+```c
+#include <syntropic/proto/syn_xrce_dds.h>
+
+static SYN_XRCE_Client g_xrce_client;
+static uint8_t g_xrce_rx[256];
+static uint8_t g_xrce_tx[256];
+
+void xrce_setup(SYN_Transport *transport) {
+    SYN_XRCE_Config cfg = {
+        .transport = transport,
+        .client_key = 0xCAFEBABEU,
+        .session_id = 0x81U,
+        .rx_buf = g_xrce_rx,
+        .rx_buf_size = sizeof(g_xrce_rx),
+        .tx_buf = g_xrce_tx,
+        .tx_buf_size = sizeof(g_xrce_tx),
+    };
+    syn_xrce_client_init(&g_xrce_client, &cfg);
+    syn_xrce_client_create_session(&g_xrce_client);
+    syn_xrce_client_create_participant(&g_xrce_client, 1U);
+    syn_xrce_client_create_topic(&g_xrce_client, 2U, 1U, "rt/chatter", "std_msgs::msg::dds_::String_");
+    syn_xrce_client_create_publisher(&g_xrce_client, 3U, 1U);
+    syn_xrce_client_create_datawriter(&g_xrce_client, 4U, 3U, 2U);
+}
+```
+
+---
+
+## 12. Micro OPC UA Embedded Server (`proto/syn_opcua.h`)
+
+Zero-heap, deterministic IEC 62541 OPC UA binary server:
+- **Protocol Framing**: UACP (`HEL`/`ACK`/`ERR`) and UASC (`OPN`/`CLO`/`MSG`) framing.
+- **Core Services**: Read, Write, Browse, CreateSession, ActivateSession, CloseSession.
+- **Address Space**: Static in-memory address space with Object and Variable nodes, custom DataValue callbacks.
+
+```c
+#include <syntropic/proto/syn_opcua.h>
+
+static SYN_OPCUA_Server g_opcua_srv;
+static uint8_t g_opcua_rx[512];
+static uint8_t g_opcua_tx[512];
+
+void opcua_setup(SYN_Transport *transport) {
+    SYN_OPCUA_Config cfg = {
+        .transport = transport,
+        .endpoint_url = "opc.tcp://0.0.0.0:4840",
+        .server_name = "SyntropicOS Edge Server",
+        .rx_buf = g_opcua_rx,
+        .rx_buf_size = sizeof(g_opcua_rx),
+        .tx_buf = g_opcua_tx,
+        .tx_buf_size = sizeof(g_opcua_tx),
+    };
+    syn_opcua_server_init(&g_opcua_srv, &cfg);
+
+    SYN_OPCUA_Node var_node = {
+        .node_id = {.ns_index = 1U, .id_type = SYN_OPCUA_NODEID_NUMERIC, .id = {.num = 1001U}},
+        .browse_name = "SensorTemperature",
+        .display_name = "SensorTemperature",
+        .node_class = SYN_OPCUA_NODECLASS_VARIABLE,
+        .data_type = SYN_OPCUA_TYPE_FLOAT,
+        .value = {.value = {.type = SYN_OPCUA_TYPE_FLOAT, .val = {.float_val = 23.5f}},
+                  .status_code = SYN_OPCUA_STATUS_GOOD},
+        .access_level = 0x01U, /* Read-Only */
+    };
+    syn_opcua_server_register_node(&g_opcua_srv, &var_node);
+}
+```
+
+---
+
+## 13. IO-Link Master & Device Protocol Engine (`proto/syn_iolink.h`)
+
+Zero-heap IEC 61131-9 point-to-point digital protocol engine:
+- **Physical Rates**: COM1 (4.8k), COM2 (38.4k), COM3 (230.4k) baud.
+- **Framing & Checksum**: Standard 6-bit CRC with parity for M-Sequence Types 0, 1_1, 1_2, 2_1, 2_2, 2_V.
+- **ISDU & Process Data**: Cyclic process data exchange and acyclic Direct Parameter Page 1 and ISDU parameter read/write.
+
+```c
+#include <syntropic/proto/syn_iolink.h>
+
+static SYN_IOLink_Master g_iolink_master;
+static uint8_t g_iolink_rx[128];
+static uint8_t g_iolink_tx[128];
+
+void iolink_setup(SYN_Transport *transport) {
+    SYN_IOLink_MasterConfig cfg = {
+        .transport = transport,
+        .cycle_time_ms = 5U,
+        .rx_buf = g_iolink_rx,
+        .rx_buf_size = sizeof(g_iolink_rx),
+        .tx_buf = g_iolink_tx,
+        .tx_buf_size = sizeof(g_iolink_tx),
+    };
+    syn_iolink_master_init(&g_iolink_master, &cfg);
+    syn_iolink_master_start(&g_iolink_master);
+}
+```
+

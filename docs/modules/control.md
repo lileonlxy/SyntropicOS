@@ -116,3 +116,37 @@ void foc_10khz_isr(q16_t v_alpha, q16_t v_beta, q16_t i_alpha, q16_t i_beta) {
     q16_t est_speed = syn_foc_observer_get_speed(&observer);
 }
 ```
+
+---
+
+## 4. G-Code & NIST RS-274 Motion Interpreter (`motor/syn_gcode.h`)
+
+Zero-heap streaming ASCII G-code parser and multi-axis trajectory coordinator:
+- **Parser**: Streaming word extraction (`G`, `M`, `X`, `Y`, `Z`, `I`, `J`, `K`, `F`, `S`, `P`, `T`).
+- **Modal Engine**: G0/G1/G2/G3/G4, G17/G18/G19 planes, G20/G21 units, G90/G91 distance modes, G92 offsets, M3/M4/M5 spindle control, M7/M8/M9 coolant.
+- **Interpolator Integration**: Automatic trajectory planning via `SYN_Interpolator` with S-curve/trapezoidal velocity profiles.
+
+```c
+#include <syntropic/motor/syn_gcode.h>
+#include <syntropic/motor/syn_interpolator.h>
+
+static SYN_Interpolator g_interp;
+static SYN_GCode_Controller g_gcode_ctrl;
+
+void gcode_setup(void) {
+    SYN_GCode_Config cfg = {
+        .interpolator = &g_interp,
+        .default_feedrate = 200.0f,
+        .max_acceleration = 1000.0f,
+        .max_jerk = 5000.0f,
+        .step_resolution = 0.001f,
+    };
+    syn_gcode_init(&g_gcode_ctrl, &cfg);
+
+    /* Stream G-code blocks */
+    syn_gcode_execute_line(&g_gcode_ctrl, "G21 G90 G0 X0 Y0 Z5");
+    syn_gcode_execute_line(&g_gcode_ctrl, "G1 Z-1 F100");
+    syn_gcode_execute_line(&g_gcode_ctrl, "G2 X10 Y10 I5 J0 F300");
+}
+```
+

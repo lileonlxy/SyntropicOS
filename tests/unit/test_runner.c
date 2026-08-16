@@ -220,6 +220,10 @@ void run_ed25519_tests(void);
 void run_cose_tests(void);
 void run_sha512_tests(void);
 void run_dtls_tests(void);
+void run_xrce_dds_tests(void);
+void run_opcua_tests(void);
+void run_gcode_tests(void);
+void run_iolink_tests(void);
 
 #define RUN_TEST_GROUP(file, fn)                           \
     do {                                                   \
@@ -887,6 +891,10 @@ int main(void)
     run_aes_tests();
     run_sha512_tests();
     run_dtls_tests();
+    run_xrce_dds_tests();
+    run_opcua_tests();
+    run_gcode_tests();
+    run_iolink_tests();
 
     return UNITY_END();
 }
