@@ -77,6 +77,16 @@ class RefCSMSServer(cp):
         logging.info("[Python CSMS] Heartbeat received")
         return call_result.Heartbeat(current_time="2026-08-06T12:00:00Z")
 
+    @on("DisplayMessage", skip_schema_validation=True)
+    def on_display_message(self, **kwargs):
+        logging.info("[Python CSMS] DisplayMessage received")
+        return call_result.Heartbeat(current_time="2026-08-06T12:00:00Z")
+
+    @on("V2GEnergyTransfer", skip_schema_validation=True)
+    def on_v2g_energy_transfer(self, **kwargs):
+        logging.info("[Python CSMS] V2GEnergyTransfer received")
+        return call_result.Heartbeat(current_time="2026-08-06T12:00:00Z")
+
 async def handle_websocket(websocket):
     logging.info("[Python CSMS] Station client connected")
     cp_instance = RefCSMSServer("CP001", websocket)

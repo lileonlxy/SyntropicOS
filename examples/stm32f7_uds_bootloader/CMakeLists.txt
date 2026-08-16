@@ -13,8 +13,7 @@ add_executable(stm32f7_fbl
     bootloader/src/main.c
     ../../src/syntropic/proto/syn_uds.c
     ../../src/syntropic/proto/syn_isotp.c
-    ../../src/syntropic/util/syn_aes128.c
-    ../../src/syntropic/util/syn_pack.c
+    ../../src/syntropic/crypto/syn_aes128.c
     ../../src/syntropic/util/syn_qmath.c
     ../../src/syntropic/system/syn_boot.c
 )
@@ -24,8 +23,7 @@ add_executable(stm32f7_app
     app/src/main.c
     ../../src/syntropic/proto/syn_uds.c
     ../../src/syntropic/proto/syn_isotp.c
-    ../../src/syntropic/util/syn_aes128.c
-    ../../src/syntropic/util/syn_pack.c
+    ../../src/syntropic/crypto/syn_aes128.c
     ../../src/syntropic/util/syn_qmath.c
     ../../src/syntropic/system/syn_boot.c
 )

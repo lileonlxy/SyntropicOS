@@ -5,7 +5,7 @@ WORKDIR /app
 COPY src /app/src
 COPY tests/integration/services/uds/uds_server_runner.c /app/uds_server_runner.c
 
-RUN gcc -std=c99 -D_DEFAULT_SOURCE -I. -Isrc -Isrc/syntropic/proto -Isrc/syntropic/util -Isrc/syntropic/port_stubs src/syntropic/proto/syn_uds.c src/syntropic/util/syn_aes128.c src/syntropic/port_stubs/syn_port_stubs.c uds_server_runner.c -o uds_server_runner
+RUN gcc -std=c99 -D_DEFAULT_SOURCE -I. -Isrc -Isrc/syntropic/proto -Isrc/syntropic/util -Isrc/syntropic/port_stubs src/syntropic/proto/syn_uds.c src/syntropic/crypto/syn_aes128.c src/syntropic/port_stubs/syn_port_stubs.c uds_server_runner.c -o uds_server_runner
 
 EXPOSE 10886
 
