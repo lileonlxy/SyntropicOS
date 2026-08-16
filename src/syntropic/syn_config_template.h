@@ -212,6 +212,7 @@
 /* ── Cryptography ───────────────────────────────────────────────────────── */
 
 #define SYN_USE_AES 1              /**< Unified AES block cipher & AEAD     */
+#define SYN_USE_PORT_AES 0         /**< Hardware AES/crypto port offload    */
 #define SYN_AES_MAX_KEY_BITS 256   /**< Max AES key bits: 128, 192, or 256  */
 #define SYN_USE_AES_DECRYPT 1      /**< AES ECB/CBC decryption (+256B Flash)*/
 #define SYN_USE_AES_CBC 1          /**< AES-CBC mode with PKCS#7            */

@@ -1,3 +1,4 @@
+#include "mocks/mock_port.h"
 #include "syntropic/crypto/syn_aes.h"
 #include "unity/unity.h"
 
@@ -133,6 +134,38 @@ void test_aes_cbc_nist_vectors(void)
                                                   sizeof(decrypted), &plain_len));
     TEST_ASSERT_EQUAL_size_t(64, plain_len);
     TEST_ASSERT_EQUAL_HEX8_ARRAY(plain, decrypted, 64);
+
+    /* Test non-block-multiple plaintext (remaining > 0) */
+    const uint8_t msg14[14] = {'T', 'e', 's', 't', 'M', 'e', 's',
+                               's', 'a', 'g', 'e', '1', '2', '3'};
+    uint8_t cbc14_cipher[32];
+    size_t cbc14_len = 0;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_cbc_encrypt(&ctx, iv, msg14, sizeof(msg14), cbc14_cipher,
+                                                  sizeof(cbc14_cipher), &cbc14_len));
+    TEST_ASSERT_EQUAL(16, cbc14_len);
+
+    uint8_t cbc14_plain[32];
+    size_t cbc14_plain_len = 0;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_cbc_decrypt(&ctx, iv, cbc14_cipher, cbc14_len, cbc14_plain,
+                                                  sizeof(cbc14_plain), &cbc14_plain_len));
+    TEST_ASSERT_EQUAL(sizeof(msg14), cbc14_plain_len);
+    TEST_ASSERT_EQUAL_MEMORY(msg14, cbc14_plain, sizeof(msg14));
+
+    /* Corrupt last byte to trigger pad_val error (pad_val == 0 or > 16) */
+    uint8_t bad_cbc[32];
+    memcpy(bad_cbc, cbc14_cipher, cbc14_len);
+    bad_cbc[cbc14_len - 1] ^= 0x01;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_cbc_decrypt(&ctx, iv, bad_cbc, cbc14_len, cbc14_plain,
+                                          sizeof(cbc14_plain), &cbc14_plain_len));
+
+    /* Corrupt IV byte 14 to flip plaintext pad byte 14 without corrupting pad_val at byte 15 */
+    uint8_t bad_iv[16];
+    memcpy(bad_iv, iv, 16);
+    bad_iv[14] ^= 0x01;
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_cbc_decrypt(&ctx, bad_iv, cbc14_cipher, cbc14_len, cbc14_plain,
+                                          sizeof(cbc14_plain), &cbc14_plain_len));
 }
 
 /* ── AES CTR NIST Test Vectors (NIST SP 800-38A) ─────────────────────────── */
@@ -397,6 +430,68 @@ void test_aes_param_validation(void)
                       syn_aes_gcm_decrypt(&gcm_ctx, iv, 12, NULL, 0, buf, 16, buf, NULL));
 }
 
+void test_aes_port_and_ghash_functions(void)
+{
+    /* 1. syn_aes_ghash_mult parameter guards */
+    uint8_t x[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                     0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+    uint8_t h[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                     0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00};
+    uint8_t out[16] = {0};
+
+    syn_aes_ghash_mult(NULL, h, out);
+    syn_aes_ghash_mult(x, NULL, out);
+    syn_aes_ghash_mult(x, h, NULL);
+
+    /* 2. Valid GHASH multiplication */
+    syn_aes_ghash_mult(x, h, out);
+    /* Multiplying non-zero elements must produce non-zero output */
+    bool all_zero = true;
+    for (int i = 0; i < 16; i++) {
+        if (out[i] != 0) {
+            all_zero = false;
+            break;
+        }
+    }
+    TEST_ASSERT_FALSE(all_zero);
+
+    /* Multiplying by zero gives zero */
+    uint8_t zero[16] = {0};
+    syn_aes_ghash_mult(zero, h, out);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(zero, out, 16);
+
+    /* 3. Hardware acceleration mock invocation */
+    mock_port_reset();
+    mock_aes_hw_enabled = true;
+
+    SYN_AES_Context ctx;
+    uint8_t key[16] = {0};
+    syn_aes_init(&ctx, key, 16);
+
+    uint8_t in_block[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                            0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00};
+    uint8_t out_block[16] = {0};
+
+    syn_aes_encrypt_block(&ctx, in_block, out_block);
+    TEST_ASSERT_EQUAL_UINT32(1, mock_aes_encrypt_calls);
+    for (int i = 0; i < 16; i++) {
+        TEST_ASSERT_EQUAL_UINT8((uint8_t)(in_block[i] ^ 0xAA), out_block[i]);
+    }
+
+    memset(out_block, 0, 16);
+    syn_aes_decrypt_block(&ctx, in_block, out_block);
+    TEST_ASSERT_EQUAL_UINT32(1, mock_aes_decrypt_calls);
+    for (int i = 0; i < 16; i++) {
+        TEST_ASSERT_EQUAL_UINT8((uint8_t)(in_block[i] ^ 0xAA), out_block[i]);
+    }
+
+    memset(out_block, 0, 16);
+    syn_aes_ghash_mult(in_block, h, out_block);
+    TEST_ASSERT_EQUAL_UINT32(1, mock_ghash_calls);
+
+    mock_aes_hw_enabled = false;
+}
+
 void run_aes_tests(void)
 {
     RUN_TEST(test_aes_ecb_nist_vectors);
@@ -404,4 +499,5 @@ void run_aes_tests(void)
     RUN_TEST(test_aes_ctr_nist_vectors);
     RUN_TEST(test_aes_gcm_nist_vectors);
     RUN_TEST(test_aes_param_validation);
+    RUN_TEST(test_aes_port_and_ghash_functions);
 }

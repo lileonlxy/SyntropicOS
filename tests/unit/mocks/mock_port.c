@@ -1011,6 +1011,12 @@ void mock_port_reset(void)
     s_gpio_write_cb = NULL;
     s_gpio_write_ctx = NULL;
 
+    /* AES / Crypto Mock */
+    mock_aes_hw_enabled = false;
+    mock_aes_encrypt_calls = 0;
+    mock_aes_decrypt_calls = 0;
+    mock_ghash_calls = 0;
+
     /* SPI */
     memset(mock_spi_rx_buf, 0, sizeof(mock_spi_rx_buf));
     mock_spi_rx_len = 0;
@@ -1567,5 +1573,61 @@ SYN_WEAK SYN_Status syn_port_comp_enable(uint8_t comp_id, bool enable)
 {
     (void)comp_id;
     (void)enable;
+    return SYN_OK;
+}
+
+/* ── AES / Crypto Accelerator mock port ─────────────────────────────────── */
+
+#include "syntropic/port/syn_port_aes.h"
+
+bool mock_aes_hw_enabled = false;
+uint32_t mock_aes_encrypt_calls = 0;
+uint32_t mock_aes_decrypt_calls = 0;
+uint32_t mock_ghash_calls = 0;
+
+SYN_WEAK SYN_Status syn_port_aes_init(void)
+{
+    return mock_aes_hw_enabled ? SYN_OK : SYN_NOT_IMPLEMENTED;
+}
+
+SYN_WEAK SYN_Status syn_port_aes_encrypt_block(const uint8_t *round_keys, uint8_t nr,
+                                               const uint8_t in[16], uint8_t out[16])
+{
+    if (!mock_aes_hw_enabled) {
+        return SYN_NOT_IMPLEMENTED;
+    }
+    mock_aes_encrypt_calls++;
+    (void)round_keys;
+    (void)nr;
+    for (int i = 0; i < 16; i++) {
+        out[i] = (uint8_t)(in[i] ^ 0xAA);
+    }
+    return SYN_OK;
+}
+
+SYN_WEAK SYN_Status syn_port_aes_decrypt_block(const uint8_t *round_keys, uint8_t nr,
+                                               const uint8_t in[16], uint8_t out[16])
+{
+    if (!mock_aes_hw_enabled) {
+        return SYN_NOT_IMPLEMENTED;
+    }
+    mock_aes_decrypt_calls++;
+    (void)round_keys;
+    (void)nr;
+    for (int i = 0; i < 16; i++) {
+        out[i] = (uint8_t)(in[i] ^ 0xAA);
+    }
+    return SYN_OK;
+}
+
+SYN_WEAK SYN_Status syn_port_ghash_mult(const uint8_t x[16], const uint8_t h[16], uint8_t out[16])
+{
+    if (!mock_aes_hw_enabled) {
+        return SYN_NOT_IMPLEMENTED;
+    }
+    mock_ghash_calls++;
+    for (int i = 0; i < 16; i++) {
+        out[i] = (uint8_t)(x[i] ^ h[i] ^ 0x55);
+    }
     return SYN_OK;
 }

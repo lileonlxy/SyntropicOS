@@ -21,6 +21,7 @@
 #if !defined(SYN_USE_COSE) || SYN_USE_COSE
 
 #include "syntropic/common/syn_defs.h"
+#include "syntropic/crypto/syn_aes.h"
 #include "syntropic/crypto/syn_chacha20poly1305.h"
 #include "syntropic/crypto/syn_ed25519.h"
 #include "syntropic/crypto/syn_p256.h"
@@ -56,6 +57,9 @@ extern "C" {
 /** @brief COSE Algorithm Identifiers */
 typedef enum {
     SYN_COSE_ALGO_UNKNOWN = 0,
+    SYN_COSE_ALGO_A128GCM = 1,           /**< AES-GCM mode w/ 128-bit key, 128-bit tag */
+    SYN_COSE_ALGO_A192GCM = 2,           /**< AES-GCM mode w/ 192-bit key, 128-bit tag */
+    SYN_COSE_ALGO_A256GCM = 3,           /**< AES-GCM mode w/ 256-bit key, 128-bit tag */
     SYN_COSE_ALGO_ES256 = -7,            /**< ECDSA with SHA-256 on P-256 curve */
     SYN_COSE_ALGO_EDDSA = -8,            /**< EdDSA with Ed25519 (RFC 8032) */
     SYN_COSE_ALGO_CHACHA20_POLY1305 = 24 /**< ChaCha20/Poly1305 AEAD (128-bit tag) */

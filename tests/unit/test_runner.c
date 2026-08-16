@@ -187,7 +187,6 @@ void run_random_tests(void);
 void run_gpio_tests(void);
 void run_uart_tests(void);
 void run_aes_tests(void);
-void run_aes128_tests(void);
 void run_aes_cmac_tests(void);
 void run_sha256_tests(void);
 void run_pool_tests(void);
@@ -369,7 +368,6 @@ int main(void)
     run_fwupdate_tests();
 
     /* New modules */
-    run_aes128_tests();
     run_aes_cmac_tests();
     run_sha256_tests();
     run_pool_tests();

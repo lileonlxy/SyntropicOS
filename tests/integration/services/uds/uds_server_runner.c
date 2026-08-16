@@ -1,4 +1,4 @@
-#include "syntropic/crypto/syn_aes128.h"
+#include "syntropic/crypto/syn_aes.h"
 #include "syntropic/proto/syn_uds.h"
 
 #include <arpa/inet.h>

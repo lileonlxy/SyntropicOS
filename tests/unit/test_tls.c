@@ -465,6 +465,66 @@ void test_tls_x509_mode_handshake(void)
     TEST_ASSERT_EQUAL(SYN_TLS_STATE_ESTABLISHED, valid_tls.state);
 }
 
+void test_tls_aes_gcm_cipher_suites(void)
+{
+    LoopbackTransport wire = {0};
+    SYN_Transport tr = {.send = loopback_send, .recv = loopback_recv, .ctx = &wire};
+
+    static const uint8_t psk[32] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11,
+                                    0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+                                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                                    0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+
+    uint8_t rx_record_buf[2560];
+    uint8_t tx_record_buf[2560];
+    uint8_t rx_buf[128];
+    size_t rx_len = 0;
+    static const char msg128[] = "Encrypted with TLS_AES_128_GCM_SHA256!";
+    static const char msg256[] = "Encrypted with TLS_AES_256_GCM_SHA384!";
+
+    /* 1. Test AES-128-GCM cipher suite */
+    SYN_TLS_Config cfg128 = {.mode = SYN_TLS_AUTH_MODE_PSK,
+                             .cipher_suite = SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256,
+                             .server_name = "aes128.local",
+                             .psk_identity = (const uint8_t *)"psk128",
+                             .psk_identity_len = 6,
+                             .psk_secret = psk,
+                             .psk_secret_len = sizeof(psk)};
+    SYN_TLS_Context tls128;
+    wire.len = 0;
+    TEST_ASSERT_TRUE(syn_tls_init(&tls128, &cfg128, &tr, rx_record_buf, sizeof(rx_record_buf),
+                                  tx_record_buf, sizeof(tx_record_buf)));
+    TEST_ASSERT_TRUE(syn_tls_handshake(&tls128));
+    TEST_ASSERT_EQUAL(SYN_TLS_STATE_ESTABLISHED, tls128.state);
+
+    TEST_ASSERT_TRUE(syn_tls_send(&tls128, (const uint8_t *)msg128, strlen(msg128)));
+    memset(rx_buf, 0, sizeof(rx_buf));
+    TEST_ASSERT_TRUE(syn_tls_recv(&tls128, rx_buf, sizeof(rx_buf), &rx_len));
+    TEST_ASSERT_EQUAL(strlen(msg128), rx_len);
+    TEST_ASSERT_EQUAL_MEMORY(msg128, rx_buf, rx_len);
+
+    /* 2. Test AES-256-GCM cipher suite */
+    SYN_TLS_Config cfg256 = {.mode = SYN_TLS_AUTH_MODE_PSK,
+                             .cipher_suite = SYN_TLS_CIPHER_SUITE_AES_256_GCM_SHA384,
+                             .server_name = "aes256.local",
+                             .psk_identity = (const uint8_t *)"psk256",
+                             .psk_identity_len = 6,
+                             .psk_secret = psk,
+                             .psk_secret_len = sizeof(psk)};
+    SYN_TLS_Context tls256;
+    wire.len = 0;
+    TEST_ASSERT_TRUE(syn_tls_init(&tls256, &cfg256, &tr, rx_record_buf, sizeof(rx_record_buf),
+                                  tx_record_buf, sizeof(tx_record_buf)));
+    TEST_ASSERT_TRUE(syn_tls_handshake(&tls256));
+    TEST_ASSERT_EQUAL(SYN_TLS_STATE_ESTABLISHED, tls256.state);
+
+    TEST_ASSERT_TRUE(syn_tls_send(&tls256, (const uint8_t *)msg256, strlen(msg256)));
+    memset(rx_buf, 0, sizeof(rx_buf));
+    TEST_ASSERT_TRUE(syn_tls_recv(&tls256, rx_buf, sizeof(rx_buf), &rx_len));
+    TEST_ASSERT_EQUAL(strlen(msg256), rx_len);
+    TEST_ASSERT_EQUAL_MEMORY(msg256, rx_buf, rx_len);
+}
+
 void run_tls_tests(void)
 {
     RUN_TEST(test_tls_psk_mode_handshake_and_record_crypto);
@@ -473,4 +533,5 @@ void run_tls_tests(void)
     RUN_TEST(test_tls_null_and_bounds_checks);
     RUN_TEST(test_tls_recv_small_caller_buffer_does_not_overflow);
     RUN_TEST(test_tls_x509_mode_handshake);
+    RUN_TEST(test_tls_aes_gcm_cipher_suites);
 }

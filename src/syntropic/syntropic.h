@@ -657,10 +657,6 @@ extern "C" {
 #include "crypto/syn_aes.h"
 #endif
 
-#if !defined(SYN_USE_AES128) || SYN_USE_AES128
-#include "crypto/syn_aes128.h"
-#endif
-
 #if !defined(SYN_USE_AES_CMAC) || SYN_USE_AES_CMAC
 #include "crypto/syn_aes_cmac.h"
 #endif

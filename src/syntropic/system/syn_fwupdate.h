@@ -42,6 +42,10 @@
 #include "../crypto/syn_ed25519.h"
 #endif
 
+#if defined(SYN_FW_USE_AES_GCM) && SYN_FW_USE_AES_GCM
+#include "../crypto/syn_aes.h"
+#endif
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -76,6 +80,20 @@ typedef struct {
     SYN_SHA512_Ctx sha512_ctx; /**< Running SHA-512 context for Ed25519   */
     uint8_t public_key[32];    /**< Expected Ed25519 public key           */
     bool pubkey_set;           /**< Public key was provided?              */
+#endif
+
+#if defined(SYN_FW_USE_AES_GCM) && SYN_FW_USE_AES_GCM
+    SYN_AES_Context gcm_aes;    /**< AES block cipher context              */
+    uint8_t gcm_h[16];          /**< GHASH subkey H                        */
+    uint8_t gcm_j0[16];         /**< Initial counter block J0              */
+    uint8_t gcm_ctr[16];        /**< Current CTR counter block             */
+    uint8_t gcm_s[16];          /**< Running GHASH accumulator             */
+    uint8_t gcm_partial_ct[16]; /**< Partial ciphertext block buffer       */
+    uint8_t gcm_partial_used;   /**< Bytes used in partial buffer          */
+    uint8_t gcm_stream_buf[16]; /**< Buffered CTR keystream block          */
+    uint8_t gcm_stream_used;    /**< Number of keystream bytes used        */
+    uint64_t gcm_total_bytes;   /**< Total ciphertext bytes processed      */
+    bool gcm_key_set;           /**< GCM key and IV configured?            */
 #endif
 } SYN_FwUpdate;
 
@@ -188,6 +206,35 @@ void syn_fwupdate_set_key(SYN_FwUpdate *upd, const void *key, size_t key_len);
  * @param public_key  32-byte Ed25519 public key.
  */
 void syn_fwupdate_set_public_key(SYN_FwUpdate *upd, const uint8_t *public_key);
+#endif
+
+#if defined(SYN_FW_USE_AES_GCM) && SYN_FW_USE_AES_GCM
+/**
+ * @brief Set the AES-GCM decryption key and IV for encrypted streaming firmware updates.
+ *
+ * Must be called after syn_fwupdate_begin() and before the first syn_fwupdate_write().
+ *
+ * @param upd     Updater instance.
+ * @param key     Secret key (16, 24, or 32 bytes).
+ * @param key_len Key length in bytes.
+ * @param iv      12-byte initialization vector / nonce.
+ * @param iv_len  IV length in bytes (must be 12).
+ * @return SYN_OK on success, SYN_INVALID_PARAM on invalid inputs.
+ */
+SYN_Status syn_fwupdate_set_aes_gcm_key(SYN_FwUpdate *upd, const uint8_t *key, size_t key_len,
+                                        const uint8_t *iv, size_t iv_len);
+
+/**
+ * @brief Finalize an encrypted update and verify 16-byte AES-GCM authentication tag.
+ *
+ * @param upd          Updater instance.
+ * @param expected_tag Expected 16-byte GCM authentication tag.
+ * @param version_code Version code for the new image.
+ * @return SYN_OK on tag verification success and header written, SYN_ERROR on tag mismatch or
+ * flash error.
+ */
+SYN_Status syn_fwupdate_finish_gcm(SYN_FwUpdate *upd, const uint8_t expected_tag[16],
+                                   uint32_t version_code);
 #endif
 
 #ifdef __cplusplus

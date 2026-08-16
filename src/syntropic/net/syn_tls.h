@@ -15,6 +15,7 @@
 #ifndef SYN_TLS_H
 #define SYN_TLS_H
 
+#include "syntropic/crypto/syn_aes.h"
 #include "syntropic/crypto/syn_chacha20poly1305.h"
 #include "syntropic/crypto/syn_hkdf.h"
 #include "syntropic/crypto/syn_sha256.h"
@@ -57,10 +58,18 @@ typedef enum {
     SYN_TLS_AUTH_MODE_MTLS
 } SYN_TLS_AuthMode;
 
+/** TLS 1.3 Cipher Suite */
+typedef enum {
+    SYN_TLS_CIPHER_SUITE_CHACHA20_POLY1305_SHA256 = 0, /**< TLS_CHACHA20_POLY1305_SHA256 (0x1303) */
+    SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256 = 1,       /**< TLS_AES_128_GCM_SHA256 (0x1301) */
+    SYN_TLS_CIPHER_SUITE_AES_256_GCM_SHA384 = 2        /**< TLS_AES_256_GCM_SHA384 (0x1302) */
+} SYN_TLS_CipherSuite;
+
 /** TLS 1.3 Engine Configuration */
 typedef struct {
-    SYN_TLS_AuthMode mode;   /**< PSK, RPK, X.509, or mTLS */
-    const char *server_name; /**< SNI hostname (optional) */
+    SYN_TLS_AuthMode mode;            /**< PSK, RPK, X.509, or mTLS */
+    SYN_TLS_CipherSuite cipher_suite; /**< Selected TLS 1.3 cipher suite */
+    const char *server_name;          /**< SNI hostname (optional) */
 
     /* PSK configuration */
     const uint8_t *psk_identity; /**< PSK identity bytes */

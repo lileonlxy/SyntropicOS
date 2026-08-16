@@ -544,6 +544,145 @@ static void test_fwboot_testing_priority_and_confirm_failures(void)
     mock_flash_fail_at = 0;
 }
 
+#if defined(SYN_FW_USE_AES_GCM) && SYN_FW_USE_AES_GCM
+void test_fwupdate_aes_gcm_streaming_decryption_and_tamper(void)
+{
+    mock_port_reset();
+    static uint8_t page_buf[256];
+    SYN_FwUpdate upd;
+
+    static const uint8_t key[32] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
+                                    0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10,
+                                    0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+                                    0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    static const uint8_t iv[12] = {0xCA, 0xFE, 0xBA, 0xBE, 0xFA, 0xCE,
+                                   0xDB, 0xAD, 0xDE, 0xCA, 0xF8, 0x88};
+
+    /* 1. Parameter guards on set_aes_gcm_key */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_fwupdate_set_aes_gcm_key(NULL, key, sizeof(key), iv, sizeof(iv)));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_fwupdate_set_aes_gcm_key(&upd, NULL, sizeof(key), iv, sizeof(iv)));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_fwupdate_set_aes_gcm_key(&upd, key, sizeof(key), NULL, sizeof(iv)));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_fwupdate_set_aes_gcm_key(&upd, key, sizeof(key), iv, 11));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_fwupdate_set_aes_gcm_key(&upd, key, 15, iv, 12));
+
+    /* 2. Create 300-byte plaintext test image */
+    uint8_t plaintext[300];
+    for (size_t i = 0; i < sizeof(plaintext); i++) {
+        plaintext[i] = (uint8_t)(i ^ 0x5A);
+    }
+
+    uint8_t ciphertext[sizeof(plaintext)];
+    uint8_t tag[16];
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_gcm_encrypt(NULL, 0, 0, 0, 0, 0, 0, 0, 0)); /* null guard */
+
+    SYN_AES_GCM_Context gcm_ctx;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_gcm_init(&gcm_ctx, key, sizeof(key)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_gcm_encrypt(&gcm_ctx, iv, sizeof(iv), NULL, 0, plaintext,
+                                                  sizeof(plaintext), ciphertext, tag));
+
+    /* 3. Begin updater on Slot B */
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_fwupdate_begin(&upd, SLOT_B_ADDR, SLOT_SIZE, page_buf, sizeof(page_buf)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_set_aes_gcm_key(&upd, key, sizeof(key), iv, sizeof(iv)));
+
+    /* 4. Stream ciphertext in irregular chunk sizes (17, 33, 100, 150) */
+    size_t chunk_sizes[] = {17, 33, 100, 150};
+    size_t offset = 0;
+    for (size_t c = 0; c < sizeof(chunk_sizes) / sizeof(chunk_sizes[0]); c++) {
+        TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_write(&upd, ciphertext + offset, chunk_sizes[c]));
+        offset += chunk_sizes[c];
+    }
+    TEST_ASSERT_EQUAL(sizeof(plaintext), offset);
+
+    /* 5. Finish with valid tag -> must succeed */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_finish_gcm(&upd, tag, 0x00020000));
+    TEST_ASSERT_FALSE(syn_fwupdate_active(&upd));
+
+    /* 6. Verify written image header and decrypted payload in flash */
+    SYN_FwImageHeader hdr;
+    syn_port_flash_read(SLOT_B_ADDR, &hdr, sizeof(hdr));
+    TEST_ASSERT_TRUE(syn_fwimage_header_valid(&hdr));
+    TEST_ASSERT_EQUAL(0x00020000, hdr.version_code);
+    TEST_ASSERT_EQUAL(sizeof(plaintext), hdr.image_size);
+    TEST_ASSERT_EQUAL(SYN_FW_STATE_NEW, hdr.state);
+
+    uint8_t readback[sizeof(plaintext)];
+    syn_port_flash_read(SLOT_B_ADDR + sizeof(SYN_FwImageHeader), readback, sizeof(readback));
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, readback, sizeof(plaintext));
+
+    /* 7. Test bad tag on separate update (Slot A) -> must fail and abort */
+    SYN_FwUpdate upd_bad;
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_fwupdate_begin(&upd_bad, SLOT_A_ADDR, SLOT_SIZE, page_buf, sizeof(page_buf)));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_fwupdate_set_aes_gcm_key(&upd_bad, key, sizeof(key), iv, sizeof(iv)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_write(&upd_bad, ciphertext, sizeof(ciphertext)));
+
+    uint8_t bad_tag[16];
+    memcpy(bad_tag, tag, 16);
+    bad_tag[0] ^= 0x01;
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_finish_gcm(&upd_bad, bad_tag, 0x00020000));
+    TEST_ASSERT_FALSE(syn_fwupdate_active(&upd_bad));
+
+    /* 8. HMAC + AES-GCM combined */
+#if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
+    SYN_FwUpdate upd_hmac_gcm;
+    mock_port_reset();
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_begin(&upd_hmac_gcm, SLOT_A_ADDR, SLOT_SIZE, page_buf,
+                                                 sizeof(page_buf)));
+    syn_fwupdate_set_key(&upd_hmac_gcm, key, 32);
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_fwupdate_set_aes_gcm_key(&upd_hmac_gcm, key, sizeof(key), iv, sizeof(iv)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_write(&upd_hmac_gcm, ciphertext, sizeof(ciphertext)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_finish_gcm(&upd_hmac_gcm, tag, 0x00030000));
+#endif
+
+    /* 9. Flash error during GCM write page flush */
+    SYN_FwUpdate upd_fail;
+    mock_port_reset();
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_fwupdate_begin(&upd_fail, SLOT_A_ADDR, SLOT_SIZE, page_buf, sizeof(page_buf)));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_fwupdate_set_aes_gcm_key(&upd_fail, key, sizeof(key), iv, sizeof(iv)));
+    mock_flash_fail_at = SLOT_A_ADDR + sizeof(SYN_FwImageHeader);
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_write(&upd_fail, ciphertext, sizeof(page_buf) + 16));
+    mock_flash_fail_at = -1;
+
+    /* 10. Flash error during finish_gcm page flush */
+    mock_port_reset();
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_fwupdate_begin(&upd_fail, SLOT_A_ADDR, SLOT_SIZE, page_buf, sizeof(page_buf)));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_fwupdate_set_aes_gcm_key(&upd_fail, key, sizeof(key), iv, sizeof(iv)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_write(&upd_fail, ciphertext, 64));
+    mock_flash_fail_at = SLOT_A_ADDR + sizeof(SYN_FwImageHeader);
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_finish_gcm(&upd_fail, tag, 0x00040000));
+    mock_flash_fail_at = -1;
+
+    /* 11. Flash error during finish_gcm header write */
+    mock_port_reset();
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_fwupdate_begin(&upd_fail, SLOT_A_ADDR, SLOT_SIZE, page_buf, sizeof(page_buf)));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_fwupdate_set_aes_gcm_key(&upd_fail, key, sizeof(key), iv, sizeof(iv)));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_fwupdate_write(&upd_fail, ciphertext, sizeof(ciphertext)));
+    mock_flash_fail_at = SLOT_A_ADDR;
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_finish_gcm(&upd_fail, tag, 0x00040000));
+    mock_flash_fail_at = -1;
+
+    /* 12. Boundary guards on finish_gcm */
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_finish_gcm(NULL, tag, 0x00020000));
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_fwupdate_finish_gcm(&upd, NULL, 0x00020000));
+    TEST_ASSERT_EQUAL(SYN_ERROR,
+                      syn_fwupdate_finish_gcm(&upd, tag, 0x00020000)); /* already inactive */
+}
+#endif
+
 void run_fwupdate_tests(void)
 {
     /* Image header */
@@ -573,4 +712,7 @@ void run_fwupdate_tests(void)
     RUN_TEST(test_fwupdate_sector_erase_fail);
     RUN_TEST(test_fwupdate_parameter_and_state_guards);
     RUN_TEST(test_fwboot_testing_priority_and_confirm_failures);
+#if defined(SYN_FW_USE_AES_GCM) && SYN_FW_USE_AES_GCM
+    RUN_TEST(test_fwupdate_aes_gcm_streaming_decryption_and_tamper);
+#endif
 }

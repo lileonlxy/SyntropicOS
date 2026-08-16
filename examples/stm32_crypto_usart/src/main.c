@@ -5,7 +5,7 @@
  * Demonstrates:
  *   1. Interrupt-driven UART RX buffering via syn_ringbuf.
  *   2. SHA-256 cryptographic hashing (syn_sha256).
- *   3. AES-128-CBC encryption/decryption with PKCS#7 padding (syn_aes128).
+ *   3. AES-128-CBC encryption/decryption with PKCS#7 padding (syn_aes).
  *
  * Hardware:
  *   - Board: STM32F4 / STM32F1 Nucleo / Discovery
@@ -18,7 +18,7 @@
 #include "syntropic/syntropic.h"
 #include "syntropic/util/syn_ringbuf.h"
 #include "syntropic/crypto/syn_sha256.h"
-#include "syntropic/crypto/syn_aes128.h"
+#include "syntropic/crypto/syn_aes.h"
 #include "port/stm32_hal/port_stm32_hal.h"
 
 #define RX_BUF_SIZE 128
@@ -67,8 +67,8 @@ int main(void)
     uint8_t line_buf[64];
     size_t line_len = 0;
 
-    SYN_AES128_Context aes_ctx;
-    syn_aes128_init(&aes_ctx, aes_key);
+    SYN_AES_Context aes_ctx;
+    syn_aes_init(&aes_ctx, aes_key, 16U);
 
     /* 3. Main Loop */
     while (1)
@@ -94,14 +94,14 @@ int main(void)
                     /* B. Encrypt with AES-128-CBC */
                     uint8_t ciphertext[80];
                     size_t cipher_len = 0;
-                    if (syn_aes128_cbc_encrypt(&aes_ctx, aes_iv, line_buf, line_len, ciphertext, sizeof(ciphertext), &cipher_len) == SYN_OK)
+                    if (syn_aes_cbc_encrypt(&aes_ctx, aes_iv, line_buf, line_len, ciphertext, sizeof(ciphertext), &cipher_len) == SYN_OK)
                     {
                         print_hex("AES-128 Ciphertext", ciphertext, cipher_len);
 
                         /* C. Decrypt with AES-128-CBC to verify */
                         uint8_t decrypted[80];
                         size_t plain_len = 0;
-                        if (syn_aes128_cbc_decrypt(&aes_ctx, aes_iv, ciphertext, cipher_len, decrypted, sizeof(decrypted), &plain_len) == SYN_OK)
+                        if (syn_aes_cbc_decrypt(&aes_ctx, aes_iv, ciphertext, cipher_len, decrypted, sizeof(decrypted), &plain_len) == SYN_OK)
                         {
                             decrypted[plain_len] = '\0';
                             char buf[128];

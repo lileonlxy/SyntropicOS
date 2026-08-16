@@ -5,7 +5,7 @@
 
 #include "syn_uds.h"
 
-#include "../crypto/syn_aes128.h"
+#include "../crypto/syn_aes.h"
 #include "../util/syn_pack.h"
 
 #include <string.h>
@@ -705,10 +705,10 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
                     return make_negative_response(sid, SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH,
                                                   resp_buf, resp_len, addr_mode);
                 }
-                SYN_AES128_Context aes_ctx;
-                syn_aes128_init(&aes_ctx, server->aes_security_key);
+                SYN_AES_Context aes_ctx;
+                (void)syn_aes_init(&aes_ctx, server->aes_security_key, 16U);
                 uint8_t expected_key[16];
-                syn_aes128_encrypt_block(&aes_ctx, server->active_seed_bytes, expected_key);
+                syn_aes_encrypt_block(&aes_ctx, server->active_seed_bytes, expected_key);
 
                 if (memcmp(&req[2], expected_key, 16) == 0) {
                     server->security_state = SYN_UDS_SECURITY_UNLOCKED;

@@ -450,10 +450,107 @@ void test_cose_null_and_boundary_checks(void)
                                                 huge_payload, sizeof(huge_payload), NULL));
 }
 
+void test_cose_encrypt0_aes_gcm_roundtrip_and_tamper(void)
+{
+    static const uint8_t key128[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                                       0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+    static const uint8_t key192[24] = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+                                       0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
+                                       0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27};
+    static const uint8_t key256[32] = {0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+                                       0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08,
+                                       0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+                                       0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08};
+    static const uint8_t iv[12] = {0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce,
+                                   0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
+    static const uint8_t kid[] = "gcm-node-1";
+    static const uint8_t plaintext[] =
+        "Confidential AES-GCM Encrypted Industrial Telemetry Payload";
+    static const uint8_t aad[] = "coap://valve/status";
+
+    uint8_t cose_msg[512];
+    size_t cose_msg_len = 0;
+    uint8_t dec_buf[128];
+    size_t dec_len = 0;
+    SYN_COSE_Encrypt0Message parsed;
+
+    /* 1. Test AES-128-GCM (A128GCM, alg = 1) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_A128GCM, key128, iv, sizeof(iv), kid,
+                                      sizeof(kid) - 1, plaintext, sizeof(plaintext) - 1, aad,
+                                      sizeof(aad) - 1, cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key128, aad,
+                                                            sizeof(aad) - 1, dec_buf,
+                                                            sizeof(dec_buf), &dec_len, &parsed));
+    TEST_ASSERT_EQUAL(sizeof(plaintext) - 1, dec_len);
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, dec_buf, dec_len);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_A128GCM, parsed.alg);
+
+    /* 2. Test AES-192-GCM (A192GCM, alg = 2) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_A192GCM, key192, iv, sizeof(iv), kid,
+                                      sizeof(kid) - 1, plaintext, sizeof(plaintext) - 1, aad,
+                                      sizeof(aad) - 1, cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key192, aad,
+                                                            sizeof(aad) - 1, dec_buf,
+                                                            sizeof(dec_buf), &dec_len, &parsed));
+    TEST_ASSERT_EQUAL(sizeof(plaintext) - 1, dec_len);
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, dec_buf, dec_len);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_A192GCM, parsed.alg);
+
+    /* 3. Test AES-256-GCM (A256GCM, alg = 3) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_A256GCM, key256, iv, sizeof(iv), kid,
+                                      sizeof(kid) - 1, plaintext, sizeof(plaintext) - 1, aad,
+                                      sizeof(aad) - 1, cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key256, aad,
+                                                            sizeof(aad) - 1, dec_buf,
+                                                            sizeof(dec_buf), &dec_len, &parsed));
+    TEST_ASSERT_EQUAL(sizeof(plaintext) - 1, dec_len);
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, dec_buf, dec_len);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_A256GCM, parsed.alg);
+
+    /* 4. Tampering & verification failure tests */
+    /* Wrong key */
+    uint8_t bad_key[32];
+    memcpy(bad_key, key256, 32);
+    bad_key[0] ^= 0x01;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, bad_key, aad,
+                                                               sizeof(aad) - 1, dec_buf,
+                                                               sizeof(dec_buf), &dec_len, NULL));
+
+    /* Corrupted ciphertext byte */
+    cose_msg[cose_msg_len - 1] ^= 0x55;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key256, aad,
+                                                               sizeof(aad) - 1, dec_buf,
+                                                               sizeof(dec_buf), &dec_len, NULL));
+
+    /* Empty plaintext with A256GCM */
+    uint8_t empty_msg[256];
+    size_t empty_len = 0;
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_A256GCM, key256, iv, sizeof(iv), NULL, 0, NULL,
+                                      0, NULL, 0, empty_msg, sizeof(empty_msg), &empty_len));
+    TEST_ASSERT_EQUAL_INT(SYN_OK,
+                          syn_cose_encrypt0_decrypt(empty_msg, empty_len, key256, NULL, 0, dec_buf,
+                                                    sizeof(dec_buf), &dec_len, NULL));
+    TEST_ASSERT_EQUAL(0, dec_len);
+}
+
 void run_cose_tests(void)
 {
     RUN_TEST(test_cose_sign1_eddsa_roundtrip_and_tamper);
     RUN_TEST(test_cose_sign1_es256_roundtrip_and_tamper);
     RUN_TEST(test_cose_encrypt0_chacha20poly1305_roundtrip_and_tamper);
+    RUN_TEST(test_cose_encrypt0_aes_gcm_roundtrip_and_tamper);
     RUN_TEST(test_cose_null_and_boundary_checks);
 }

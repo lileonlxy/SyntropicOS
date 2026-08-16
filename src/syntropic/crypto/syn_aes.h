@@ -254,6 +254,15 @@ SYN_Status syn_aes_gcm_decrypt(const SYN_AES_GCM_Context *ctx, const uint8_t *no
                                size_t nonce_len, const uint8_t *aad, size_t aad_len,
                                const uint8_t *in, size_t in_len, uint8_t *out,
                                const uint8_t tag[SYN_AES_GCM_TAG_SIZE]);
+
+/**
+ * @brief Multiply 16-byte block by GHASH subkey H in GF(2^128).
+ *
+ * @param[in]  x   Input 16-byte field element.
+ * @param[in]  h   Input 16-byte GHASH subkey H.
+ * @param[out] out Output 16-byte product block.
+ */
+void syn_aes_ghash_mult(const uint8_t x[16], const uint8_t h[16], uint8_t out[16]);
 #endif
 
 #ifdef __cplusplus

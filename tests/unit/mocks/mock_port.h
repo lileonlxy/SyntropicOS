@@ -311,6 +311,13 @@ extern SYN_Status mock_usb_host_xfer_status;
 /* Reset USB Host mock state */
 void mock_usb_host_reset(void);
 
+/* ── AES / Crypto Accelerator mock ───────────────────────────────────────── */
+
+extern bool mock_aes_hw_enabled;
+extern uint32_t mock_aes_encrypt_calls;
+extern uint32_t mock_aes_decrypt_calls;
+extern uint32_t mock_ghash_calls;
+
 /* ── Reset ────────────────────────────────────────────────────────────────── */
 
 /** Reset all mock state to defaults. Call from setUp(). */

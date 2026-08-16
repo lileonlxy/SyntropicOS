@@ -11,6 +11,10 @@
 
 #include "syn_aes.h"
 
+#if defined(SYN_USE_PORT_AES) && SYN_USE_PORT_AES
+#include "../port/syn_port_aes.h"
+#endif
+
 #include <string.h>
 
 /* ── AES Forward S-Box ───────────────────────────────────────────────────── */
@@ -186,6 +190,12 @@ void syn_aes_encrypt_block(const SYN_AES_Context *ctx, const uint8_t in[SYN_AES_
         return;
     }
 
+#if defined(SYN_USE_PORT_AES) && SYN_USE_PORT_AES
+    if (syn_port_aes_encrypt_block(ctx->round_keys, ctx->nr, in, out) == SYN_OK) {
+        return;
+    }
+#endif
+
     uint8_t state[4][4];
     for (int r = 0; r < 4; r++) {
         for (int c = 0; c < 4; c++) {
@@ -258,6 +268,12 @@ void syn_aes_decrypt_block(const SYN_AES_Context *ctx, const uint8_t in[SYN_AES_
     if (ctx == NULL || in == NULL || out == NULL) {
         return;
     }
+
+#if defined(SYN_USE_PORT_AES) && SYN_USE_PORT_AES
+    if (syn_port_aes_decrypt_block(ctx->round_keys, ctx->nr, in, out) == SYN_OK) {
+        return;
+    }
+#endif
 
     uint8_t state[4][4];
     int last_rk = (int)ctx->nr * 16;
@@ -481,6 +497,12 @@ SYN_Status syn_aes_ctr(const SYN_AES_Context *ctx, const uint8_t nonce[SYN_AES_B
  */
 static void ghash_mult_bit(const uint8_t x[16], const uint8_t y[16], uint8_t out[16])
 {
+#if defined(SYN_USE_PORT_AES) && SYN_USE_PORT_AES
+    if (syn_port_ghash_mult(x, y, out) == SYN_OK) {
+        return;
+    }
+#endif
+
     uint8_t v[16];
     uint8_t z[16] = {0};
     memcpy(v, y, 16);
@@ -505,6 +527,14 @@ static void ghash_mult_bit(const uint8_t x[16], const uint8_t y[16], uint8_t out
         }
     }
     memcpy(out, z, 16);
+}
+
+void syn_aes_ghash_mult(const uint8_t x[16], const uint8_t h[16], uint8_t out[16])
+{
+    if (x == NULL || h == NULL || out == NULL) {
+        return;
+    }
+    ghash_mult_bit(x, h, out);
 }
 
 /**
@@ -734,7 +764,7 @@ SYN_Status syn_aes_gcm_decrypt(const SYN_AES_GCM_Context *ctx, const uint8_t *no
     }
 
     if (diff != 0U) {
-        if (out != NULL && in_len > 0U) {
+        if (out != NULL && out != in && in_len > 0U) {
             memset(out, 0, in_len);
         }
         return SYN_ERROR;

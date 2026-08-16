@@ -3,7 +3,7 @@
  * @brief Unit tests for ISO 14229 UDS server protocol implementation.
  */
 
-#include "syntropic/crypto/syn_aes128.h"
+#include "syntropic/crypto/syn_aes.h"
 #include "syntropic/proto/syn_isotp.h"
 #include "syntropic/proto/syn_uds.h"
 #include "syntropic/util/syn_pack.h"
@@ -400,10 +400,10 @@ static void test_uds_security_access_aes128(void)
                                              SYN_UDS_ADDR_PHYSICAL));
     TEST_ASSERT_EQUAL_HEX8(0x67, resp[0]);
 
-    SYN_AES128_Context aes_ctx;
-    syn_aes128_init(&aes_ctx, aes_key);
+    SYN_AES_Context aes_ctx;
+    syn_aes_init(&aes_ctx, aes_key, 16U);
     uint8_t valid_key[16];
-    syn_aes128_encrypt_block(&aes_ctx, seed_16, valid_key);
+    syn_aes_encrypt_block(&aes_ctx, seed_16, valid_key);
 
     req[1] = 0x02;
     memcpy(&req[2], valid_key, 16);
@@ -3154,10 +3154,10 @@ void test_uds_security_access_repeated_unlock(void)
     TEST_ASSERT_EQUAL_MEMORY(seed_16, &resp[2], 16);
 
     /* Compute expected key */
-    SYN_AES128_Context aes_ctx;
-    syn_aes128_init(&aes_ctx, aes_key);
+    SYN_AES_Context aes_ctx;
+    syn_aes_init(&aes_ctx, aes_key, 16U);
     uint8_t expected_key[16];
-    syn_aes128_encrypt_block(&aes_ctx, seed_16, expected_key);
+    syn_aes_encrypt_block(&aes_ctx, seed_16, expected_key);
 
     /* Pass 1: Send Key (27 02) */
     req[0] = SYN_UDS_SID_SECURITY_ACCESS;

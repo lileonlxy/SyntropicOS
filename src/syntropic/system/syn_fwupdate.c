@@ -113,6 +113,72 @@ SYN_Status syn_fwupdate_write(SYN_FwUpdate *upd, const uint8_t *data, size_t len
     }
 
     /* Update running CRC */
+#if defined(SYN_FW_USE_AES_GCM) && SYN_FW_USE_AES_GCM
+    if (upd->gcm_key_set) {
+        uint8_t dec_chunk[256];
+        size_t ct_offset = 0;
+        while (ct_offset < len) {
+            size_t chunk_len = len - ct_offset;
+            if (chunk_len > sizeof(dec_chunk)) {
+                chunk_len = sizeof(dec_chunk);
+            }
+            for (size_t i = 0; i < chunk_len; i++) {
+                uint8_t ct_byte = data[ct_offset + i];
+                /* GHASH block accumulation */
+                upd->gcm_partial_ct[upd->gcm_partial_used++] = ct_byte;
+                if (upd->gcm_partial_used == 16U) {
+                    for (int j = 0; j < 16; j++) {
+                        upd->gcm_s[j] ^= upd->gcm_partial_ct[j];
+                    }
+                    syn_aes_ghash_mult(upd->gcm_s, upd->gcm_h, upd->gcm_s);
+                    upd->gcm_partial_used = 0;
+                }
+                /* CTR keystream */
+                if (upd->gcm_stream_used == 0 || upd->gcm_stream_used == 16U) {
+                    syn_aes_encrypt_block(&upd->gcm_aes, upd->gcm_ctr, upd->gcm_stream_buf);
+                    for (int j = 15; j >= 12; j--) {
+                        upd->gcm_ctr[j]++;
+                        if (upd->gcm_ctr[j] != 0U) {
+                            break;
+                        }
+                    }
+                    upd->gcm_stream_used = 0;
+                }
+                dec_chunk[i] = (uint8_t)(ct_byte ^ upd->gcm_stream_buf[upd->gcm_stream_used++]);
+                upd->gcm_total_bytes++;
+            }
+
+            /* Update CRC and HMAC on decrypted plaintext */
+            upd->crc_state = syn_crc32_update(upd->crc_state, dec_chunk, chunk_len);
+#if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
+            if (upd->key_set) {
+                syn_hmac_sha256_update(&upd->hmac_ctx, dec_chunk, chunk_len);
+            }
+#endif
+            /* Write decrypted plaintext into page buffer */
+            size_t p_offset = 0;
+            while (p_offset < chunk_len) {
+                size_t space = (size_t)(upd->page_buf_size - upd->page_buf_used);
+                size_t to_copy = chunk_len - p_offset;
+                if (to_copy > space)
+                    to_copy = space;
+                memcpy(upd->page_buf + upd->page_buf_used, dec_chunk + p_offset, to_copy);
+                upd->page_buf_used += (uint16_t)to_copy;
+                p_offset += to_copy;
+                if (upd->page_buf_used >= upd->page_buf_size) {
+                    SYN_Status st = flush_page(upd);
+                    if (st != SYN_OK) {
+                        upd->error = true;
+                        return st;
+                    }
+                }
+            }
+            ct_offset += chunk_len;
+        }
+        return SYN_OK;
+    }
+#endif
+
     upd->crc_state = syn_crc32_update(upd->crc_state, data, len);
 
 #if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
@@ -337,5 +403,121 @@ bool syn_fwimage_verify_signature(const SYN_FwImageHeader *hdr, uint32_t slot_ad
 }
 
 #endif /* SYN_FW_USE_ED25519 */
+
+#if defined(SYN_FW_USE_AES_GCM) && SYN_FW_USE_AES_GCM
+
+SYN_Status syn_fwupdate_set_aes_gcm_key(SYN_FwUpdate *upd, const uint8_t *key, size_t key_len,
+                                        const uint8_t *iv, size_t iv_len)
+{
+    if (upd == NULL || key == NULL || iv == NULL || iv_len != 12U) {
+        return SYN_INVALID_PARAM;
+    }
+    if (key_len != 16U && key_len != 24U && key_len != 32U) {
+        return SYN_INVALID_PARAM;
+    }
+
+    (void)syn_aes_init(&upd->gcm_aes, key, key_len);
+
+    /* Compute H = AES_K(0^128) */
+    uint8_t zero[16] = {0};
+    syn_aes_encrypt_block(&upd->gcm_aes, zero, upd->gcm_h);
+
+    /* Construct J0 = IV || 0x00000001 */
+    memcpy(upd->gcm_j0, iv, 12);
+    upd->gcm_j0[12] = 0x00;
+    upd->gcm_j0[13] = 0x00;
+    upd->gcm_j0[14] = 0x00;
+    upd->gcm_j0[15] = 0x01;
+
+    /* CTR counter starts at J0 + 1 */
+    memcpy(upd->gcm_ctr, upd->gcm_j0, 16);
+    upd->gcm_ctr[15] = 0x02;
+
+    memset(upd->gcm_s, 0, 16);
+    memset(upd->gcm_partial_ct, 0, 16);
+    upd->gcm_partial_used = 0;
+    memset(upd->gcm_stream_buf, 0, 16);
+    upd->gcm_stream_used = 0;
+    upd->gcm_total_bytes = 0;
+    upd->gcm_key_set = true;
+
+    return SYN_OK;
+}
+
+SYN_Status syn_fwupdate_finish_gcm(SYN_FwUpdate *upd, const uint8_t expected_tag[16],
+                                   uint32_t version_code)
+{
+    if (upd == NULL || expected_tag == NULL || !upd->active || upd->error || !upd->gcm_key_set) {
+        return SYN_ERROR;
+    }
+
+    /* Flush remaining page buffer to flash */
+    SYN_Status st = flush_page(upd);
+    if (st != SYN_OK) {
+        upd->error = true;
+        return st;
+    }
+
+    /* Finalize partial GHASH block if any */
+    if (upd->gcm_partial_used > 0) {
+        for (uint8_t i = upd->gcm_partial_used; i < 16U; i++) {
+            upd->gcm_partial_ct[i] = 0;
+        }
+        for (int j = 0; j < 16; j++) {
+            upd->gcm_s[j] ^= upd->gcm_partial_ct[j];
+        }
+        syn_aes_ghash_mult(upd->gcm_s, upd->gcm_h, upd->gcm_s);
+        upd->gcm_partial_used = 0;
+    }
+
+    /* Length block: [len(AAD)*8 = 0 (64-bit)] || [len(CT)*8 (64-bit)] */
+    uint8_t len_block[16] = {0};
+    uint64_t ct_bits = upd->gcm_total_bytes * 8ULL;
+    for (int i = 0; i < 8; i++) {
+        len_block[15 - i] = (uint8_t)((ct_bits >> (i * 8)) & 0xFF);
+    }
+    for (int j = 0; j < 16; j++) {
+        upd->gcm_s[j] ^= len_block[j];
+    }
+    syn_aes_ghash_mult(upd->gcm_s, upd->gcm_h, upd->gcm_s);
+
+    /* Encrypt J0 for tag mask */
+    uint8_t tag_mask[16];
+    syn_aes_encrypt_block(&upd->gcm_aes, upd->gcm_j0, tag_mask);
+
+    uint8_t computed_tag[16];
+    uint8_t diff = 0;
+    for (int j = 0; j < 16; j++) {
+        computed_tag[j] = (uint8_t)(upd->gcm_s[j] ^ tag_mask[j]);
+        diff |= (uint8_t)(computed_tag[j] ^ expected_tag[j]);
+    }
+
+    if (diff != 0) {
+        syn_fwupdate_abort(upd);
+        return SYN_ERROR;
+    }
+
+    /* Write final image header */
+    SYN_FwImageHeader hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.magic = SYN_FW_MAGIC;
+    hdr.version_code = version_code;
+    hdr.image_size = upd->bytes_written;
+    hdr.image_crc = syn_crc32_final(upd->crc_state);
+    hdr.state = SYN_FW_STATE_NEW;
+
+    syn_fwimage_seal_header(&hdr);
+
+    st = syn_port_flash_write(upd->slot_addr, &hdr, sizeof(hdr));
+    if (st != SYN_OK) {
+        upd->error = true;
+        return st;
+    }
+
+    upd->active = false;
+    return SYN_OK;
+}
+
+#endif /* SYN_FW_USE_AES_GCM */
 
 #endif /* SYN_USE_BOOT */

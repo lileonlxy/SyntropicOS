@@ -279,11 +279,24 @@ SYN_Status syn_cose_encrypt0_create(SYN_COSE_Algorithm alg, const uint8_t *key, 
         return SYN_ERROR;
     }
 
-    if (alg != SYN_COSE_ALGO_CHACHA20_POLY1305 || iv_len != 12U) {
+    size_t key_len = 0;
+    if (alg == SYN_COSE_ALGO_CHACHA20_POLY1305) {
+        key_len = 32U;
+    } else if (alg == SYN_COSE_ALGO_A128GCM) {
+        key_len = 16U;
+    } else if (alg == SYN_COSE_ALGO_A192GCM) {
+        key_len = 24U;
+    } else if (alg == SYN_COSE_ALGO_A256GCM) {
+        key_len = 32U;
+    } else {
         return SYN_ERROR;
     }
 
-    /* 1. Build protected header: { 1: 24 } */
+    if (iv_len != 12U) {
+        return SYN_ERROR;
+    }
+
+    /* 1. Build protected header: { 1: alg } */
     uint8_t protected_raw[16];
     SYN_CborWriter pw;
     syn_cbor_writer_init(&pw, protected_raw, sizeof(protected_raw));
@@ -300,18 +313,25 @@ SYN_Status syn_cose_encrypt0_create(SYN_COSE_Algorithm alg, const uint8_t *key, 
         return SYN_ERROR;
     }
 
-    /* 3. Encrypt plaintext with ChaCha20-Poly1305 (Payload || Tag) */
+    /* 3. Encrypt plaintext (Payload || Tag) */
     uint8_t ct_tag_buf[1024];
     if (plaintext_len + 16U > sizeof(ct_tag_buf)) {
         return SYN_ERROR;
     }
 
     uint8_t tag[16];
-    if (plaintext_len > 0U && plaintext != NULL) {
-        syn_aead_encrypt(key, iv, enc_structure, enc_struct_len, plaintext, plaintext_len,
-                         ct_tag_buf, tag);
+    if (alg == SYN_COSE_ALGO_CHACHA20_POLY1305) {
+        if (plaintext_len > 0U && plaintext != NULL) {
+            syn_aead_encrypt(key, iv, enc_structure, enc_struct_len, plaintext, plaintext_len,
+                             ct_tag_buf, tag);
+        } else {
+            syn_aead_encrypt(key, iv, enc_structure, enc_struct_len, NULL, 0U, NULL, tag);
+        }
     } else {
-        syn_aead_encrypt(key, iv, enc_structure, enc_struct_len, NULL, 0U, NULL, tag);
+        SYN_AES_GCM_Context gcm_ctx;
+        (void)syn_aes_gcm_init(&gcm_ctx, key, key_len);
+        (void)syn_aes_gcm_encrypt(&gcm_ctx, iv, iv_len, enc_structure, enc_struct_len, plaintext,
+                                  plaintext_len, ct_tag_buf, tag);
     }
     (void)memcpy(ct_tag_buf + plaintext_len, tag, 16U);
     size_t total_ct_len = plaintext_len + 16U;
@@ -377,14 +397,23 @@ SYN_Status syn_cose_encrypt0_decrypt(const uint8_t *msg, size_t msg_len, const u
         for (size_t i = 0; i < pairs; i++) {
             uint64_t label = syn_cbor_read_uint(&pr);
             if (label == SYN_COSE_HEADER_ALG) {
-                parsed_alg = (SYN_COSE_Algorithm)syn_cbor_read_uint(&pr);
+                parsed_alg = (SYN_COSE_Algorithm)syn_cbor_read_int(&pr);
             } else {
                 syn_cbor_skip(&pr);
             }
         }
     }
 
-    if (parsed_alg != SYN_COSE_ALGO_CHACHA20_POLY1305) {
+    size_t key_len = 0;
+    if (parsed_alg == SYN_COSE_ALGO_CHACHA20_POLY1305) {
+        key_len = 32U;
+    } else if (parsed_alg == SYN_COSE_ALGO_A128GCM) {
+        key_len = 16U;
+    } else if (parsed_alg == SYN_COSE_ALGO_A192GCM) {
+        key_len = 24U;
+    } else if (parsed_alg == SYN_COSE_ALGO_A256GCM) {
+        key_len = 32U;
+    } else {
         return SYN_ERROR;
     }
 
@@ -446,11 +475,20 @@ SYN_Status syn_cose_encrypt0_decrypt(const uint8_t *msg, size_t msg_len, const u
         return SYN_ERROR;
     }
 
-    /* 5. Decrypt and verify Poly1305 tag */
+    /* 5. Decrypt and verify tag */
     const uint8_t *tag = ct_tag_buf + pt_len;
-    if (!syn_aead_decrypt(key, parsed_iv, enc_structure, enc_struct_len, ct_tag_buf, pt_len, tag,
-                          out_plaintext)) {
-        return SYN_ERROR;
+    if (parsed_alg == SYN_COSE_ALGO_CHACHA20_POLY1305) {
+        if (!syn_aead_decrypt(key, parsed_iv, enc_structure, enc_struct_len, ct_tag_buf, pt_len,
+                              tag, out_plaintext)) {
+            return SYN_ERROR;
+        }
+    } else {
+        SYN_AES_GCM_Context gcm_ctx;
+        (void)syn_aes_gcm_init(&gcm_ctx, key, key_len);
+        if (syn_aes_gcm_decrypt(&gcm_ctx, parsed_iv, parsed_iv_len, enc_structure, enc_struct_len,
+                                ct_tag_buf, pt_len, out_plaintext, tag) != SYN_OK) {
+            return SYN_ERROR;
+        }
     }
 
     *out_plaintext_len = pt_len;

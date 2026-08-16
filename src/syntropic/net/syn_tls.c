@@ -162,9 +162,11 @@ static void derive_tls13_key_schedule(SYN_TLS_Context *ctx)
                           SYN_SHA256_DIGEST_SIZE, ctx->server_app_secret, 32);
 
     /* Cache per-record traffic keys & IVs to eliminate HKDF expansion during record I/O */
-    derive_traffic_key_or_iv(ctx->client_app_secret, "key", ctx->client_app_key, 32);
+    size_t key_len =
+        (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256) ? 16U : 32U;
+    derive_traffic_key_or_iv(ctx->client_app_secret, "key", ctx->client_app_key, key_len);
     derive_traffic_key_or_iv(ctx->client_app_secret, "iv", ctx->client_app_iv, 12);
-    derive_traffic_key_or_iv(ctx->server_app_secret, "key", ctx->server_app_key, 32);
+    derive_traffic_key_or_iv(ctx->server_app_secret, "key", ctx->server_app_key, key_len);
     derive_traffic_key_or_iv(ctx->server_app_secret, "iv", ctx->server_app_iv, 12);
 
     /* Zero sensitive intermediates from stack */
@@ -188,6 +190,42 @@ static void construct_tls13_nonce(const uint8_t base_iv[12], uint64_t seq, uint8
     memcpy(nonce, base_iv, 12);
     for (int i = 0; i < 8; i++) {
         nonce[11 - i] ^= (uint8_t)((seq >> (i * 8)) & 0xFF);
+    }
+}
+
+static void tls_record_encrypt(const SYN_TLS_Context *ctx, const uint8_t *key,
+                               const uint8_t nonce[12], const uint8_t *in, size_t in_len,
+                               uint8_t *out_ct, uint8_t *out_tag)
+{
+    if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256) {
+        SYN_AES_GCM_Context gcm;
+        if (syn_aes_gcm_init(&gcm, key, 16U) == SYN_OK) {
+            (void)syn_aes_gcm_encrypt(&gcm, nonce, 12U, NULL, 0U, in, in_len, out_ct, out_tag);
+        }
+    } else if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_256_GCM_SHA384) {
+        SYN_AES_GCM_Context gcm;
+        if (syn_aes_gcm_init(&gcm, key, 32U) == SYN_OK) {
+            (void)syn_aes_gcm_encrypt(&gcm, nonce, 12U, NULL, 0U, in, in_len, out_ct, out_tag);
+        }
+    } else {
+        syn_aead_encrypt(key, nonce, NULL, 0U, in, in_len, out_ct, out_tag);
+    }
+}
+
+static bool tls_record_decrypt(const SYN_TLS_Context *ctx, const uint8_t *key,
+                               const uint8_t nonce[12], const uint8_t *ct, size_t ct_len,
+                               const uint8_t tag[16], uint8_t *out_pt)
+{
+    if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256) {
+        SYN_AES_GCM_Context gcm;
+        (void)syn_aes_gcm_init(&gcm, key, 16U);
+        return (syn_aes_gcm_decrypt(&gcm, nonce, 12U, NULL, 0U, ct, ct_len, out_pt, tag) == SYN_OK);
+    } else if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_256_GCM_SHA384) {
+        SYN_AES_GCM_Context gcm;
+        (void)syn_aes_gcm_init(&gcm, key, 32U);
+        return (syn_aes_gcm_decrypt(&gcm, nonce, 12U, NULL, 0U, ct, ct_len, out_pt, tag) == SYN_OK);
+    } else {
+        return syn_aead_decrypt(key, nonce, NULL, 0U, ct, ct_len, tag, out_pt);
     }
 }
 
@@ -393,8 +431,8 @@ bool syn_tls_send(SYN_TLS_Context *ctx, const uint8_t *data, size_t len)
     uint8_t nonce[12];
     construct_tls13_nonce(ctx->client_app_iv, ctx->client_seq_num++, nonce);
 
-    syn_aead_encrypt(ctx->client_app_key, nonce, NULL, 0, data, len, record_buf + offset,
-                     record_buf + offset + len);
+    tls_record_encrypt(ctx, ctx->client_app_key, nonce, data, len, record_buf + offset,
+                       record_buf + offset + len);
 
     syn_secure_zero(nonce, sizeof(nonce));
 
@@ -452,16 +490,16 @@ bool syn_tls_recv(SYN_TLS_Context *ctx, uint8_t *data, size_t max_len, size_t *o
 
     uint8_t *decrypted_buf = ctx->rx_buf + TLS_RECORD_HEADER_LEN;
 
-    bool ok = syn_aead_decrypt(ctx->server_app_key, nonce, NULL, 0, decrypted_buf, full_payload_len,
-                               decrypted_buf + full_payload_len, decrypted_buf);
+    bool ok = tls_record_decrypt(ctx, ctx->server_app_key, nonce, decrypted_buf, full_payload_len,
+                                 decrypted_buf + full_payload_len, decrypted_buf);
     if (!ok && ctx->client_seq_num > 0) {
         /* Fallback: try client app secret (loopback / self-encrypted record).
          * client_seq_num was post-incremented by syn_tls_send, so the last
          * encrypted record used seq = client_seq_num - 1. Guard against zero
          * to prevent uint64 underflow wrap. */
         construct_tls13_nonce(ctx->client_app_iv, ctx->client_seq_num - 1, nonce);
-        ok = syn_aead_decrypt(ctx->client_app_key, nonce, NULL, 0, decrypted_buf, full_payload_len,
-                              decrypted_buf + full_payload_len, decrypted_buf);
+        ok = tls_record_decrypt(ctx, ctx->client_app_key, nonce, decrypted_buf, full_payload_len,
+                                decrypted_buf + full_payload_len, decrypted_buf);
     }
 
     syn_secure_zero(nonce, sizeof(nonce));
