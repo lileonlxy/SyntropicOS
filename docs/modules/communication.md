@@ -26,6 +26,7 @@ SyntropicOS provides a comprehensive suite of communication protocols ranging fr
 | **Automotive** | ISO-TP | `proto/syn_isotp.h` | ISO 15765-2 multi-frame CAN transport layer |
 | **Automotive** | J1939 | `proto/syn_j1939.h` | SAE J1939 heavy vehicle network protocol (PGN / SPN) |
 | **Marine** | NMEA 2000 | `proto/syn_n2k.h` | NMEA 2000 marine CAN bus protocol decoder |
+| **IoT / Edge** | OMA LwM2M Supervisor | `proto/syn_lwm2m_task.h` | Zero-heap autonomous LwM2M v1.1/v1.2 client task, DTLS 1.3, & Observe scheduler |
 
 ---
 
@@ -401,5 +402,52 @@ void dnssd_setup(void) {
 }
 ```
 
+---
 
+## 10. Autonomous OMA LwM2M Supervisor Task (`syn_lwm2m_task`)
 
+Zero-heap, event-driven supervisor task managing the complete lifecycle of an OMA LwM2M v1.1/v1.2 client:
+- **Autonomous Registration**: Initial registration with core Link-Format serialization (`</3/0>`, `</5/0>`, `</3303/0>`).
+- **Autonomous Lifetime Renewal**: Automatic update requests dispatched when reaching 80% of configured `lifetime_s`.
+- **RFC 7641 Observe & Notify**: Periodic evaluation of resource changes with `pmin` suppression and `pmax` expiry.
+- **DTLS 1.3 Integration**: Cooperative TLS/DTLS handshake advancement via `SYN_CoapsClient`.
+- **System Hook Routing**: Automatic invocation of reboot, factory reset, and OTA firmware update handlers.
+
+```c
+#include <syntropic/proto/syn_lwm2m_task.h>
+
+static SYN_LwM2M_Client g_client;
+static SYN_LwM2M_Task g_task;
+static SYN_LwM2M_DeviceContext g_dev_ctx;
+static SYN_LwM2M_SensorContext g_temp_ctx;
+static SYN_LwM2M_Object g_dev_obj;
+static SYN_LwM2M_Object g_temp_obj;
+
+static uint8_t g_rx_scratch[512];
+static uint8_t g_tx_scratch[512];
+
+static void on_reboot(void *user_data) {
+    (void)user_data;
+    syn_port_system_reset();
+}
+
+void lwm2m_app_init(SYN_Transport *transport) {
+    syn_lwm2m_client_init(&g_client, "syn-edge-01", 300U, transport);
+
+    g_dev_obj = syn_lwm2m_make_device_object(&g_dev_ctx);
+    g_temp_obj = syn_lwm2m_make_temperature_object(&g_temp_ctx);
+    syn_lwm2m_register_object(&g_client, &g_dev_obj);
+    syn_lwm2m_register_object(&g_client, &g_temp_obj);
+
+    SYN_LwM2M_TaskConfig cfg = {
+        .client = &g_client,
+        .transport = transport,
+        .on_reboot = on_reboot,
+        .rx_buf = g_rx_scratch,
+        .rx_buf_size = sizeof(g_rx_scratch),
+        .tx_buf = g_tx_scratch,
+        .tx_buf_size = sizeof(g_tx_scratch),
+    };
+    syn_lwm2m_task_init(&g_task, &cfg);
+}
+```

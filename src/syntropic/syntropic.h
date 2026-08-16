@@ -593,6 +593,10 @@ extern "C" {
 #include "proto/syn_lwm2m.h"
 #endif
 
+#if !defined(SYN_USE_LWM2M_TASK) || SYN_USE_LWM2M_TASK
+#include "proto/syn_lwm2m_task.h"
+#endif
+
 /* ── Storage ────────────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_PARAM) || SYN_USE_PARAM

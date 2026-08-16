@@ -136,6 +136,7 @@
 #define SYN_USE_COAP 1           /**< CoAP protocol client                */
 #define SYN_USE_DTLS 1           /**< DTLS 1.3 datagram security (RFC 9147) */
 #define SYN_USE_LWM2M 1          /**< OMA Lightweight M2M client engine   */
+#define SYN_USE_LWM2M_TASK 1     /**< LwM2M Autonomous Client Task engine */
 #define SYN_USE_DNS 1            /**< DNS resolver                        */
 #define SYN_USE_ETH 1            /**< Zero-heap Ethernet II & ARP engine  */
 #define SYN_ETH_ARP_CACHE_SIZE 8 /**< ARP table cache size (entries)      */
