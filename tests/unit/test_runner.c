@@ -174,6 +174,7 @@ void run_vfs_tests(void);
 void run_lfs_tests(void);
 void run_coap_tests(void);
 void run_lwm2m_tests(void);
+void run_ota_tests(void);
 void run_biquad_tests(void);
 void run_fft_tests(void);
 void run_filter_design_tests(void);
@@ -370,6 +371,7 @@ int main(void)
 
     /* OTA / Firmware Update */
     run_fwupdate_tests();
+    run_ota_tests();
 
     /* New modules */
     run_aes_cmac_tests();

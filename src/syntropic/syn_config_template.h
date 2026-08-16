@@ -175,6 +175,7 @@
 /* ── System ─────────────────────────────────────────────────────────────── */
 
 #define SYN_USE_BOOT 1     /**< Boot manager (crash recovery)       */
+#define SYN_USE_OTA 1      /**< Secure Streaming OTA Orchestrator   */
 #define SYN_USE_ERRLOG 1   /**< Persistent error registry           */
 #define SYN_USE_FAULT 1    /**< Hard Fault diagnostics              */
 #define SYN_USE_HWWDT 1    /**< Hardware watchdog timer              */

@@ -708,6 +708,13 @@ extern "C" {
 
 #if !defined(SYN_USE_BOOT) || SYN_USE_BOOT
 #include "system/syn_boot.h"
+#include "system/syn_fwboot.h"
+#include "system/syn_fwimage.h"
+#include "system/syn_fwupdate.h"
+#endif
+
+#if !defined(SYN_USE_OTA) || SYN_USE_OTA
+#include "system/syn_ota.h"
 #endif
 
 #if !defined(SYN_USE_ERRLOG) || SYN_USE_ERRLOG
