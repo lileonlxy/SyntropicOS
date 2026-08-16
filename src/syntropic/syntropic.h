@@ -552,7 +552,9 @@ extern "C" {
 #include "proto/syn_n2k.h"
 #endif
 
+#include "proto/syn_canopen.h"
 #include "proto/syn_cia303.h"
+#include "proto/syn_cia402.h"
 #include "proto/syn_cia418.h"
 
 #if !defined(SYN_USE_DMX512) || SYN_USE_DMX512

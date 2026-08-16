@@ -20,6 +20,8 @@ static void test_cia402_init_and_state_transitions(void)
 
     TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_init(&drive, &cfg));
     TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, syn_cia402_get_state(&drive));
+    TEST_ASSERT_EQUAL_UINT16(0, syn_cia402_get_controlword(&drive));
 
     uint16_t sw = syn_cia402_get_statusword(&drive);
     TEST_ASSERT_EQUAL_HEX16(SYN_CIA402_SW_SWITCH_ON_DISABLED | SYN_CIA402_SW_TARGET_REACHED, sw);
@@ -27,8 +29,55 @@ static void test_cia402_init_and_state_transitions(void)
     /* 1. Shutdown command (0x0006): Switch On Disabled -> Ready to Switch On */
     TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0006U));
     TEST_ASSERT_EQUAL(SYN_CIA402_STATE_READY_TO_SWITCH_ON, drive.state);
+    TEST_ASSERT_EQUAL_UINT16(0x0006U, syn_cia402_get_controlword(&drive));
+
+    /* Test Disable Voltage from Ready to Switch On */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0000U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
+
+    /* Re-enter Ready to Switch On */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0006U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_READY_TO_SWITCH_ON, drive.state);
 
     /* 2. Switch On command (0x0007): Ready to Switch On -> Switched On */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0007U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCHED_ON, drive.state);
+
+    /* Test Shutdown from Switched On -> Ready to Switch On */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0006U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_READY_TO_SWITCH_ON, drive.state);
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0007U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCHED_ON, drive.state);
+
+    /* Test Disable Voltage from Switched On -> Switch On Disabled */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0000U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
+
+    /* Direct Transition 2 + 3 + 4: Enable Operation (0x000F) from Switch On Disabled */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x000FU));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_OPERATION_ENABLED, drive.state);
+
+    /* Disable Operation from Operation Enabled -> Switched On (0x0007) */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0007U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCHED_ON, drive.state);
+
+    /* Re-enter Operation Enabled */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x000FU));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_OPERATION_ENABLED, drive.state);
+
+    /* Shutdown from Operation Enabled -> Ready to Switch On (0x0006) */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0006U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_READY_TO_SWITCH_ON, drive.state);
+
+    /* Direct Transition 3 + 4: Enable Operation from Ready to Switch On */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x000FU));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_OPERATION_ENABLED, drive.state);
+
+    /* Disable Voltage from Operation Enabled -> Switch On Disabled (0x0000) */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0000U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
+
+    /* Direct Transition to Switched On (0x0007) from Switch On Disabled */
     TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0007U));
     TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCHED_ON, drive.state);
 
@@ -40,7 +89,14 @@ static void test_cia402_init_and_state_transitions(void)
     TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x000BU));
     TEST_ASSERT_EQUAL(SYN_CIA402_STATE_QUICK_STOP_ACTIVE, drive.state);
 
-    /* Update drive during Quick Stop */
+    /* Disable Voltage during Quick Stop */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_controlword(&drive, 0x0000U));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
+
+    /* Re-enter Quick Stop and complete ramp to 0 */
+    syn_cia402_set_controlword(&drive, 0x000FU);
+    syn_cia402_set_controlword(&drive, 0x000BU);
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_QUICK_STOP_ACTIVE, drive.state);
     TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_update(&drive, 100));
     TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
 }
@@ -57,6 +113,8 @@ static void test_cia402_profile_position_mode(void)
     syn_cia402_init(&drive, &cfg);
     syn_cia402_set_controlword(&drive, 0x000FU); /* Enable Operation */
     syn_cia402_set_mode(&drive, SYN_CIA402_MODE_PP);
+    TEST_ASSERT_EQUAL(SYN_CIA402_MODE_PP, syn_cia402_get_mode(&drive));
+    TEST_ASSERT_EQUAL(SYN_CIA402_MODE_PP, syn_cia402_get_mode_display(&drive));
 
     TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_set_target_position(&drive, 1000));
 
@@ -73,8 +131,9 @@ static void test_cia402_profile_position_mode(void)
     TEST_ASSERT_FALSE(drive.setpoint_ack);
 
     /* Advance motion updates until target reached */
+    SYN_CIA402_Setpoints setpoints;
     for (int i = 0; i < 500; i++) {
-        syn_cia402_update(&drive, 10);
+        syn_cia402_step(&drive, 10000, &setpoints);
         if (drive.target_reached) {
             break;
         }
@@ -83,6 +142,22 @@ static void test_cia402_profile_position_mode(void)
     TEST_ASSERT_TRUE(drive.target_reached);
     TEST_ASSERT_EQUAL_INT32(1000, drive.actual_position);
     TEST_ASSERT_EQUAL_INT32(0, drive.actual_velocity);
+    TEST_ASSERT_TRUE(setpoints.power_enabled);
+    TEST_ASSERT_TRUE(setpoints.brake_released);
+    TEST_ASSERT_EQUAL_INT32(1000, setpoints.position_cmd);
+
+    /* Move negative direction */
+    syn_cia402_set_target_position(&drive, -500);
+    syn_cia402_update(&drive, 10);
+    TEST_ASSERT_FALSE(drive.target_reached);
+    for (int i = 0; i < 500; i++) {
+        syn_cia402_update(&drive, 10);
+        if (drive.target_reached) {
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(drive.target_reached);
+    TEST_ASSERT_EQUAL_INT32(-500, drive.actual_position);
 }
 
 static void test_cia402_profile_velocity_mode(void)
@@ -152,6 +227,12 @@ static void test_cia402_csp_csv_modes(void)
     syn_cia402_update(&drive, 10);
     TEST_ASSERT_EQUAL_INT32(-1200, drive.actual_velocity);
 
+    /* CST Mode */
+    syn_cia402_set_mode(&drive, SYN_CIA402_MODE_CST);
+    syn_cia402_set_target_torque(&drive, 750);
+    syn_cia402_update(&drive, 10);
+    TEST_ASSERT_EQUAL_INT16(750, drive.actual_torque);
+
     /* Report actual feedback */
     TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_report_actuals(&drive, 100, 200, 300));
     TEST_ASSERT_EQUAL_INT32(100, drive.actual_position);
@@ -183,6 +264,13 @@ static void test_cia402_fault_handling_and_reset(void)
     syn_cia402_set_controlword(&drive, 0x0080U);
     TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
     TEST_ASSERT_EQUAL_UINT16(0U, drive.error_code);
+
+    /* Test Fault Reaction Active transition to Fault when stopped */
+    drive.state = SYN_CIA402_STATE_FAULT_REACTION_ACTIVE;
+    drive.actual_velocity = 0;
+    drive.current_speed = 0.0f;
+    syn_cia402_step(&drive, 1000, NULL);
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_FAULT, drive.state);
 }
 
 static void test_cia402_canopen_od_binding(void)
@@ -238,6 +326,10 @@ static void test_cia402_invalid_params(void)
 
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_set_controlword(NULL, 0x000F));
     TEST_ASSERT_EQUAL_HEX16(0, syn_cia402_get_statusword(NULL));
+    TEST_ASSERT_EQUAL_HEX16(0, syn_cia402_get_controlword(NULL));
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_FAULT, syn_cia402_get_state(NULL));
+    TEST_ASSERT_EQUAL(0, syn_cia402_get_mode(NULL));
+    TEST_ASSERT_EQUAL(0, syn_cia402_get_mode_display(NULL));
 
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_set_mode(NULL, 1));
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_set_target_position(NULL, 100));
@@ -245,7 +337,9 @@ static void test_cia402_invalid_params(void)
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_set_target_torque(NULL, 100));
 
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_update(NULL, 10));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_step(NULL, 1000, NULL));
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_report_actuals(NULL, 0, 0, 0));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_feed_feedback(NULL, 0, 0, 0));
     TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_cia402_trigger_fault(NULL, 0x1000));
 
     SYN_CANOpenODEntry entries[16];
@@ -262,6 +356,36 @@ static void test_cia402_invalid_params(void)
     drive.state = SYN_CIA402_STATE_NOT_READY;
     drive.target_reached = false;
     TEST_ASSERT_EQUAL_HEX16(0, syn_cia402_get_statusword(&drive));
+
+    /* Test NOT_READY transition to SWITCH_ON_DISABLED in eval_fsm */
+    drive.state = SYN_CIA402_STATE_NOT_READY_TO_SWITCH_ON;
+    syn_cia402_set_controlword(&drive, 0x0000U);
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
+
+    /* Test QUICK_STOP_ACTIVE transition to OPERATION_ENABLED if 0x000F */
+    drive.state = SYN_CIA402_STATE_QUICK_STOP_ACTIVE;
+    syn_cia402_set_controlword(&drive, 0x000FU);
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_OPERATION_ENABLED, drive.state);
+
+    /* Test default invalid state in eval_fsm */
+    drive.state = (SYN_CiA402State)99;
+    syn_cia402_set_controlword(&drive, 0x0000U);
+
+    /* Test FAULT_REACTION_ACTIVE with non-zero speed */
+    drive.state = SYN_CIA402_STATE_FAULT_REACTION_ACTIVE;
+    drive.actual_velocity = 100;
+    drive.current_speed = 100.0f;
+    syn_cia402_step(&drive, 1000, NULL);
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_FAULT_REACTION_ACTIVE, drive.state);
+
+    /* Test Quick Stop with zero speed */
+    drive.state = SYN_CIA402_STATE_QUICK_STOP_ACTIVE;
+    drive.current_speed = 0.0f;
+    syn_cia402_update(&drive, 10);
+    TEST_ASSERT_EQUAL(SYN_CIA402_STATE_SWITCH_ON_DISABLED, drive.state);
+
+    /* Test step with dt_us = 0 */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_cia402_step(&drive, 0, NULL));
 
     drive.state = SYN_CIA402_STATE_OPERATION_ENABLED;
     drive.mode_of_operation = 99;

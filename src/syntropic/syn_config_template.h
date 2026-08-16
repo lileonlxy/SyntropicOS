@@ -118,6 +118,8 @@
 
 /* ── Communication / Protocols ──────────────────────────────────────────── */
 
+#define SYN_USE_CANOPEN 1        /**< CANopen DS301 slave protocol engine */
+#define SYN_USE_CIA402 1         /**< CiA 402 Drive & Motion profile engine */
 #define SYN_USE_COBS 1           /**< COBS packet framing                 */
 #define SYN_USE_COSE 1           /**< COSE (RFC 9052) signing & encryption */
 #define SYN_USE_ETHERCAT 1       /**< EtherCAT bare-metal protocol stack  */
