@@ -11,6 +11,7 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_icmp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_igmp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_mqtt.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/syn_netbuf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_netcfg.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_router.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_sntp.c

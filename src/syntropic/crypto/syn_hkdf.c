@@ -3,7 +3,7 @@
  * @brief HMAC-based Extract-and-Expand Key Derivation Function (HKDF-SHA256, RFC 5869).
  */
 
-#include "syntropic/crypto/syn_hkdf.h"
+#include "syn_hkdf.h"
 
 #include <string.h>
 

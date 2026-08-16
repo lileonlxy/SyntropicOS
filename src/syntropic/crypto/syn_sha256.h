@@ -21,7 +21,7 @@
  *   syn_sha256_update(&ctx, chunk2, len2);
  *   syn_sha256_final(&ctx, hash);
  * @endcode
- * @ingroup syn_core
+ * @ingroup syn_crypto
  */
 
 #ifndef SYN_SHA256_H

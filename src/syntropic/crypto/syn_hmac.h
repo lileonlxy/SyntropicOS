@@ -21,7 +21,7 @@
  *   syn_hmac_sha256_update(&ctx, chunk2, len2);
  *   syn_hmac_sha256_final(&ctx, mac);
  * @endcode
- * @ingroup syn_core
+ * @ingroup syn_crypto
  */
 
 #ifndef SYN_HMAC_H

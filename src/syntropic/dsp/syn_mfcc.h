@@ -12,8 +12,8 @@
 #define SYN_MFCC_H
 
 #include "syntropic/common/syn_defs.h"
+#include "syntropic/dsp/syn_dsp.h"
 #include "syntropic/dsp/syn_fft.h"
-#include "syntropic/util/syn_dsp.h"
 #include "syntropic/util/syn_qmath.h"
 
 #include <stdbool.h>

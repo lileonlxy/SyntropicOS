@@ -213,6 +213,7 @@
 
 #define SYN_USE_AES128 1           /**< AES-128 block cipher (ECB & CBC)    */
 #define SYN_USE_AES_CMAC 1         /**< AES-CMAC message authentication     */
+#define SYN_USE_SHA256 1           /**< SHA-256 hash + HMAC-SHA256          */
 #define SYN_USE_BLAKE2S 1          /**< BLAKE2s cryptographic hash          */
 #define SYN_USE_CHACHA20POLY1305 1 /**< ChaCha20-Poly1305 AEAD cipher       */
 #define SYN_USE_X25519 1           /**< X25519 Elliptic Curve Diffie-Hellman*/
@@ -223,7 +224,6 @@
 #define SYN_USE_FMT 1           /**< Lightweight printf alternative      */
 #define SYN_USE_CBOR 1          /**< CBOR binary serializer              */
 #define SYN_USE_JSON 1          /**< JSON reader/writer                  */
-#define SYN_USE_SHA256 1        /**< SHA-256 hash + HMAC-SHA256          */
 #define SYN_USE_POOL 1          /**< Fixed-size block memory pool        */
 #define SYN_USE_PUBSUB 1        /**< Publish-subscribe message bus       */
 #define SYN_USE_RAMP 1          /**< Ramp / slew rate generator          */

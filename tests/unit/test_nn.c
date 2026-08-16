@@ -3,7 +3,7 @@
  * @brief Comprehensive unit tests for syn_nn TinyML Neural Network Engine.
  */
 
-#include "syntropic/util/syn_dsp.h"
+#include "syntropic/dsp/syn_dsp.h"
 #include "syntropic/util/syn_nn.h"
 #include "unity/unity.h"
 

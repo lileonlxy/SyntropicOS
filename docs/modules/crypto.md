@@ -85,12 +85,12 @@ void ecdh_key_exchange(void) {
 
 ---
 
-## 4. SHA-256 Hash Engine (`util/syn_sha256.h`)
+## 4. SHA-256 Hash Engine (`crypto/syn_sha256.h`)
 
 Standard NIST FIPS 180-4 SHA-256 digest computation for bootloader firmware verification and packet checksums.
 
 ```c
-#include <syntropic/util/syn_sha256.h>
+#include <syntropic/crypto/syn_sha256.h>
 
 void sha256_demo(const uint8_t *data, size_t len, uint8_t hash[32]) {
     syn_sha256(data, len, hash);

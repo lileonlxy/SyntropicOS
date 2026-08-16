@@ -17,7 +17,7 @@
 #include "stm32f4xx_hal.h"
 #include "syntropic/syntropic.h"
 #include "syntropic/util/syn_ringbuf.h"
-#include "syntropic/util/syn_sha256.h"
+#include "syntropic/crypto/syn_sha256.h"
 #include "syntropic/crypto/syn_aes128.h"
 #include "port/stm32_hal/port_stm32_hal.h"
 

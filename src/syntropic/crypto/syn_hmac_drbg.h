@@ -42,7 +42,7 @@
 #if !defined(SYN_USE_HMAC_DRBG) || SYN_USE_HMAC_DRBG
 
 #include "../common/syn_defs.h"
-#include "../util/syn_hmac.h"
+#include "syn_hmac.h"
 
 #include <stdbool.h>
 #include <stddef.h>

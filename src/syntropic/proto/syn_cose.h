@@ -24,9 +24,9 @@
 #include "syntropic/crypto/syn_chacha20poly1305.h"
 #include "syntropic/crypto/syn_ed25519.h"
 #include "syntropic/crypto/syn_p256.h"
+#include "syntropic/crypto/syn_sha256.h"
 #include "syntropic/util/syn_cbor_read.h"
 #include "syntropic/util/syn_cbor_write.h"
-#include "syntropic/util/syn_sha256.h"
 
 #include <stdbool.h>
 #include <stddef.h>

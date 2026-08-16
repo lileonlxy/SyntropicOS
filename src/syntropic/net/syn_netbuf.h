@@ -1,7 +1,7 @@
 /**
  * @file syn_netbuf.h
  * @brief Zero-Copy Packet Buffer Pool.
- * @ingroup syn_util
+ * @ingroup syn_net
  *
  * Provides a fixed-block memory pool manager for network/CAN packet buffers
  * supporting reference counting, zero-copy header push/pull, and slicing.

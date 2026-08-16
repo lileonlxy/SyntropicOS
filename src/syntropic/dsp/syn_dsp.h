@@ -4,12 +4,13 @@
  *
  * Provides fixed-point Discrete Cosine Transform (DCT-II) and signal
  * processing helpers tailored for resource-constrained microcontrollers.
+ * @ingroup syn_dsp
  */
 
 #ifndef SYN_DSP_H
 #define SYN_DSP_H
 
-#include "syn_qmath.h"
+#include "../util/syn_qmath.h"
 #include "syntropic/common/syn_defs.h"
 
 #ifdef __cplusplus

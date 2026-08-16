@@ -17,12 +17,12 @@
 
 #include "syntropic/crypto/syn_chacha20poly1305.h"
 #include "syntropic/crypto/syn_hkdf.h"
+#include "syntropic/crypto/syn_sha256.h"
 #include "syntropic/crypto/syn_x25519.h"
 #include "syntropic/crypto/syn_x509.h"
 #include "syntropic/net/syn_transport.h"
 #include "syntropic/pt/syn_pt.h"
 #include "syntropic/sched/syn_task.h"
-#include "syntropic/util/syn_sha256.h"
 
 #include <stdbool.h>
 #include <stddef.h>

@@ -35,7 +35,7 @@ SYN_SRCS := \
 	src/syntropic/util/syn_base64.c \
 	src/syntropic/util/syn_ramp.c src/syntropic/util/syn_scurve.c \
 	src/syntropic/util/syn_cbor_write.c src/syntropic/util/syn_cbor_read.c \
-	src/syntropic/util/syn_pubsub.c src/syntropic/util/syn_netbuf.c \
+	src/syntropic/util/syn_pubsub.c \
 	src/syntropic/util/syn_spsc_queue.c src/syntropic/util/syn_slab.c \
 	src/syntropic/sched/syn_sched.c src/syntropic/sched/syn_timer.c \
 	src/syntropic/sched/syn_watchdog.c src/syntropic/sched/syn_sequencer.c \
@@ -108,7 +108,7 @@ SYN_SRCS := \
 	src/syntropic/dsp/syn_fft.c \
 	src/syntropic/dsp/syn_goertzel.c \
 	src/syntropic/system/syn_fault.c \
-	src/syntropic/util/syn_sha256.c \
+	src/syntropic/crypto/syn_sha256.c \
 	src/syntropic/crypto/syn_aes128.c \
 	src/syntropic/crypto/syn_aes_cmac.c \
 	src/syntropic/system/syn_coredump.c \
@@ -176,6 +176,7 @@ SYN_SRCS := \
 	src/syntropic/drivers/syn_usb_midi.c \
 	src/syntropic/drivers/syn_usb_msc.c \
 	src/syntropic/dsp/syn_mfcc.c \
+	src/syntropic/dsp/syn_dsp.c \
 	src/syntropic/net/syn_ntp_server.c \
 	src/syntropic/util/syn_protobuf.c \
 	src/syntropic/net/syn_eth.c \
@@ -184,9 +185,9 @@ SYN_SRCS := \
 	src/syntropic/net/syn_transport_udp.c \
 	src/syntropic/net/syn_autoip.c \
 	src/syntropic/net/syn_netcfg.c \
+	src/syntropic/net/syn_netbuf.c \
 	src/syntropic/net/syn_igmp.c \
 	src/syntropic/util/syn_nn.c \
-	src/syntropic/util/syn_dsp.c \
 	src/syntropic/crypto/syn_hkdf.c \
 	src/syntropic/crypto/syn_hmac_drbg.c \
 	src/syntropic/crypto/syn_asn1.c \

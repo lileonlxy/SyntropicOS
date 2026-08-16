@@ -121,11 +121,6 @@ extern "C" {
 #include "util/syn_ramp.h"
 #endif
 
-#if !defined(SYN_USE_SHA256) || SYN_USE_SHA256
-#include "util/syn_hmac.h"
-#include "util/syn_sha256.h"
-#endif
-
 #if !defined(SYN_USE_POOL) || SYN_USE_POOL
 #include "util/syn_pool.h"
 #endif
@@ -249,7 +244,6 @@ extern "C" {
 
 #include "sched/syn_event_flags.h"
 #include "sched/syn_timer_wheel.h"
-#include "util/syn_netbuf.h"
 #include "util/syn_slab.h"
 #include "util/syn_spsc_queue.h"
 
@@ -360,6 +354,8 @@ extern "C" {
 #if !defined(SYN_USE_GOERTZEL) || SYN_USE_GOERTZEL
 #include "dsp/syn_goertzel.h"
 #endif
+
+#include "dsp/syn_dsp.h"
 
 /* ── Audio & Codecs ─────────────────────────────────────────────────────── */
 
@@ -653,6 +649,8 @@ extern "C" {
 #include "net/syn_wg.h"
 #endif
 
+#include "net/syn_netbuf.h"
+
 /* ── Cryptography ───────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_AES128) || SYN_USE_AES128
@@ -661,6 +659,11 @@ extern "C" {
 
 #if !defined(SYN_USE_AES_CMAC) || SYN_USE_AES_CMAC
 #include "crypto/syn_aes_cmac.h"
+#endif
+
+#if !defined(SYN_USE_SHA256) || SYN_USE_SHA256
+#include "crypto/syn_hmac.h"
+#include "crypto/syn_sha256.h"
 #endif
 
 #if !defined(SYN_USE_BLAKE2S) || SYN_USE_BLAKE2S

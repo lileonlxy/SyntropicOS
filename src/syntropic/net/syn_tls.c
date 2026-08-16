@@ -6,7 +6,7 @@
 #include "syntropic/net/syn_tls.h"
 
 #include "syntropic/crypto/syn_ed25519.h"
-#include "syntropic/util/syn_hmac.h"
+#include "syntropic/crypto/syn_hmac.h"
 #include "syntropic/util/syn_random.h"
 
 #include <string.h>

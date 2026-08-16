@@ -7,8 +7,8 @@
  */
 
 #include "mocks/mock_port.h"
-#include "syntropic/util/syn_hmac.h"
-#include "syntropic/util/syn_sha256.h"
+#include "syntropic/crypto/syn_hmac.h"
+#include "syntropic/crypto/syn_sha256.h"
 #include "unity/unity.h"
 
 #include <string.h>

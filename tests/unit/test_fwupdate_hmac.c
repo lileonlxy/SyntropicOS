@@ -4,11 +4,11 @@
  */
 
 #include "mocks/mock_port.h"
+#include "syntropic/crypto/syn_hmac.h"
 #include "syntropic/port/syn_port_flash.h"
 #include "syntropic/system/syn_fwimage.h"
 #include "syntropic/system/syn_fwupdate.h"
 #include "syntropic/util/syn_crc.h"
-#include "syntropic/util/syn_hmac.h"
 #include "unity/unity.h"
 
 #include <string.h>

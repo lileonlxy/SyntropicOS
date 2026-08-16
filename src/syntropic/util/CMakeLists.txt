@@ -4,7 +4,6 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_cbor_read.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_cbor_write.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_crc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/syn_dsp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_fmt.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_fsm.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_geo.c
@@ -13,7 +12,6 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_lz4.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_matrix.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_metrics.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/syn_netbuf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_nn.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_pubsub.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_qmath.c
@@ -22,7 +20,6 @@ target_sources(syntropic INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_random.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_ringbuf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_scurve.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/syn_sha256.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_slab.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_spsc_queue.c
     ${CMAKE_CURRENT_SOURCE_DIR}/syn_str.c

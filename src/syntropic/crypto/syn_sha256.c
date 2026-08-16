@@ -12,8 +12,8 @@
  * Static K[64] round constants table consumes ~256 bytes of ROM.
  */
 
-#include "syn_assert.h"
-#include "syn_pack.h"
+#include "../util/syn_assert.h"
+#include "../util/syn_pack.h"
 #include "syn_sha256.h"
 
 #include <string.h>

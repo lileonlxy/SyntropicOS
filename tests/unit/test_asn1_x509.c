@@ -6,8 +6,8 @@
 #include "syntropic/crypto/syn_asn1.h"
 #include "syntropic/crypto/syn_ed25519.h"
 #include "syntropic/crypto/syn_p256.h"
+#include "syntropic/crypto/syn_sha256.h"
 #include "syntropic/crypto/syn_x509.h"
-#include "syntropic/util/syn_sha256.h"
 #include "unity/unity.h"
 
 #include <string.h>

@@ -3,7 +3,7 @@
  * @brief Unit tests for fixed-point Discrete Cosine Transform (DCT-II).
  */
 
-#include "syntropic/util/syn_dsp.h"
+#include "syntropic/dsp/syn_dsp.h"
 #include "unity/unity.h"
 
 #include <math.h>

@@ -8,7 +8,8 @@
 #ifndef SYN_HKDF_H
 #define SYN_HKDF_H
 
-#include "syntropic/util/syn_hmac.h"
+#include "syn_hmac.h"
+#include "syn_sha256.h"
 
 #include <stdbool.h>
 #include <stddef.h>

@@ -35,7 +35,7 @@
 #include "syn_fwimage.h"
 
 #if defined(SYN_FW_USE_HMAC) && SYN_FW_USE_HMAC
-#include "../util/syn_hmac.h"
+#include "../crypto/syn_hmac.h"
 #endif
 
 #if defined(SYN_FW_USE_ED25519) && SYN_FW_USE_ED25519

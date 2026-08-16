@@ -7,7 +7,7 @@
 
 #include "syntropic/crypto/syn_ed25519.h"
 #include "syntropic/crypto/syn_p256.h"
-#include "syntropic/util/syn_sha256.h"
+#include "syntropic/crypto/syn_sha256.h"
 
 #include <string.h>
 

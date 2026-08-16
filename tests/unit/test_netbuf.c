@@ -3,7 +3,7 @@
  * @brief Unit test suite for Zero-Copy Packet Buffer Pool (syn_netbuf).
  */
 
-#include "syntropic/util/syn_netbuf.h"
+#include "syntropic/net/syn_netbuf.h"
 #include "unity/unity.h"
 
 #include <string.h>
