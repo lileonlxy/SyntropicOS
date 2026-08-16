@@ -587,6 +587,10 @@ extern "C" {
 #include "proto/syn_devicenet.h"
 #endif
 
+#if !defined(SYN_USE_LWM2M) || SYN_USE_LWM2M
+#include "proto/syn_lwm2m.h"
+#endif
+
 /* ── Storage ────────────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_PARAM) || SYN_USE_PARAM

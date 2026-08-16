@@ -173,6 +173,7 @@ void run_ao_tests(void);
 void run_vfs_tests(void);
 void run_lfs_tests(void);
 void run_coap_tests(void);
+void run_lwm2m_tests(void);
 void run_biquad_tests(void);
 void run_fft_tests(void);
 void run_filter_design_tests(void);
@@ -361,6 +362,7 @@ int main(void)
     run_vfs_tests();
     run_lfs_tests();
     run_coap_tests();
+    run_lwm2m_tests();
     run_biquad_tests();
     run_fft_tests();
     run_fault_tests();
