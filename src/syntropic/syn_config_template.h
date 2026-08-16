@@ -211,7 +211,14 @@
 
 /* ── Cryptography ───────────────────────────────────────────────────────── */
 
-#define SYN_USE_AES128 1           /**< AES-128 block cipher (ECB & CBC)    */
+#define SYN_USE_AES 1              /**< Unified AES block cipher & AEAD     */
+#define SYN_AES_MAX_KEY_BITS 256   /**< Max AES key bits: 128, 192, or 256  */
+#define SYN_USE_AES_DECRYPT 1      /**< AES ECB/CBC decryption (+256B Flash)*/
+#define SYN_USE_AES_CBC 1          /**< AES-CBC mode with PKCS#7            */
+#define SYN_USE_AES_CTR 1          /**< AES-CTR stream cipher mode          */
+#define SYN_USE_AES_GCM 1          /**< AES-GCM AEAD authenticated cipher   */
+#define SYN_AES_GCM_TABLE 0        /**< GCM GHASH table: 0=none, 4=256B, 8=4KB*/
+#define SYN_USE_AES128 1           /**< Legacy AES-128 compat wrapper       */
 #define SYN_USE_AES_CMAC 1         /**< AES-CMAC message authentication     */
 #define SYN_USE_SHA256 1           /**< SHA-256 hash + HMAC-SHA256          */
 #define SYN_USE_BLAKE2S 1          /**< BLAKE2s cryptographic hash          */

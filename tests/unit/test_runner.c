@@ -186,6 +186,7 @@ void run_random_tests(void);
 
 void run_gpio_tests(void);
 void run_uart_tests(void);
+void run_aes_tests(void);
 void run_aes128_tests(void);
 void run_aes_cmac_tests(void);
 void run_sha256_tests(void);
@@ -877,6 +878,7 @@ int main(void)
     run_p256_tests();
     run_ed25519_tests();
     run_cose_tests();
+    run_aes_tests();
 
     return UNITY_END();
 }

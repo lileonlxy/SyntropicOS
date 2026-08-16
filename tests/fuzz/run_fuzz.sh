@@ -61,7 +61,7 @@ rm -f fuzzer_usb
 echo "=== Compiling & Fuzzing UDS Diagnostic Server (10s smoke test) ==="
 clang -std=c99 -I"${ROOT_DIR}" -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/tests/unit/mocks" -DSYN_USE_MULTICORE=1 -fsanitize=fuzzer,address,undefined \
     "${ROOT_DIR}/src/syntropic/proto/syn_uds.c" \
-    "${ROOT_DIR}/src/syntropic/crypto/syn_aes128.c" \
+    "${ROOT_DIR}/src/syntropic/crypto/syn_aes.c" \
     "${ROOT_DIR}/tests/unit/mocks/mock_port.c" \
     "${ROOT_DIR}/tests/fuzz/fuzz_uds.c" \
     -o fuzzer_uds

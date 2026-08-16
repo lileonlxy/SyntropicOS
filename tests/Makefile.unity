@@ -109,7 +109,7 @@ SYN_SRCS := \
 	src/syntropic/dsp/syn_goertzel.c \
 	src/syntropic/system/syn_fault.c \
 	src/syntropic/crypto/syn_sha256.c \
-	src/syntropic/crypto/syn_aes128.c \
+	src/syntropic/crypto/syn_aes.c \
 	src/syntropic/crypto/syn_aes_cmac.c \
 	src/syntropic/system/syn_coredump.c \
 	src/syntropic/crypto/syn_blake2s.c \

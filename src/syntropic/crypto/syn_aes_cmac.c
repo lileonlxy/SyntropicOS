@@ -9,7 +9,7 @@
  * @brief AES-CMAC (Cipher-based Message Authentication Code, RFC 4493 / NIST SP 800-38B).
  */
 
-#include "syn_aes128.h"
+#include "syn_aes.h"
 #include "syn_aes_cmac.h"
 
 #include <string.h>
@@ -32,17 +32,17 @@ static void shl_128(const uint8_t in[16], uint8_t out[16])
 /**
  * @brief Subkey generation algorithm per RFC 4493 section 2.3.
  *
- * @param[in]  ctx Initialized AES-128 context.
+ * @param[in]  ctx Initialized AES context.
  * @param[out] k1  First 128-bit subkey.
  * @param[out] k2  Second 128-bit subkey.
  */
-static void generate_subkeys(const SYN_AES128_Context *ctx, uint8_t k1[16], uint8_t k2[16])
+static void generate_subkeys(const SYN_AES_Context *ctx, uint8_t k1[16], uint8_t k2[16])
 {
     const uint8_t zero_block[16] = {0};
     uint8_t l[16];
 
-    /* Step 1: L := AES-128(K, const_Zero) */
-    syn_aes128_encrypt_block(ctx, zero_block, l);
+    /* Step 1: L := AES(K, const_Zero) */
+    syn_aes_encrypt_block(ctx, zero_block, l);
 
     /* Step 2: Generate K1 */
     shl_128(l, k1);
@@ -64,8 +64,8 @@ SYN_Status syn_aes_cmac(const uint8_t key[SYN_AES_CMAC_KEY_SIZE], const uint8_t 
         return SYN_INVALID_PARAM;
     }
 
-    SYN_AES128_Context ctx;
-    (void)syn_aes128_init(&ctx, key);
+    SYN_AES_Context ctx;
+    (void)syn_aes_init(&ctx, key, SYN_AES_CMAC_KEY_SIZE);
 
     uint8_t k1[16];
     uint8_t k2[16];
@@ -88,7 +88,7 @@ SYN_Status syn_aes_cmac(const uint8_t key[SYN_AES_CMAC_KEY_SIZE], const uint8_t 
     uint8_t m_last[16];
     if (is_complete) {
         for (size_t i = 0U; i < 16U; i++) {
-            m_last[i] = msg[(n - 1U) * 16U + i] ^ k1[i];
+            m_last[i] = (uint8_t)(msg[(n - 1U) * 16U + i] ^ k1[i]);
         }
     } else {
         size_t rem = msg_len % 16U;
@@ -110,15 +110,15 @@ SYN_Status syn_aes_cmac(const uint8_t key[SYN_AES_CMAC_KEY_SIZE], const uint8_t 
 
     for (size_t i = 0U; i + 1U < n; i++) {
         for (size_t j = 0U; j < 16U; j++) {
-            y[j] = x[j] ^ msg[i * 16U + j];
+            y[j] = (uint8_t)(x[j] ^ msg[i * 16U + j]);
         }
-        syn_aes128_encrypt_block(&ctx, y, x);
+        syn_aes_encrypt_block(&ctx, y, x);
     }
 
     for (size_t j = 0U; j < 16U; j++) {
-        y[j] = m_last[j] ^ x[j];
+        y[j] = (uint8_t)(m_last[j] ^ x[j]);
     }
-    syn_aes128_encrypt_block(&ctx, y, mac);
+    syn_aes_encrypt_block(&ctx, y, mac);
 
     return SYN_OK;
 }

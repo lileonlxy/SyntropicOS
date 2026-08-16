@@ -653,6 +653,10 @@ extern "C" {
 
 /* ── Cryptography ───────────────────────────────────────────────────────── */
 
+#if !defined(SYN_USE_AES) || SYN_USE_AES
+#include "crypto/syn_aes.h"
+#endif
+
 #if !defined(SYN_USE_AES128) || SYN_USE_AES128
 #include "crypto/syn_aes128.h"
 #endif
