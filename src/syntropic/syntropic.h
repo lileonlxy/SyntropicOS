@@ -220,6 +220,10 @@ extern "C" {
 #include "sched/syn_sched.h"
 #endif
 
+#if !defined(SYN_USE_MUTEX) || SYN_USE_MUTEX
+#include "sched/syn_mutex.h"
+#endif
+
 #if !defined(SYN_USE_TIMER) || SYN_USE_TIMER
 #include "sched/syn_timer.h"
 #endif
@@ -373,6 +377,10 @@ extern "C" {
 #include "audio/syn_wav.h"
 #endif
 
+#if !defined(SYN_USE_VAD) || SYN_USE_VAD
+#include "audio/syn_vad.h"
+#endif
+
 /* ── Control ────────────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_PID) || SYN_USE_PID
@@ -407,6 +415,10 @@ extern "C" {
 
 #if !defined(SYN_USE_GCODE) || SYN_USE_GCODE
 #include "motor/syn_gcode.h"
+#endif
+
+#if !defined(SYN_USE_KINEMATICS) || SYN_USE_KINEMATICS
+#include "motor/syn_kinematics.h"
 #endif
 
 /* ── Protocols ──────────────────────────────────────────────────────────── */
@@ -633,6 +645,10 @@ extern "C" {
 #include "proto/syn_iolink.h"
 #endif
 
+#if !defined(SYN_USE_MQTTSN) || SYN_USE_MQTTSN
+#include "proto/syn_mqttsn.h"
+#endif
+
 /* ── Storage ────────────────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_PARAM) || SYN_USE_PARAM
@@ -734,6 +750,10 @@ extern "C" {
 
 #if !defined(SYN_USE_HMAC_DRBG) || SYN_USE_HMAC_DRBG
 #include "crypto/syn_hmac_drbg.h"
+#endif
+
+#if !defined(SYN_USE_TPM2) || SYN_USE_TPM2
+#include "crypto/syn_tpm2.h"
 #endif
 
 /* ── Debug & Diagnostics ────────────────────────────────────────────────── */

@@ -150,3 +150,41 @@ void gcode_setup(void) {
 }
 ```
 
+---
+
+## 5. Multi-Axis Robot Kinematics (`motor/syn_kinematics.h`)
+
+Zero-heap integer Q16.16 multi-axis robot kinematics engine:
+- **Transforms & Conventions**: Standard and Modified Denavit-Hartenberg (DH) 4x4 matrix transforms.
+- **Forward Kinematics**: Arbitrary N-DOF serial manipulator forward kinematics with 3D position and roll/pitch/yaw Euler orientations.
+- **Differential Kinematics**: Exact 6xN Geometric Jacobian computation for velocity mapping and singularity analysis.
+- **Standard Robot Models**:
+  - 3-DOF Planar Articulated Arm (FK & analytical IK with Elbow-Up / Elbow-Down selection).
+  - 4-DOF SCARA Robot (FK & analytical IK with tool pitch/yaw).
+  - 6-DOF PUMA Manipulator with Spherical Wrist (FK & Pieper analytical decoupling IK).
+  - 3-Axis Delta Parallel Robot (FK via 3-sphere intersection & analytical IK).
+
+```c
+#include <syntropic/motor/syn_kinematics.h>
+
+void scara_pick_and_place_demo(void) {
+    SYN_Kinematics_SCARAConfig cfg = {
+        .l1 = Q16_FROM_INT(200),     /* 200 mm inner arm */
+        .l2 = Q16_FROM_INT(150),     /* 150 mm outer arm */
+        .d_max = Q16_FROM_INT(100),  /* 100 mm Z stroke */
+        .z_home = Q16_FROM_INT(100), /* 100 mm home height */
+    };
+
+    /* Define target 6D pose */
+    SYN_Pose6D target = {
+        .position = {.x = Q16_FROM_INT(250), .y = Q16_FROM_INT(100), .z = Q16_FROM_INT(20)},
+        .orientation = {.roll = 0, .pitch = 0, .yaw = Q16_PI_4}
+    };
+
+    q16_t q1 = 0, q2 = 0, d3 = 0, q4 = 0;
+    if (syn_kinematics_scara_ik(&cfg, &target, SYN_ARM_ELBOW_UP, &q1, &q2, &d3, &q4) == SYN_OK) {
+        /* Drive joint actuators to solved angles */
+    }
+}
+```
+

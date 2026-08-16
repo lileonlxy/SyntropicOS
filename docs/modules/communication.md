@@ -30,6 +30,7 @@ SyntropicOS provides a comprehensive suite of communication protocols ranging fr
 | **Robotics** | Micro XRCE-DDS | `proto/syn_xrce_dds.h` | Micro-ROS & XRCE-DDS v1.2 client with CDR serialization & entity tree |
 | **Industrial** | Micro OPC UA Server | `proto/syn_opcua.h` | IEC 62541 binary server (UACP/UASC, Read, Write, Browse, Session management) |
 | **Fieldbus** | IO-Link Master & Device | `proto/syn_iolink.h` | IEC 61131-9 single-drop digital point-to-point engine with CRC-6 & ISDU |
+| **Wireless IoT** | MQTT-SN Client | `proto/syn_mqttsn.h` | MQTT for Sensor Networks v1.2 client engine over UDP/Zigbee/BLE/Sub-GHz |
 
 ---
 
@@ -559,6 +560,50 @@ void iolink_setup(SYN_Transport *transport) {
     };
     syn_iolink_master_init(&g_iolink_master, &cfg);
     syn_iolink_master_start(&g_iolink_master);
+}
+```
+
+---
+
+## 14. MQTT-SN Protocol Client Engine (`proto/syn_mqttsn.h`)
+
+Zero-heap MQTT for Sensor Networks (MQTT-SN v1.2) client engine for constrained datagram transports (UDP, Zigbee, Thread, BLE, Sub-GHz):
+- **Framing**: 1-byte and 3-byte variable header lengths (payloads up to 64 KB).
+- **Gateway Discovery**: `SEARCHGW`, `GWINFO`, `ADVERTISE`.
+- **Topic Addressing**: Normal registered topics (16-bit IDs via `REGISTER`/`REGACK`), Predefined topic IDs, and Short 2-character topic IDs without registration handshake.
+- **QoS Support**: QoS 0, QoS 1 (with msg_id ack), and transparent QoS -1 (fire-and-forget without connect).
+- **Power Optimization**: Low-power `SLEEP` state and `AWAKE` ping flush.
+- **Protothread Integration**: `syn_mqttsn_client_pt()` coroutine for non-blocking task loops.
+
+```c
+#include <syntropic/proto/syn_mqttsn.h>
+
+static SYN_MQTTSN_Client g_sn_client;
+static uint8_t g_sn_rx[256], g_sn_tx[256];
+
+void on_sn_message(SYN_MQTTSN_Client *client, uint16_t topic_id, const uint8_t *payload, size_t len) {
+    /* Process incoming sensor command */
+}
+
+void mqttsn_setup(SYN_Transport *datagram_transport) {
+    SYN_MQTTSN_Config cfg = {
+        .transport = datagram_transport,
+        .client_id = "sensor_node_01",
+        .duration_s = 60U,
+        .clean_session = true,
+        .on_message = on_sn_message,
+        .rx_buf = g_sn_rx,
+        .rx_buf_size = sizeof(g_sn_rx),
+        .tx_buf = g_sn_tx,
+        .tx_buf_size = sizeof(g_sn_tx),
+    };
+    syn_mqttsn_client_init(&g_sn_client, &cfg);
+    syn_mqttsn_client_searchgw(&g_sn_client, 1U);
+}
+
+void publish_telemetry(int16_t temperature_c) {
+    /* Publish to short 2-char topic 'te' at QoS 0 */
+    syn_mqttsn_client_publish_short(&g_sn_client, "te", 0, false, (const uint8_t *)&temperature_c, sizeof(temperature_c));
 }
 ```
 

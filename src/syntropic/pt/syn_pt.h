@@ -342,15 +342,17 @@ typedef enum {
  * @param grp   Pointer to SYN_EventGroup.
  * @param mask  Bitmask of event flags to wait for (any of them).
  */
-#define PT_BLOCK_EVENT(pt, task, grp, mask)                            \
-    do {                                                               \
-        (task)->wait_event = (SYN_EventFlags *)(grp);                  \
-        (task)->wait_mask = (mask);                                    \
-        (task)->state = (uint8_t)SYN_TASK_BLOCKED;                     \
-        PT_YIELD(pt);                                                  \
-        /* Atomic clear: a raw RMW here would clobber bits an ISR sets \
-         * between the load and store. */                              \
-        syn_event_flags_clear((SYN_EventFlags *)(grp), (mask));        \
+#define PT_BLOCK_EVENT(pt, task, grp, mask)                                   \
+    do {                                                                      \
+        (task)->wait_event = (SYN_EventFlags *)(grp);                         \
+        (task)->wait_mask = (mask);                                           \
+        (task)->state = (uint8_t)SYN_TASK_BLOCKED;                            \
+        PT_YIELD(pt);                                                         \
+        uint32_t _syn_evt_matched = (task)->wait_mask;                        \
+        if (_syn_evt_matched != 0) {                                          \
+            syn_event_flags_clear((SYN_EventFlags *)(grp), _syn_evt_matched); \
+        }                                                                     \
+        (task)->wait_mask = 0;                                                \
     } while (0)
 
 /**

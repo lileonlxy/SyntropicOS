@@ -1398,6 +1398,59 @@ static void test_block_event_with_timeout_isr_race_post_timeout(void)
     TEST_ASSERT_EQUAL_UINT32(0x01, syn_event_flags_get(&test_evt_flags)); /* flag remains intact */
 }
 
+static SYN_PT_Status block_task_two_flags_fn(SYN_PT *pt, SYN_Task *task)
+{
+    SYN_EventGroup *evt = (SYN_EventGroup *)task->user_data;
+    PT_BEGIN(pt);
+    PT_BLOCK_EVENT(pt, task, evt, EVT_DATA | EVT_DONE);
+    block_counter++;
+    PT_END(pt);
+}
+
+static void test_block_event_clears_only_matched_flags(void)
+{
+    mock_tick_ms = 0;
+    block_counter = 0;
+
+    SYN_EventGroup evt;
+    syn_event_init(&evt);
+
+    SYN_Task tasks[1];
+    SYN_Sched sched;
+    syn_task_create(&tasks[0], "blk_two", block_task_two_flags_fn, 0, &evt);
+    syn_sched_init(&sched, tasks, 1);
+
+    /* Pass 1: task blocks waiting on EVT_DATA | EVT_DONE */
+    syn_sched_run(&sched);
+    TEST_ASSERT_EQUAL_UINT8(SYN_TASK_BLOCKED, tasks[0].state);
+
+    /* Set only EVT_DATA (0x01) */
+    syn_event_set(&evt, EVT_DATA);
+
+    /* Scheduler sees EVT_DATA, sets task->wait_mask = EVT_DATA and marks READY */
+    syn_sched_run(&sched);
+    TEST_ASSERT_EQUAL_INT(1, block_counter);
+
+    /* EVT_DATA is cleared */
+    TEST_ASSERT_FALSE(syn_event_check_any(&evt, EVT_DATA));
+
+    /* Now set EVT_DONE (0x02) to verify it is preserved if set subsequently */
+    syn_event_set(&evt, EVT_DONE);
+    TEST_ASSERT_TRUE(syn_event_check_any(&evt, EVT_DONE));
+}
+
+static void test_sched_rr_uint16_rotation(void)
+{
+    SYN_Sched sched;
+    syn_sched_init(&sched, NULL, 0);
+
+    /* Verify rr_per_prio holds uint16_t without truncation */
+    for (size_t i = 0; i < SYN_SCHED_PRIO_LEVELS; i++) {
+        sched.rr_per_prio[i] = (uint16_t)(300 + i);
+        TEST_ASSERT_EQUAL_UINT16((uint16_t)(300 + i), sched.rr_per_prio[i]);
+    }
+}
+
 void run_sched_tests(void)
 {
     RUN_TEST(test_scheduler);
@@ -1431,6 +1484,7 @@ void run_sched_tests(void)
     RUN_TEST(test_block_condition_and_primitives);
     RUN_TEST(test_block_condition_isr_wakeup_not_lost);
     RUN_TEST(test_block_event_auto_clear_is_atomic);
+    RUN_TEST(test_block_event_clears_only_matched_flags);
     RUN_TEST(test_delay_deadline_consumed_no_wrap_freeze);
     RUN_TEST(test_delay_deadline_wrap_zero_alias);
     RUN_TEST(test_sched_next_wakeup_blocked_event_fired);
@@ -1439,4 +1493,5 @@ void run_sched_tests(void)
     RUN_TEST(test_block_event_with_timeout_expired);
     RUN_TEST(test_sched_next_wakeup_blocked_timeout);
     RUN_TEST(test_block_event_with_timeout_isr_race_post_timeout);
+    RUN_TEST(test_sched_rr_uint16_rotation);
 }

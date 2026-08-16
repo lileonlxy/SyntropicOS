@@ -41,6 +41,7 @@
 #define SYN_USE_SCHED 1     /**< Cooperative task scheduler          */
 #define SYN_USE_TIMER 1     /**< Software timers (one-shot + periodic) */
 #define SYN_USE_EVENT 1     /**< Event flag groups (32-bit bitmask)  */
+#define SYN_USE_MUTEX 1     /**< Priority-inheriting mutex           */
 #define SYN_USE_WATCHDOG 1  /**< Task-level watchdog monitor         */
 #define SYN_USE_SEQUENCER 1 /**< Timed action sequencer              */
 #define SYN_USE_WORKQUEUE 1 /**< Deferred work queue (ISR→main)      */
@@ -84,6 +85,7 @@
 #define SYN_USE_AUTOTUNE 1   /**< Motor auto-tuner (requires: MOTOR_CTRL) */
 #define SYN_USE_ACTUATOR 1   /**< Linear actuator (requires: PID)     */
 #define SYN_USE_GCODE 1      /**< G-Code RS-274 motion interpreter (requires: INTERPOLATOR) */
+#define SYN_USE_KINEMATICS 1 /**< Multi-axis robot forward & inverse kinematics */
 
 /* ── DSP / Filters ──────────────────────────────────────────────────────── */
 
@@ -108,6 +110,7 @@
 #define SYN_USE_HMAC_DRBG 1        /**< NIST SP 800-90A HMAC-DRBG (SHA-256) */
 #define SYN_USE_BASE64 1           /**< RFC 4648 Base64 & Base64URL codec   */
 #define SYN_USE_SHA512 1           /**< SHA-512 / SHA-384 / HMAC-SHA512/384 */
+#define SYN_USE_TPM2 1             /**< TCG TPM 2.0 command & measured boot engine */
 
 /* ── Bluetooth Low Energy ───────────────────────────────────────────────── */
 
@@ -131,6 +134,7 @@
 #define SYN_USE_MBUS 1           /**< M-Bus (EN 13757-2/3) protocol engine */
 #define SYN_USE_MODBUS 1         /**< Modbus RTU slave (requires: CRC)    */
 #define SYN_USE_MQTT 1           /**< MQTT 3.1.1 client                   */
+#define SYN_USE_MQTTSN 1         /**< MQTT-SN v1.2 datagram client engine */
 #define SYN_USE_HTTP 1           /**< HTTP client                         */
 #define SYN_USE_HTTPD 1          /**< HTTP server (embedded web server)   */
 #define SYN_USE_WEBSOCKET 1      /**< WebSocket client                    */
@@ -251,6 +255,7 @@
 #define SYN_USE_LZ4 1           /**< Zero-heap LZ4 compression           */
 #define SYN_USE_USB_MIDI 1      /**< USB MIDI Class 1.0 device           */
 #define SYN_USE_MFCC 1          /**< Fixed-point MFCC feature extractor  */
+#define SYN_USE_VAD 1           /**< Zero-heap Voice Activity Detector   */
 #define SYN_USE_USB_MSC 1       /**< USB Mass Storage Class BOT device   */
 #define SYN_USE_NTP_SERVER 1    /**< NTP v4 time server                  */
 #define SYN_USE_PROTOBUF 1      /**< Protocol Buffers wire format        */

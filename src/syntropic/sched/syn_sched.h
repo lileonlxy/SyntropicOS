@@ -59,7 +59,7 @@ extern "C" {
 typedef struct SYN_Sched {
     SYN_Task *tasks;   /**< Pointer to caller-owned task array    */
     size_t task_count; /**< Number of tasks in the array          */
-    uint8_t rr_per_prio[SYN_SCHED_PRIO_LEVELS];
+    uint16_t rr_per_prio[SYN_SCHED_PRIO_LEVELS];
     /**< Per-priority round-robin indices      */
 } SYN_Sched;
 

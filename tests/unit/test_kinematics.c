@@ -1,0 +1,347 @@
+/**
+ * @file test_kinematics.c
+ * @brief Unit tests for Multi-Axis Robot Forward & Inverse Kinematics Engine (syn_kinematics).
+ */
+
+#include "syntropic/motor/syn_kinematics.h"
+#include "syntropic/util/syn_matrix.h"
+#include "syntropic/util/syn_qmath.h"
+#include "unity/unity.h"
+
+#include <string.h>
+
+void test_kinematics_dh_matrix_and_forward(void)
+{
+    /* 1. Parameter Validation */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_dh_matrix(NULL, 0, SYN_DH_CONVENTION_STANDARD, NULL));
+
+    SYN_MAT_DECL(T, 4, 4);
+    SYN_DH_Param p = {
+        .a = Q16_FROM_INT(10), .alpha = 0, .d = Q16_FROM_INT(5), .theta = 0, .is_prismatic = false};
+
+    /* Wrong matrix dimensions */
+    SYN_MAT_DECL(T_bad, 3, 3);
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_dh_matrix(&p, 0, SYN_DH_CONVENTION_STANDARD, &T_bad));
+
+    /* Standard DH Matrix Calculation */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_dh_matrix(&p, Q16_PI_2, SYN_DH_CONVENTION_STANDARD, &T));
+    TEST_ASSERT_INT_WITHIN(200, 0, SYN_MAT_AT(&T, 0, 0));
+    TEST_ASSERT_INT_WITHIN(200, Q16_ONE, SYN_MAT_AT(&T, 1, 0));
+    TEST_ASSERT_INT_WITHIN(200, 0, SYN_MAT_AT(&T, 0, 3));
+    TEST_ASSERT_INT_WITHIN(200, Q16_FROM_INT(10), SYN_MAT_AT(&T, 1, 3));
+    TEST_ASSERT_INT_WITHIN(200, Q16_FROM_INT(5), SYN_MAT_AT(&T, 2, 3));
+
+    /* Modified DH Matrix Calculation */
+    p.alpha = Q16_PI_2;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_dh_matrix(&p, 0, SYN_DH_CONVENTION_MODIFIED, &T));
+
+    /* Prismatic link */
+    p.is_prismatic = true;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_dh_matrix(&p, Q16_FROM_INT(2), SYN_DH_CONVENTION_STANDARD, &T));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_dh_matrix(&p, Q16_FROM_INT(2), SYN_DH_CONVENTION_MODIFIED, &T));
+
+    /* Forward Kinematics Chain Validation */
+    TEST_ASSERT_EQUAL(
+        SYN_INVALID_PARAM,
+        syn_kinematics_forward(NULL, 0, NULL, SYN_DH_CONVENTION_STANDARD, NULL, NULL));
+    q16_t jvals[2] = {0, 0};
+    TEST_ASSERT_EQUAL(
+        SYN_INVALID_PARAM,
+        syn_kinematics_forward(&p, 9U, jvals, SYN_DH_CONVENTION_STANDARD, NULL, NULL));
+
+    /* 2-link revolute chain (Standard DH) */
+    SYN_DH_Param chain2[2] = {
+        {.a = Q16_FROM_INT(10), .alpha = 0, .d = 0, .theta = 0, .is_prismatic = false},
+        {.a = Q16_FROM_INT(10), .alpha = 0, .d = 0, .theta = 0, .is_prismatic = false}};
+    q16_t q[2] = {0, 0};
+    SYN_Pose6D pose;
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_forward(chain2, 2U, q, SYN_DH_CONVENTION_STANDARD, &T, &pose));
+    TEST_ASSERT_INT_WITHIN(500, Q16_FROM_INT(20), pose.position.x);
+    TEST_ASSERT_INT_WITHIN(500, 0, pose.position.y);
+    TEST_ASSERT_INT_WITHIN(500, 0, pose.position.z);
+
+    /* 2-link revolute chain (Modified DH) */
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_forward(chain2, 2U, q, SYN_DH_CONVENTION_MODIFIED, &T, &pose));
+
+    /* Forward with invalid convention */
+    TEST_ASSERT_EQUAL(SYN_ERROR,
+                      syn_kinematics_forward(chain2, 2U, q, (SYN_DH_Convention)99, &T, &pose));
+
+    /* Forward with NULL outputs */
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_kinematics_forward(chain2, 2U, q, SYN_DH_CONVENTION_STANDARD, NULL, NULL));
+
+    /* Gimbal lock orientation test in FK (pitch = +90 deg, r20 = -1) */
+    SYN_DH_Param gimbal_chain[2] = {
+        {.a = 0, .alpha = -Q16_PI_2, .d = 0, .theta = 0, .is_prismatic = false},
+        {.a = 0, .alpha = 0, .d = 0, .theta = Q16_PI_2, .is_prismatic = false}};
+    q16_t q_gimbal[2] = {0, 0};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_forward(gimbal_chain, 2U, q_gimbal,
+                                                     SYN_DH_CONVENTION_STANDARD, NULL, &pose));
+
+    /* Gimbal lock orientation test in FK (pitch = -90 deg, r20 = 1) */
+    SYN_DH_Param gimbal_chain_neg[2] = {
+        {.a = 0, .alpha = Q16_PI_2, .d = 0, .theta = 0, .is_prismatic = false},
+        {.a = 0, .alpha = 0, .d = 0, .theta = -Q16_PI_2, .is_prismatic = false}};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_forward(gimbal_chain_neg, 2U, q_gimbal,
+                                                     SYN_DH_CONVENTION_STANDARD, NULL, &pose));
+}
+
+void test_kinematics_jacobian(void)
+{
+    /* Parameter validation */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_kinematics_jacobian(NULL, 0, NULL, SYN_DH_CONVENTION_STANDARD, NULL));
+
+    SYN_DH_Param chain[2] = {
+        {.a = Q16_FROM_INT(10), .alpha = 0, .d = 0, .theta = 0, .is_prismatic = false},
+        {.a = Q16_FROM_INT(10), .alpha = 0, .d = 0, .theta = 0, .is_prismatic = true}};
+    q16_t q[2] = {0, 0};
+
+    SYN_MAT_DECL(J, 6, 2);
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_jacobian(chain, 2U, q, SYN_DH_CONVENTION_STANDARD, &J));
+
+    /* Jacobian with invalid convention */
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_kinematics_jacobian(chain, 2U, q, (SYN_DH_Convention)99, &J));
+
+    /* First joint is revolute along Z: linear velocity vy = 20 */
+    TEST_ASSERT_INT_WITHIN(500, Q16_FROM_INT(20), SYN_MAT_AT(&J, 1, 0));
+    TEST_ASSERT_INT_WITHIN(500, Q16_ONE, SYN_MAT_AT(&J, 5, 0));
+
+    /* Second joint is prismatic along Z */
+    TEST_ASSERT_INT_WITHIN(500, Q16_ONE, SYN_MAT_AT(&J, 2, 1));
+    TEST_ASSERT_INT_WITHIN(500, 0, SYN_MAT_AT(&J, 5, 1));
+
+    /* Modified DH Jacobian */
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_jacobian(chain, 2U, q, SYN_DH_CONVENTION_MODIFIED, &J));
+}
+
+void test_kinematics_planar3(void)
+{
+    SYN_Kinematics_Planar3Config cfg = {
+        .l1 = Q16_FROM_INT(10), .l2 = Q16_FROM_INT(8), .l3 = Q16_FROM_INT(4)};
+
+    /* Validation */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_kinematics_planar3_fk(NULL, 0, 0, 0, NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_kinematics_planar3_ik(NULL, 0, 0, 0, SYN_ARM_ELBOW_UP, NULL, NULL, NULL));
+
+    /* FK Test */
+    q16_t x = 0, y = 0, phi = 0;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_planar3_fk(&cfg, 0, 0, 0, &x, &y, &phi));
+    TEST_ASSERT_INT_WITHIN(1000, Q16_FROM_INT(22), x);
+    TEST_ASSERT_INT_WITHIN(1000, 0, y);
+    TEST_ASSERT_INT_WITHIN(1000, 0, phi);
+
+    /* IK Roundtrip Test */
+    q16_t q1 = 0, q2 = 0, q3 = 0;
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_planar3_ik(&cfg, x, y, phi, SYN_ARM_ELBOW_UP, &q1, &q2, &q3));
+    TEST_ASSERT_INT_WITHIN(3000, 0, q1);
+    TEST_ASSERT_INT_WITHIN(3000, 0, q2);
+    TEST_ASSERT_INT_WITHIN(3000, 0, q3);
+
+    /* FK and IK with NULL outputs */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_planar3_fk(&cfg, 0, 0, 0, NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_kinematics_planar3_ik(&cfg, x, y, phi, SYN_ARM_ELBOW_UP, NULL, NULL, NULL));
+
+    /* Elbow Down Test */
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_planar3_ik(&cfg, Q16_FROM_INT(12), Q16_FROM_INT(10), Q16_PI_2,
+                                                SYN_ARM_ELBOW_DOWN, &q1, &q2, &q3));
+
+    /* Unreachable Target (Too Far) */
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_kinematics_planar3_ik(&cfg, Q16_FROM_INT(50), Q16_FROM_INT(50),
+                                                           0, SYN_ARM_ELBOW_UP, &q1, &q2, &q3));
+
+    /* Inner reach limit error (|l1 - l2| > reach) */
+    SYN_Kinematics_Planar3Config bad_cfg = {.l1 = Q16_FROM_INT(20), .l2 = Q16_FROM_INT(5), .l3 = 0};
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_kinematics_planar3_ik(&bad_cfg, Q16_FROM_INT(2), 0, 0,
+                                                           SYN_ARM_ELBOW_UP, &q1, &q2, &q3));
+}
+
+void test_kinematics_scara(void)
+{
+    SYN_Kinematics_SCARAConfig cfg = {.l1 = Q16_FROM_INT(10),
+                                      .l2 = Q16_FROM_INT(10),
+                                      .d_max = Q16_FROM_INT(15),
+                                      .z_home = Q16_FROM_INT(20)};
+
+    /* Validation */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kinematics_scara_fk(NULL, 0, 0, 0, 0, NULL));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kinematics_scara_ik(NULL, NULL, SYN_ARM_ELBOW_UP, NULL,
+                                                                 NULL, NULL, NULL));
+
+    /* FK Test */
+    SYN_Pose6D pose;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_scara_fk(&cfg, 0, 0, Q16_FROM_INT(5), 0, &pose));
+    TEST_ASSERT_INT_WITHIN(1000, Q16_FROM_INT(20), pose.position.x);
+    TEST_ASSERT_INT_WITHIN(1000, 0, pose.position.y);
+    TEST_ASSERT_INT_WITHIN(1000, Q16_FROM_INT(15), pose.position.z);
+
+    /* IK Roundtrip Test */
+    q16_t q1 = 0, q2 = 0, d3 = 0, q4 = 0;
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_scara_ik(&cfg, &pose, SYN_ARM_ELBOW_UP, &q1, &q2, &d3, &q4));
+    TEST_ASSERT_INT_WITHIN(3000, 0, q1);
+    TEST_ASSERT_INT_WITHIN(3000, 0, q2);
+    TEST_ASSERT_INT_WITHIN(1000, Q16_FROM_INT(5), d3);
+    TEST_ASSERT_INT_WITHIN(3000, 0, q4);
+
+    /* IK with NULL outputs */
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_kinematics_scara_ik(&cfg, &pose, SYN_ARM_ELBOW_UP, NULL, NULL, NULL, NULL));
+
+    /* Elbow Down */
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_scara_ik(&cfg, &pose, SYN_ARM_ELBOW_DOWN, &q1, &q2, &d3, &q4));
+
+    /* Stroke limit exceeded */
+    SYN_Pose6D bad_z = pose;
+    bad_z.position.z = -Q16_FROM_INT(10);
+    TEST_ASSERT_EQUAL(SYN_ERROR,
+                      syn_kinematics_scara_ik(&cfg, &bad_z, SYN_ARM_ELBOW_UP, &q1, &q2, &d3, &q4));
+
+    /* Out of reach radius */
+    SYN_Pose6D bad_reach = pose;
+    bad_reach.position.x = Q16_FROM_INT(30);
+    TEST_ASSERT_EQUAL(
+        SYN_ERROR, syn_kinematics_scara_ik(&cfg, &bad_reach, SYN_ARM_ELBOW_UP, &q1, &q2, &d3, &q4));
+
+    /* Inner reach limit (|l1 - l2| > reach) */
+    SYN_Kinematics_SCARAConfig bad_arm_cfg = {
+        .l1 = Q16_FROM_INT(20), .l2 = Q16_FROM_INT(5), .d_max = Q16_FROM_INT(10), .z_home = 0};
+    SYN_Pose6D inner_target = {.position = {.x = Q16_FROM_INT(2), .y = 0, .z = 0}};
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_kinematics_scara_ik(&bad_arm_cfg, &inner_target,
+                                                         SYN_ARM_ELBOW_UP, &q1, &q2, &d3, &q4));
+}
+
+void test_kinematics_6dof_and_delta(void)
+{
+    /* 6-DOF PUMA Arm */
+    SYN_Kinematics_6DOFConfig cfg6 = {.d1 = Q16_FROM_INT(5),
+                                      .a1 = Q16_FROM_INT(2),
+                                      .a2 = Q16_FROM_INT(10),
+                                      .d4 = Q16_FROM_INT(10),
+                                      .d6 = Q16_FROM_INT(3)};
+
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kinematics_6dof_fk(NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_kinematics_6dof_ik(NULL, NULL, SYN_ARM_ELBOW_UP, false, NULL));
+
+    /* Singular wrist pose (q5 = 0, q2 + q3 = 0) */
+    q16_t q_sing[6] = {0, -Q16_PI_2 / 2, Q16_PI_2 / 2, 0, 0, 0};
+    SYN_Pose6D pose_sing;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_6dof_fk(&cfg6, q_sing, &pose_sing));
+
+    q16_t out_q[6];
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_6dof_ik(&cfg6, &pose_sing, SYN_ARM_ELBOW_UP, false, out_q));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_6dof_ik(&cfg6, &pose_sing, SYN_ARM_ELBOW_DOWN, true, out_q));
+
+    /* Exact wrist singularity test where R_36 = I */
+    SYN_Pose6D pose_pure_sing = {
+        .position = {.x = Q16_FROM_INT(22), .y = -Q16_FROM_INT(3), .z = Q16_FROM_INT(5)},
+        .orientation = {.roll = Q16_PI_2, .pitch = 0, .yaw = 0}};
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_kinematics_6dof_ik(&cfg6, &pose_pure_sing, SYN_ARM_ELBOW_UP, false, out_q));
+
+    /* Non-singular wrist pose (q5 != 0) with wrist flip false and true */
+    q16_t q_nonsing[6] = {0, Q16_PI_2 / 4, -Q16_PI_2 / 4, Q16_PI_2 / 4, Q16_PI_2 / 4, Q16_PI_2 / 4};
+    SYN_Pose6D pose_nonsing;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_6dof_fk(&cfg6, q_nonsing, &pose_nonsing));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_6dof_ik(&cfg6, &pose_nonsing, SYN_ARM_ELBOW_UP, false, out_q));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_kinematics_6dof_ik(&cfg6, &pose_nonsing, SYN_ARM_ELBOW_UP, true, out_q));
+
+    /* Unreachable target */
+    SYN_Pose6D bad_pose = pose_sing;
+    bad_pose.position.x = Q16_FROM_INT(100);
+    TEST_ASSERT_EQUAL(SYN_ERROR,
+                      syn_kinematics_6dof_ik(&cfg6, &bad_pose, SYN_ARM_ELBOW_UP, false, out_q));
+
+    /* Delta Robot */
+    SYN_Kinematics_DeltaConfig dcfg = {.base_radius = Q16_FROM_INT(15),
+                                       .effector_radius = Q16_FROM_INT(5),
+                                       .upper_arm_len = Q16_FROM_INT(10),
+                                       .lower_arm_len = Q16_FROM_INT(20)};
+
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kinematics_delta_fk(NULL, 0, 0, 0, NULL));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM, syn_kinematics_delta_ik(NULL, NULL, NULL, NULL, NULL));
+
+    /* Delta FK at home position (theta1=0, theta2=0, theta3=0) */
+    SYN_Position3D pos;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_delta_fk(&dcfg, 0, 0, 0, &pos));
+    TEST_ASSERT_INT_WITHIN(500, 0, pos.x);
+    TEST_ASSERT_INT_WITHIN(500, 0, pos.y);
+
+    /* Delta IK */
+    q16_t t1 = 0, t2 = 0, t3 = 0;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_delta_ik(&dcfg, &pos, &t1, &t2, &t3));
+    TEST_ASSERT_INT_WITHIN(2000, 0, t1);
+    TEST_ASSERT_INT_WITHIN(2000, 0, t2);
+    TEST_ASSERT_INT_WITHIN(2000, 0, t3);
+
+    /* Delta IK with NULL outputs */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_kinematics_delta_ik(&dcfg, &pos, NULL, NULL, NULL));
+
+    /* Unreachable Delta position */
+    SYN_Position3D out_of_bounds = {.x = Q16_FROM_INT(50), .y = 0, .z = Q16_FROM_INT(50)};
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_kinematics_delta_ik(&dcfg, &out_of_bounds, &t1, &t2, &t3));
+
+    /* Delta IK arm calculation where A == 0, B != 0 */
+    SYN_Kinematics_DeltaConfig dcfg_a0 = {.base_radius = 0,
+                                          .effector_radius = 0,
+                                          .upper_arm_len = Q16_FROM_INT(1),
+                                          .lower_arm_len = Q16_FROM_INT(2)};
+    SYN_Position3D pos_a0 = {.x = 0, .y = Q16_FROM_INT(1), .z = Q16_FROM_INT(2)};
+    (void)syn_kinematics_delta_ik(&dcfg_a0, &pos_a0, &t1, &t2, &t3);
+
+    /* Delta IK arm calculation where A == 0, B == 0 (unreachable boundary) */
+    SYN_Position3D pos_a0_b0 = {.x = 0, .y = Q16_FROM_INT(3), .z = 0};
+    (void)syn_kinematics_delta_ik(&dcfg_a0, &pos_a0_b0, &t1, &t2, &t3);
+
+    /* Delta IK where Arm 1 succeeds but Arm 2 fails */
+    SYN_Position3D pos_arm2_fail = {.x = -Q16_FROM_INT(1) - Q16_FROM_FRAC(25, 100),
+                                    .y = Q16_FROM_INT(2) + Q16_FROM_FRAC(165, 1000),
+                                    .z = 0};
+    (void)syn_kinematics_delta_ik(&dcfg_a0, &pos_arm2_fail, &t1, &t2, &t3);
+
+    /* Delta IK where Arm 1 & 2 succeed but Arm 3 fails */
+    SYN_Position3D pos_arm3_fail = {.x = -Q16_FROM_INT(1) - Q16_FROM_FRAC(25, 100),
+                                    .y = -Q16_FROM_INT(2) - Q16_FROM_FRAC(165, 1000),
+                                    .z = 0};
+    (void)syn_kinematics_delta_ik(&dcfg_a0, &pos_arm3_fail, &t1, &t2, &t3);
+
+    /* Delta FK zero denominator check (theta2 = theta3 = PI/2 with wb = 0) */
+    SYN_Kinematics_DeltaConfig dcfg_zero_denom = {.base_radius = 0,
+                                                  .effector_radius = 0,
+                                                  .upper_arm_len = Q16_FROM_INT(1),
+                                                  .lower_arm_len = Q16_FROM_INT(2)};
+    TEST_ASSERT_EQUAL(SYN_ERROR,
+                      syn_kinematics_delta_fk(&dcfg_zero_denom, 0, Q16_PI_2, Q16_PI_2, &pos));
+
+    /* Delta FK impossible geometry (spheres do not intersect) */
+    SYN_Kinematics_DeltaConfig bad_dcfg = {.upper_arm_len = Q16_FROM_INT(20),
+                                           .lower_arm_len = Q16_FROM_INT(1),
+                                           .base_radius = Q16_FROM_INT(5),
+                                           .effector_radius = Q16_FROM_INT(2)};
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_kinematics_delta_fk(&bad_dcfg, 0, 0, 0, &pos));
+}
+
+void run_kinematics_tests(void)
+{
+    RUN_TEST(test_kinematics_dh_matrix_and_forward);
+    RUN_TEST(test_kinematics_jacobian);
+    RUN_TEST(test_kinematics_planar3);
+    RUN_TEST(test_kinematics_scara);
+    RUN_TEST(test_kinematics_6dof_and_delta);
+}

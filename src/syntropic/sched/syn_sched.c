@@ -30,9 +30,10 @@ void syn_sched_init(SYN_Sched *sched, SYN_Task *tasks, size_t count)
 {
     SYN_ASSERT(sched != NULL);
     SYN_ASSERT(tasks != NULL || count == 0);
+    SYN_ASSERT(count <= UINT16_MAX);
 
     /* LCOV_EXCL_START: Defensive NULL check or invalid parameter fallback */
-    if (sched == NULL || (tasks == NULL && count > 0)) {
+    if (sched == NULL || (tasks == NULL && count > 0) || count > UINT16_MAX) {
         return;
     }
     /* LCOV_EXCL_STOP */
@@ -210,7 +211,7 @@ bool syn_sched_run(SYN_Sched *sched)
          * state to DEFERRED before yielding — no RR advance). */
         if (best_task->state != (uint8_t)SYN_TASK_DEFERRED) {
             const size_t next = executed_idx + 1;
-            sched->rr_per_prio[best_prio] = (next >= n) ? 0 : (uint8_t)next;
+            sched->rr_per_prio[best_prio] = (next >= n) ? 0 : (uint16_t)next;
         }
         break; /* One useful execution per tick */
     }

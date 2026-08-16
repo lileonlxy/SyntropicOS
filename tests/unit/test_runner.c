@@ -62,6 +62,7 @@ void run_pmbus_tests(void);
 void run_mbus_tests(void);
 void run_timer_tests(void);
 void run_timer_wheel_tests(void);
+void run_mutex_tests(void);
 void run_netbuf_tests(void);
 void run_datalog_tests(void);
 void run_soft_i2c_tests(void);
@@ -224,6 +225,10 @@ void run_xrce_dds_tests(void);
 void run_opcua_tests(void);
 void run_gcode_tests(void);
 void run_iolink_tests(void);
+void run_kinematics_tests(void);
+void run_mqttsn_tests(void);
+void run_tpm2_tests(void);
+void run_vad_tests(void);
 
 #define RUN_TEST_GROUP(file, fn)                           \
     do {                                                   \
@@ -895,6 +900,11 @@ int main(void)
     run_opcua_tests();
     run_gcode_tests();
     run_iolink_tests();
+    run_kinematics_tests();
+    run_mqttsn_tests();
+    run_tpm2_tests();
+    run_vad_tests();
+    run_mutex_tests();
 
     return UNITY_END();
 }

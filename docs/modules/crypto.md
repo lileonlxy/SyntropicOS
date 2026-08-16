@@ -130,4 +130,38 @@ void p256_ecdh_and_ecdsa_demo(void) {
 }
 ```
 
+---
+
+## 6. TCG TPM 2.0 Command Marshaller & Measured Boot Engine (`crypto/syn_tpm2.h`)
+
+Complete cleanroom TCG TPM 2.0 serializer and response parser for hardware security chips (SPI / I2C TPM):
+- **Core Operations**: `TPM2_Startup`, `TPM2_SelfTest`, `TPM2_GetRandom`.
+- **Platform Configuration Registers (PCRs)**: `TPM2_PCR_Read` and `TPM2_PCR_Extend` (SHA-1, SHA-256, SHA-384, SHA-512) for measured boot integrity chains.
+- **Remote Attestation**: `TPM2_Quote` over selected PCR banks with nonce verification.
+- **Hardware NVRAM**: Authenticated `TPM2_NV_Read` and `TPM2_NV_Write`.
+
+```c
+#include <syntropic/crypto/syn_tpm2.h>
+
+static SYN_TPM2_Context g_tpm;
+static uint8_t g_tpm_rx[512], g_tpm_tx[512];
+
+void tpm2_setup(const SYN_Transport *tpm_spi_transport) {
+    SYN_TPM2_Config cfg = {
+        .transport = tpm_spi_transport,
+        .rx_buf = g_tpm_rx,
+        .rx_buf_size = sizeof(g_tpm_rx),
+        .tx_buf = g_tpm_tx,
+        .tx_buf_size = sizeof(g_tpm_tx),
+    };
+    syn_tpm2_init(&g_tpm, &cfg);
+    syn_tpm2_startup(&g_tpm, SYN_TPM2_SU_CLEAR);
+}
+
+void measure_stage2_firmware(const uint8_t *fw_sha256) {
+    /* Extend PCR 0 with bootloader / kernel measurement */
+    syn_tpm2_pcr_extend(&g_tpm, 0U, SYN_TPM2_ALG_SHA256, fw_sha256, 32U);
+}
+```
+
 
