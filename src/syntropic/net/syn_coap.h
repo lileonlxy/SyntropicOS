@@ -12,6 +12,8 @@
 #include "../pt/syn_pt.h"
 #include "../sched/syn_task.h"
 #include "../util/syn_backoff.h"
+#include "syn_dtls.h"
+#include "syn_transport.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -210,6 +212,124 @@ SYN_PT_Status syn_coap_request_task(SYN_PT *pt, SYN_Task *task);
  */
 void syn_coap_request_init(SYN_CoapRequest *r, const SYN_SockAddr *server_addr,
                            const SYN_CoapMsg *msg, uint32_t timeout_ms, uint8_t retries);
+
+/* ── CoAP over Generic Transport (SYN_Transport) ────────────────────────── */
+
+/**
+ * @brief CoAP request context over generic SYN_Transport (e.g. DTLS 1.3 / UDP / Serial).
+ */
+typedef struct {
+    /* ── Input ── */
+    SYN_Transport *transport;          /**< Transport interface */
+    const SYN_CoapMsg *req_msg;        /**< Request message to send */
+    const SYN_CoapOption *req_options; /**< Request options array */
+    size_t req_option_count;           /**< Number of request options */
+
+    /* ── Output ── */
+    SYN_CoapMsg resp_msg;           /**< Parsed response message */
+    SYN_CoapOption resp_options[8]; /**< Parsed response options */
+    size_t resp_option_count;       /**< Number of parsed response options */
+    uint8_t resp_buf[256];          /**< Raw response packet buffer */
+    size_t resp_len;                /**< Raw response length in bytes */
+
+    /* ── Execution state ── */
+    uint8_t tx_buf[256]; /**< Serialized request buffer */
+    size_t tx_len;       /**< Serialized request length */
+    uint32_t start_ms;   /**< Timestamp of current attempt */
+    SYN_Backoff backoff; /**< Retransmit backoff state */
+    SYN_Status status;   /**< Final request status */
+} SYN_CoapTransportRequest;
+
+/**
+ * @brief Initialize a CoAP request context over a SYN_Transport.
+ * @param r          Request context.
+ * @param transport  Transport instance.
+ * @param msg        Request message header.
+ * @param timeout_ms Initial retransmit timeout (ms).
+ * @param retries    Maximum number of retransmissions.
+ */
+void syn_coap_transport_request_init(SYN_CoapTransportRequest *r, SYN_Transport *transport,
+                                     const SYN_CoapMsg *msg, uint32_t timeout_ms, uint8_t retries);
+
+/**
+ * @brief Cooperative protothread task for executing a CoAP request over SYN_Transport.
+ * @param pt   Protothread context.
+ * @param task Scheduler task (user_data pointing to SYN_CoapTransportRequest).
+ * @return Protothread status.
+ */
+SYN_PT_Status syn_coap_transport_request_task(SYN_PT *pt, SYN_Task *task);
+
+/**
+ * @brief Send a CoAP request and await matching response over SYN_Transport.
+ * @param transport     Transport instance.
+ * @param req           Request message.
+ * @param req_opts      Request options.
+ * @param req_opt_cnt   Request option count.
+ * @param resp          [out] Parsed response message.
+ * @param resp_opts     [out] Parsed response options array.
+ * @param max_resp_opts Capacity of response options array.
+ * @param resp_opt_cnt  [out] Number of parsed response options.
+ * @param resp_buf      [out] Buffer for raw received packet.
+ * @param resp_buf_sz   Capacity of response buffer.
+ * @return SYN_OK on success, error code otherwise.
+ */
+SYN_Status syn_coap_transport_send_request(SYN_Transport *transport, const SYN_CoapMsg *req,
+                                           const SYN_CoapOption *req_opts, size_t req_opt_cnt,
+                                           SYN_CoapMsg *resp, SYN_CoapOption *resp_opts,
+                                           size_t max_resp_opts, size_t *resp_opt_cnt,
+                                           uint8_t *resp_buf, size_t resp_buf_sz);
+
+/* ── CoAP over DTLS 1.3 (coaps://) ───────────────────────────────────────── */
+
+/**
+ * @brief CoAP over DTLS 1.3 Client Session (RFC 7252 Section 12.1.2 & RFC 9147).
+ */
+typedef struct {
+    SYN_DTLS_Context dtls;        /**< Underlying DTLS 1.3 protocol engine */
+    SYN_Transport dtls_transport; /**< DTLS transport adapter */
+} SYN_CoapsClient;
+
+/**
+ * @brief Initialize a CoAP over DTLS 1.3 Client.
+ * @param client               CoAPS client context.
+ * @param config               DTLS 1.3 configuration.
+ * @param underlying_transport Underlying datagram transport (e.g. UDP socket).
+ * @param rx_buf               Caller-owned RX record buffer.
+ * @param rx_buf_size          Capacity of RX record buffer.
+ * @param tx_buf               Caller-owned TX record buffer.
+ * @param tx_buf_size          Capacity of TX record buffer.
+ * @return true on success, false on invalid parameters.
+ */
+bool syn_coaps_client_init(SYN_CoapsClient *client, const SYN_DTLS_Config *config,
+                           SYN_Transport *underlying_transport, uint8_t *rx_buf, size_t rx_buf_size,
+                           uint8_t *tx_buf, size_t tx_buf_size);
+
+/**
+ * @brief Advance or complete DTLS 1.3 handshake for CoAPS client.
+ * @param client CoAPS client context.
+ * @return true on handshake success, false on error.
+ */
+bool syn_coaps_client_handshake(SYN_CoapsClient *client);
+
+/**
+ * @brief Send a CoAPS request and receive response via DTLS 1.3 datagram channel.
+ * @param client        CoAPS client context.
+ * @param req           Request message.
+ * @param req_opts      Request options.
+ * @param req_opt_cnt   Request option count.
+ * @param resp          [out] Parsed response message.
+ * @param resp_opts     [out] Parsed response options array.
+ * @param max_resp_opts Capacity of response options array.
+ * @param resp_opt_cnt  [out] Number of parsed response options.
+ * @param resp_buf      [out] Buffer for decrypted response payload.
+ * @param resp_buf_sz   Capacity of response buffer.
+ * @return SYN_OK on success, error code otherwise.
+ */
+SYN_Status syn_coaps_client_send_request(SYN_CoapsClient *client, const SYN_CoapMsg *req,
+                                         const SYN_CoapOption *req_opts, size_t req_opt_cnt,
+                                         SYN_CoapMsg *resp, SYN_CoapOption *resp_opts,
+                                         size_t max_resp_opts, size_t *resp_opt_cnt,
+                                         uint8_t *resp_buf, size_t resp_buf_sz);
 
 #ifdef __cplusplus
 }

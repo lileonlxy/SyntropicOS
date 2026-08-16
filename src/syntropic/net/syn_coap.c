@@ -78,7 +78,7 @@ size_t syn_coap_serialize(const SYN_CoapMsg *msg, const SYN_CoapOption *options,
     SYN_ASSERT(msg != NULL);
     SYN_ASSERT(buf != NULL);
 
-    if (max_buf_len < (size_t)(4 + msg->token_len)) {
+    if (msg->token_len > 8 || max_buf_len < (size_t)(4 + msg->token_len)) {
         return 0;
     }
 
@@ -270,7 +270,7 @@ SYN_Status syn_coap_parse(SYN_CoapMsg *msg, SYN_CoapOption *options, size_t max_
         uint16_t num = prev_num + delta;
         prev_num = num;
 
-        if (opt_idx < max_options) {
+        if (options != NULL && opt_idx < max_options) {
             options[opt_idx].num = num;
             options[opt_idx].val = buf + pos;
             options[opt_idx].len = len;
@@ -366,6 +366,171 @@ SYN_PT_Status syn_coap_request_task(SYN_PT *pt, SYN_Task *task)
     r->sock = SYN_SOCKET_INVALID;
 
     PT_END(pt);
+}
+
+/* ── CoAP over Generic Transport (SYN_Transport) ────────────────────────── */
+
+void syn_coap_transport_request_init(SYN_CoapTransportRequest *r, SYN_Transport *transport,
+                                     const SYN_CoapMsg *msg, uint32_t timeout_ms, uint8_t retries)
+{
+    if (r == NULL) {
+        return;
+    }
+    (void)memset(r, 0, sizeof(*r));
+    r->transport = transport;
+    r->req_msg = msg;
+    r->start_ms = 0;
+    syn_backoff_init(&r->backoff, timeout_ms, timeout_ms << retries, 2, retries + 1);
+}
+
+SYN_PT_Status syn_coap_transport_request_task(SYN_PT *pt, SYN_Task *task)
+{
+    if (task == NULL || pt == NULL) {
+        return PT_EXITED;
+    }
+    SYN_CoapTransportRequest *r = (SYN_CoapTransportRequest *)task->user_data;
+    if (r == NULL) {
+        return PT_EXITED;
+    }
+
+    uint32_t attempt_delay = 0;
+
+    PT_BEGIN(pt);
+
+    r->status = SYN_TIMEOUT;
+    if (r->transport == NULL || r->req_msg == NULL) {
+        r->status = SYN_ERROR;
+        PT_EXIT(pt);
+    }
+
+    r->tx_len = syn_coap_serialize(r->req_msg, r->req_options, r->req_option_count, r->tx_buf,
+                                   sizeof(r->tx_buf));
+    if (r->tx_len == 0) {
+        r->status = SYN_ERROR;
+        PT_EXIT(pt);
+    }
+
+    r->start_ms = syn_port_get_tick_ms();
+    syn_backoff_reset(&r->backoff);
+
+    while (!syn_backoff_exhausted(&r->backoff)) {
+        if (!syn_transport_send(r->transport, r->tx_buf, r->tx_len)) {
+            r->status = SYN_ERROR;
+            break;
+        }
+
+        attempt_delay = syn_backoff_next_ms(&r->backoff);
+        r->start_ms = syn_port_get_tick_ms();
+
+        while ((syn_port_get_tick_ms() - r->start_ms) < attempt_delay) {
+            size_t rx_len = 0;
+            if (syn_transport_recv(r->transport, r->resp_buf, sizeof(r->resp_buf), &rx_len) &&
+                rx_len > 0) {
+                r->resp_len = rx_len;
+                SYN_Status st = syn_coap_parse(&r->resp_msg, r->resp_options, 8,
+                                               &r->resp_option_count, r->resp_buf, r->resp_len);
+                if (st == SYN_OK && r->resp_msg.token_len == r->req_msg->token_len &&
+                    memcmp(r->resp_msg.token, r->req_msg->token, r->resp_msg.token_len) == 0) {
+                    r->status = SYN_OK;
+                    break;
+                }
+            }
+            PT_YIELD(pt);
+        }
+
+        if (r->status == SYN_OK) {
+            break;
+        }
+    }
+
+    PT_END(pt);
+}
+
+SYN_Status syn_coap_transport_send_request(SYN_Transport *transport, const SYN_CoapMsg *req,
+                                           const SYN_CoapOption *req_opts, size_t req_opt_cnt,
+                                           SYN_CoapMsg *resp, SYN_CoapOption *resp_opts,
+                                           size_t max_resp_opts, size_t *resp_opt_cnt,
+                                           uint8_t *resp_buf, size_t resp_buf_sz)
+{
+    if (transport == NULL || req == NULL || resp == NULL || resp_buf == NULL || resp_buf_sz == 0) {
+        return SYN_ERROR;
+    }
+
+    uint8_t tx_buf[256];
+    size_t tx_len = syn_coap_serialize(req, req_opts, req_opt_cnt, tx_buf, sizeof(tx_buf));
+    if (tx_len == 0) {
+        return SYN_ERROR;
+    }
+
+    if (!syn_transport_send(transport, tx_buf, tx_len)) {
+        return SYN_ERROR;
+    }
+
+    size_t rx_len = 0;
+    if (!syn_transport_recv(transport, resp_buf, resp_buf_sz, &rx_len) || rx_len == 0) {
+        return SYN_TIMEOUT;
+    }
+
+    size_t dummy_cnt = 0;
+    size_t *opt_cnt_ptr = (resp_opt_cnt != NULL) ? resp_opt_cnt : &dummy_cnt;
+    SYN_Status st = syn_coap_parse(resp, resp_opts, max_resp_opts, opt_cnt_ptr, resp_buf, rx_len);
+    if (st != SYN_OK) {
+        return st;
+    }
+
+    if (resp->token_len != req->token_len || memcmp(resp->token, req->token, req->token_len) != 0) {
+        return SYN_ERROR;
+    }
+
+    return SYN_OK;
+}
+
+/* ── CoAP over DTLS 1.3 (coaps://) ───────────────────────────────────────── */
+
+bool syn_coaps_client_init(SYN_CoapsClient *client, const SYN_DTLS_Config *config,
+                           SYN_Transport *underlying_transport, uint8_t *rx_buf, size_t rx_buf_size,
+                           uint8_t *tx_buf, size_t tx_buf_size)
+{
+    if (client == NULL || config == NULL || underlying_transport == NULL) {
+        return false;
+    }
+
+    if (!syn_dtls_init(&client->dtls, config, underlying_transport, rx_buf, rx_buf_size, tx_buf,
+                       tx_buf_size)) {
+        return false;
+    }
+
+    syn_dtls_bind_transport(&client->dtls, &client->dtls_transport);
+    return true;
+}
+
+bool syn_coaps_client_handshake(SYN_CoapsClient *client)
+{
+    if (client == NULL) {
+        return false;
+    }
+    return syn_dtls_handshake(&client->dtls);
+}
+
+SYN_Status syn_coaps_client_send_request(SYN_CoapsClient *client, const SYN_CoapMsg *req,
+                                         const SYN_CoapOption *req_opts, size_t req_opt_cnt,
+                                         SYN_CoapMsg *resp, SYN_CoapOption *resp_opts,
+                                         size_t max_resp_opts, size_t *resp_opt_cnt,
+                                         uint8_t *resp_buf, size_t resp_buf_sz)
+{
+    if (client == NULL) {
+        return SYN_ERROR;
+    }
+
+    if (client->dtls.state != SYN_DTLS_STATE_ESTABLISHED) {
+        if (!syn_coaps_client_handshake(client)) {
+            return SYN_ERROR;
+        }
+    }
+
+    return syn_coap_transport_send_request(&client->dtls_transport, req, req_opts, req_opt_cnt,
+                                           resp, resp_opts, max_resp_opts, resp_opt_cnt, resp_buf,
+                                           resp_buf_sz);
 }
 
 #endif /* SYN_USE_COAP */

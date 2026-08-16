@@ -253,7 +253,7 @@ test-cov: LDFLAGS += --coverage
 test-cov: FORCE
 	rm -rf $(BUILD_DIR)
 	$(MAKE) -f tests/Makefile.unity $(BUILD_DIR)/test_unity CFLAGS="$(CFLAGS) --coverage" LDFLAGS="$(LDFLAGS) --coverage"
-	./$(BUILD_DIR)/test_unity
+	./$(BUILD_DIR)/test_unity 2>&1 | tee /tmp/test_out.txt; EXIT_CODE=$$?; grep -E "FAIL|Expected|Was" /tmp/test_out.txt || true; exit $$EXIT_CODE
 
 test_unity: $(BUILD_DIR)/test_unity
 
