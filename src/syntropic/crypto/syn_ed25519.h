@@ -1,6 +1,6 @@
 /**
  * @file syn_ed25519.h
- * @brief Pure C99 Ed25519 Signature Verification (RFC 8032).
+ * @brief Pure C99 Ed25519 Key Generation, Signing & Verification (RFC 8032).
  * @ingroup syn_crypto
  */
 
@@ -17,8 +17,49 @@ extern "C" {
 
 /** @brief Size of Ed25519 public key in bytes (32). */
 #define SYN_ED25519_PUBLIC_KEY_SIZE 32U
+/** @brief Size of Ed25519 secret key (seed) in bytes (32). */
+#define SYN_ED25519_SECRET_KEY_SIZE 32U
+/** @brief Size of Ed25519 seed in bytes (32). */
+#define SYN_ED25519_SEED_SIZE 32U
 /** @brief Size of Ed25519 signature in bytes (64). */
 #define SYN_ED25519_SIGNATURE_SIZE 64U
+
+/**
+ * @brief Derive a 32-byte Ed25519 public key from a 32-byte secret key (RFC 8032 Section 5.1.5).
+ *
+ * @param secret_key 32-byte private key/seed.
+ * @param public_key Output 32-byte compressed Edwards public key.
+ * @return true on success, false on invalid parameter.
+ */
+bool syn_ed25519_publickey(const uint8_t secret_key[SYN_ED25519_SECRET_KEY_SIZE],
+                           uint8_t public_key[SYN_ED25519_PUBLIC_KEY_SIZE]);
+
+/**
+ * @brief Create an Ed25519 keypair from a 32-byte random seed (RFC 8032).
+ *
+ * @param public_key Output 32-byte public key.
+ * @param secret_key Output 32-byte secret key (copies seed).
+ * @param seed       Input 32-byte random seed.
+ * @return true on success, false on invalid parameter.
+ */
+bool syn_ed25519_create_keypair(uint8_t public_key[SYN_ED25519_PUBLIC_KEY_SIZE],
+                                uint8_t secret_key[SYN_ED25519_SECRET_KEY_SIZE],
+                                const uint8_t seed[SYN_ED25519_SEED_SIZE]);
+
+/**
+ * @brief Generate an Ed25519 signature (RFC 8032 Section 5.1.6).
+ *
+ * @param msg        Message to sign.
+ * @param msg_len    Length of message in bytes.
+ * @param secret_key 32-byte private key.
+ * @param public_key 32-byte public key (optional; if NULL, derived internally from secret_key).
+ * @param sig        Output 64-byte signature (R || S).
+ * @return true on success, false on invalid parameter.
+ */
+bool syn_ed25519_sign(const uint8_t *msg, size_t msg_len,
+                      const uint8_t secret_key[SYN_ED25519_SECRET_KEY_SIZE],
+                      const uint8_t public_key[SYN_ED25519_PUBLIC_KEY_SIZE],
+                      uint8_t sig[SYN_ED25519_SIGNATURE_SIZE]);
 
 /**
  * @brief Verify an Ed25519 signature (RFC 8032 Section 5.1.7).
