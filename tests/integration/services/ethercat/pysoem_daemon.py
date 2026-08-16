@@ -10,7 +10,7 @@ import sys
 import pysoem
 
 def main():
-    host = '0.0.0.0'
+    host = '127.0.0.1'
     port = 10884
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
