@@ -492,6 +492,53 @@ void test_x509_parse_ecdsa_cert(void)
     TEST_ASSERT_TRUE(syn_x509_parse(ec_cert_der, sizeof(ec_cert_der), &parsed_ec_cert));
     TEST_ASSERT_EQUAL(SYN_X509_ALGO_ECDSA_P256, parsed_ec_cert.pubkey_algo);
     TEST_ASSERT_EQUAL(SYN_X509_ALGO_ECDSA_P256, parsed_ec_cert.sig_algo);
+
+    /* Test SPKI with OID_ECDSA_SHA256 (1.2.840.10045.4.3.2) */
+    static const uint8_t ecdsa_sha256_cert_der[] = {
+        0x30, 0x81, 0x99,                         /* SEQUENCE length 153 */
+        0x30, 0x57,                               /* TBSCertificate length 87 */
+        0xA0, 0x03, 0x02, 0x01, 0x02,             /* [0] Version 3 */
+        0x02, 0x01, 0x01,                         /* Serial Number 1 */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, /* Sig Algo */
+        0x30, 0x12, 0x31, 0x10, 0x30, 0x0E, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x07, 'T',
+        'e',  's',  't',  ' ',  'C',  'A', /* Issuer CN "Test CA" */
+        0x30, 0x00,                        /* Validity empty */
+        0x30, 0x16, 0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x0B, 'T',
+        'e',  's',  't',  ' ',  'S',  'e',  'r',  'v',  'e',  'r', /* Subject CN "Test Server" */
+        0x30, 0x18,                                                /* SPKI (24 bytes) */
+        0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x02, /* OID_ECDSA_SHA256
+                                                                                 */
+        0x03, 0x0A, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, /* Pubkey bits */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70,                               /* Outer Sig Algo */
+        0x03, 0x37, 0x00, /* Outer Sig bits (54 bytes) */
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
+        0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B,
+        0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
+        0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
+
+    SYN_X509_Cert parsed_ecdsa_spki;
+    TEST_ASSERT_TRUE(
+        syn_x509_parse(ecdsa_sha256_cert_der, sizeof(ecdsa_sha256_cert_der), &parsed_ecdsa_spki));
+    TEST_ASSERT_EQUAL(SYN_X509_ALGO_ECDSA_P256, parsed_ecdsa_spki.pubkey_algo);
+}
+
+void test_x509_edge_cases_and_corrupt_structures(void)
+{
+    SYN_X509_Cert cert;
+
+    /* Non-constructed root tag */
+    static const uint8_t primitive_root[] = {0x04, 0x02, 0x00, 0x00};
+    TEST_ASSERT_FALSE(syn_x509_parse(primitive_root, sizeof(primitive_root), &cert));
+
+    /* SEQUENCE with non-constructed TBS */
+    static const uint8_t primitive_tbs[] = {0x30, 0x04, 0x04, 0x02, 0x00, 0x00};
+    TEST_ASSERT_FALSE(syn_x509_parse(primitive_tbs, sizeof(primitive_tbs), &cert));
+
+    /* TBS with non-integer serial (e.g. OCTET STRING instead of INTEGER) */
+    static const uint8_t bad_serial_cert[] = {0x30, 0x0A, 0x30, 0x08, 0x04,
+                                              0x01, 0x01, /* OCTET STRING 1 instead of INTEGER */
+                                              0x30, 0x03, 0x01, 0x01, 0x00};
+    TEST_ASSERT_FALSE(syn_x509_parse(bad_serial_cert, sizeof(bad_serial_cert), &cert));
 }
 
 void run_asn1_x509_tests(void)
@@ -502,4 +549,5 @@ void run_asn1_x509_tests(void)
     RUN_TEST(test_x509_cert_parse_and_chain);
     RUN_TEST(test_x509_ecdsa_p256_verification_and_chain);
     RUN_TEST(test_x509_parse_ecdsa_cert);
+    RUN_TEST(test_x509_edge_cases_and_corrupt_structures);
 }

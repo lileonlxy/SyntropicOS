@@ -664,6 +664,10 @@ extern "C" {
 #include "crypto/syn_x25519.h"
 #endif
 
+#if !defined(SYN_USE_HMAC_DRBG) || SYN_USE_HMAC_DRBG
+#include "crypto/syn_hmac_drbg.h"
+#endif
+
 /* ── Debug & Diagnostics ────────────────────────────────────────────────── */
 
 #if !defined(SYN_USE_TRACE) || SYN_USE_TRACE

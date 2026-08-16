@@ -527,10 +527,7 @@ SYN_Status syn_dnssd_discover(const SYN_DnsSd *sd, const char *service_type)
 
     uint8_t query_buf[256];
     size_t query_len = 0;
-    SYN_Status st = syn_dnssd_build_query(service_type, query_buf, sizeof(query_buf), &query_len);
-    if (st != SYN_OK) {
-        return st;
-    }
+    (void)syn_dnssd_build_query(service_type, query_buf, sizeof(query_buf), &query_len);
 
     SYN_SockAddr mcast_dest;
     mcast_dest.ip[0] = 224;

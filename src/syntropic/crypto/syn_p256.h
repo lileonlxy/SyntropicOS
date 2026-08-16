@@ -86,6 +86,23 @@ bool syn_p256_sign_ecdsa(const uint8_t priv_key[SYN_P256_BYTE_LEN],
                          uint8_t s_out[SYN_P256_BYTE_LEN]);
 
 /**
+ * @brief Generate a deterministic NIST P-256 ECDSA signature (RFC 6979 / FIPS 186-4).
+ *
+ * Derives the ephemeral nonce k deterministically using NIST SP 800-90A HMAC-DRBG (SHA-256)
+ * keyed with the private key and message hash.
+ *
+ * @param priv_key   32-byte private key scalar.
+ * @param hash       32-byte message hash (typically SHA-256).
+ * @param r_out      [out] 32-byte signature component r.
+ * @param s_out      [out] 32-byte signature component s.
+ * @return true on success, false on invalid parameters.
+ */
+bool syn_p256_sign_ecdsa_deterministic(const uint8_t priv_key[SYN_P256_BYTE_LEN],
+                                       const uint8_t hash[SYN_P256_BYTE_LEN],
+                                       uint8_t r_out[SYN_P256_BYTE_LEN],
+                                       uint8_t s_out[SYN_P256_BYTE_LEN]);
+
+/**
  * @brief Verify a NIST P-256 ECDSA signature (FIPS 186-4).
  *
  * @param hash    32-byte message hash (typically SHA-256).

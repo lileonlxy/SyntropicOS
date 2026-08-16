@@ -311,7 +311,13 @@ void test_dnssd_query_and_response_parsing(void)
     /* Discover transmit */
     TEST_ASSERT_EQUAL_INT(SYN_OK, syn_dnssd_discover(&sd, "_coap._udp"));
     TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_dnssd_discover(NULL, "_coap._udp"));
-    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_dnssd_discover(&sd, NULL));
+    SYN_DnsSd bad_sd = sd;
+    bad_sd.sock = SYN_SOCKET_INVALID;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_dnssd_discover(&bad_sd, "_coap._udp"));
+    uint8_t small_qbuf[64];
+    size_t small_qlen = 0;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_dnssd_build_query("_coap._udp", small_qbuf,
+                                                           sizeof(small_qbuf), &small_qlen));
 
     /* Error parsing checks */
     TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_dnssd_parse_response(NULL, rlen, &disc));
@@ -319,6 +325,41 @@ void test_dnssd_query_and_response_parsing(void)
     TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_dnssd_parse_response(resp, rlen, NULL));
     resp[2] = 0x00; /* Force QR=0 (query, not response) */
     TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_dnssd_parse_response(resp, rlen, &disc));
+
+    /* Response with total_rr == 0 */
+    uint8_t zero_rr_resp[12] = {0, 0, 0x84, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_dnssd_parse_response(zero_rr_resp, sizeof(zero_rr_resp), &disc));
+
+    /* Response with pointer compression and truncated labels */
+    uint8_t ptr_resp[32] = {
+        0,    0,    0x84, 0,    0,    0,    0,    1,    0,    0,    0, 0, /* Header: 1 answer */
+        0xC0, 0x0C,                                                       /* Pointer to offset 12 */
+        0x00, 0x0C, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x04,       /* PTR record, rdlen 4 */
+        0x03, 'f',  'o',  'o'};
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_dnssd_parse_response(ptr_resp, sizeof(ptr_resp), &disc));
+
+    /* Truncated RR header and truncated RDATA */
+    uint8_t trunc_rr_resp[16] = {
+        0, 0, 0x84, 0, 0,    0,   0,   1,
+        0, 0, 0,    0, 0x03, 'f', 'o', 'o' /* No room for 10-byte RR header */
+    };
+    TEST_ASSERT_EQUAL_INT(SYN_OK,
+                          syn_dnssd_parse_response(trunc_rr_resp, sizeof(trunc_rr_resp), &disc));
+
+    uint8_t trunc_rdata_resp[24] = {
+        0,    0,    0x84, 0,    0,    0,    0,    1,    0,    0,   0, 0, 0x00, /* Null name */
+        0x00, 0x0C, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x20 /* rdlen 32 > remaining */
+    };
+    TEST_ASSERT_EQUAL_INT(
+        SYN_OK, syn_dnssd_parse_response(trunc_rdata_resp, sizeof(trunc_rdata_resp), &disc));
+
+    /* Truncated label length */
+    uint8_t trunc_label_resp[20] = {
+        0, 0, 0x84, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0x20, 'a', 'b' /* label length 32 > buffer */
+    };
+    TEST_ASSERT_EQUAL_INT(
+        SYN_OK, syn_dnssd_parse_response(trunc_label_resp, sizeof(trunc_label_resp), &disc));
 }
 
 static void on_discovered_service(const SYN_DnsSd_Discovered *svc, void *user_data)

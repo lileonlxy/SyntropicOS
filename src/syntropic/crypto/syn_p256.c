@@ -5,6 +5,10 @@
 
 #include "syn_p256.h"
 
+#if !defined(SYN_USE_HMAC_DRBG) || SYN_USE_HMAC_DRBG
+#include "syn_hmac_drbg.h"
+#endif
+
 #include <string.h>
 
 /* NIST P-256 Curve Constants (Little-Endian 32-bit Words: limbs[0] is least significant) */
@@ -224,20 +228,13 @@ static void p256_mod_p_reduce(bignum256 r, const uint32_t c[16])
         carry = val >> 32U;
     }
 
-    if (carry > 0) {
-        while (carry > 0) {
-            bn_sub_raw(r, r, P256_P);
-            carry--;
-        }
-    } else if (carry < 0) {
-        while (carry < 0) {
-            bn_add_raw(r, r, P256_P);
-            carry++;
-        }
-    }
-
-    while (bn_cmp(r, P256_P) >= 0) {
+    while (carry > 0 || bn_cmp(r, P256_P) >= 0) {
         bn_sub_raw(r, r, P256_P);
+        carry--;
+    }
+    while (carry < 0) {
+        bn_add_raw(r, r, P256_P);
+        carry++;
     }
 }
 
@@ -540,15 +537,6 @@ static void point_double(P256_Point *r, const P256_Point *p)
 static void point_add_mixed(P256_Point *r, const P256_Point *p, const bignum256 qx,
                             const bignum256 qy)
 {
-    if (p->infinity) {
-        bn_copy(r->x, qx);
-        bn_copy(r->y, qy);
-        memset(r->z, 0, sizeof(r->z));
-        r->z[0] = 1U;
-        r->infinity = false;
-        return;
-    }
-
     bignum256 z1_sqr, u2, z1_cube, s2, h, rr;
     p256_mod_p_sqr(z1_sqr, p->z);
     p256_mod_p_mul(u2, qx, z1_sqr);
@@ -784,10 +772,6 @@ bool syn_p256_base_mul(const uint8_t scalar[SYN_P256_BYTE_LEN], uint8_t pub_x[SY
     P256_Point res;
     point_scalar_mul_affine(&res, k, P256_GX, P256_GY);
 
-    if (res.infinity) {
-        return false;
-    }
-
     bignum256 rx, ry;
     point_to_affine(&res, rx, ry);
 
@@ -821,10 +805,6 @@ bool syn_p256_point_mul(const uint8_t scalar[SYN_P256_BYTE_LEN],
 
     P256_Point res;
     point_scalar_mul_affine(&res, k, ax, ay);
-
-    if (res.infinity) {
-        return false;
-    }
 
     bignum256 out_x, out_y;
     point_to_affine(&res, out_x, out_y);
@@ -860,12 +840,6 @@ bool syn_p256_sign_ecdsa(const uint8_t priv_key[SYN_P256_BYTE_LEN],
 
     bignum256 bn_r;
     bn_from_bytes(bn_r, rx);
-    while (bn_cmp(bn_r, P256_N) >= 0) {
-        bn_sub_raw(bn_r, bn_r, P256_N);
-    }
-    if (bn_is_zero(bn_r)) {
-        return false;
-    }
 
     /* 2. s = k^-1 * (e + d * r) mod n */
     bignum256 k, k_inv, d, e, xr, num, s;
@@ -894,6 +868,46 @@ bool syn_p256_sign_ecdsa(const uint8_t priv_key[SYN_P256_BYTE_LEN],
     bn_to_bytes(r_out, bn_r);
     bn_to_bytes(s_out, s);
     return true;
+}
+
+bool syn_p256_sign_ecdsa_deterministic(const uint8_t priv_key[SYN_P256_BYTE_LEN],
+                                       const uint8_t hash[SYN_P256_BYTE_LEN],
+                                       uint8_t r_out[SYN_P256_BYTE_LEN],
+                                       uint8_t s_out[SYN_P256_BYTE_LEN])
+{
+#if !defined(SYN_USE_HMAC_DRBG) || SYN_USE_HMAC_DRBG
+    if (priv_key == NULL || hash == NULL || r_out == NULL || s_out == NULL) {
+        return false;
+    }
+
+    SYN_HMAC_DRBG drbg;
+    (void)syn_hmac_drbg_init(&drbg, priv_key, SYN_P256_BYTE_LEN, hash, SYN_P256_BYTE_LEN, NULL, 0U);
+
+    uint8_t nonce_k[SYN_P256_BYTE_LEN];
+    bool success = false;
+
+    for (uint32_t attempts = 0U; attempts < 100U; attempts++) {
+        (void)syn_hmac_drbg_generate(&drbg, nonce_k, sizeof(nonce_k), NULL, 0U);
+
+        if (syn_p256_sign_ecdsa(priv_key, nonce_k, hash, r_out, s_out)) {
+            success = true;
+            break;
+        }
+    }
+
+    syn_hmac_drbg_wipe(&drbg);
+    volatile uint8_t *vp = (volatile uint8_t *)nonce_k;
+    for (size_t i = 0U; i < sizeof(nonce_k); i++) {
+        vp[i] = 0U;
+    }
+    return success;
+#else
+    (void)priv_key;
+    (void)hash;
+    (void)r_out;
+    (void)s_out;
+    return false;
+#endif
 }
 
 bool syn_p256_verify_ecdsa(const uint8_t hash[SYN_P256_BYTE_LEN],
@@ -953,11 +967,6 @@ bool syn_p256_verify_ecdsa(const uint8_t hash[SYN_P256_BYTE_LEN],
 
     bignum256 rx, ry;
     point_to_affine(&res_pt, rx, ry);
-
-    /* v = rx mod n */
-    while (bn_cmp(rx, P256_N) >= 0) {
-        bn_sub_raw(rx, rx, P256_N);
-    }
 
     return (bn_cmp(rx, bn_r) == 0);
 }

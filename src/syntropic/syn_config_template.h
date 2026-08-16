@@ -104,6 +104,7 @@
 #define SYN_USE_X25519 1           /**< X25519 Diffie-Hellman (RFC 7748)   */
 #define SYN_USE_P256 1             /**< NIST P-256 / secp256r1 ECC          */
 #define SYN_P256_USE_COMB_TABLE 0  /**< Precomputed G comb table (opt-in)   */
+#define SYN_USE_HMAC_DRBG 1        /**< NIST SP 800-90A HMAC-DRBG (SHA-256) */
 #define SYN_USE_BASE64 1           /**< RFC 4648 Base64 & Base64URL codec   */
 
 /* ── Bluetooth Low Energy ───────────────────────────────────────────────── */

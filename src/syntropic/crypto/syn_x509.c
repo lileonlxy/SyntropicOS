@@ -23,10 +23,6 @@ static const uint8_t OID_COMMON_NAME[] = {0x55, 0x04, 0x03};        /* 2.5.4.3 i
 
 static void parse_rdn_cn(const SYN_ASN1_Element *name_container, char *cn_out, size_t max_len)
 {
-    if (name_container == NULL || cn_out == NULL || max_len == 0) {
-        return;
-    }
-
     cn_out[0] = '\0';
 
     const uint8_t *cur;
@@ -87,30 +83,26 @@ bool syn_x509_parse(const uint8_t *der, size_t der_len, SYN_X509_Cert *cert_out)
     const uint8_t *ptr = der;
     size_t rem = der_len;
 
-    if (!syn_asn1_step(&ptr, &rem, &root_seq) || root_seq.tag != SYN_ASN1_TAG_SEQUENCE) {
+    if (!syn_asn1_step(&ptr, &rem, &root_seq) || root_seq.tag != SYN_ASN1_TAG_SEQUENCE ||
+        !root_seq.constructed) {
         return false;
     }
 
-    const uint8_t *cert_cur;
-    size_t cert_len;
-    if (!syn_asn1_enter_container(&root_seq, &cert_cur, &cert_len)) {
-        return false;
-    }
+    const uint8_t *cert_cur = root_seq.value;
+    size_t cert_len = root_seq.length;
 
     /* 1. TBSCertificate (To Be Signed) */
     SYN_ASN1_Element tbs_elem;
-    if (!syn_asn1_step(&cert_cur, &cert_len, &tbs_elem) || tbs_elem.tag != SYN_ASN1_TAG_SEQUENCE) {
+    if (!syn_asn1_step(&cert_cur, &cert_len, &tbs_elem) || tbs_elem.tag != SYN_ASN1_TAG_SEQUENCE ||
+        !tbs_elem.constructed) {
         return false;
     }
 
     cert_out->tbs_bytes = tbs_elem.value - tbs_elem.header_len;
     cert_out->tbs_len = tbs_elem.header_len + tbs_elem.length;
 
-    const uint8_t *tbs_cur;
-    size_t tbs_len;
-    if (!syn_asn1_enter_container(&tbs_elem, &tbs_cur, &tbs_len)) {
-        return false;
-    }
+    const uint8_t *tbs_cur = tbs_elem.value;
+    size_t tbs_len = tbs_elem.length;
 
     /* Check Version (Optional [0] EXPLICIT INTEGER) */
     SYN_ASN1_Element first_elem;

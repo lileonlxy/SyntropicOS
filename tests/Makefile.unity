@@ -187,6 +187,7 @@ SYN_SRCS := \
 	src/syntropic/util/syn_nn.c \
 	src/syntropic/util/syn_dsp.c \
 	src/syntropic/crypto/syn_hkdf.c \
+	src/syntropic/crypto/syn_hmac_drbg.c \
 	src/syntropic/crypto/syn_asn1.c \
 	src/syntropic/crypto/syn_ed25519.c \
 	src/syntropic/crypto/syn_p256.c \
