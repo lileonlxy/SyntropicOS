@@ -492,12 +492,228 @@ void test_aes_port_and_ghash_functions(void)
     mock_aes_hw_enabled = false;
 }
 
+/* ── AES CCM NIST SP 800-38C & RFC 3610 Test Vectors ────────────────────── */
+
+void test_aes_ccm_nist_vectors(void)
+{
+    /* 1. RFC 3610 Packet Vector #1 */
+    const uint8_t key1[16] = {0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7,
+                              0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF};
+    const uint8_t nonce1[13] = {0x00, 0x00, 0x00, 0x03, 0x02, 0x01, 0x00,
+                                0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
+    const uint8_t aad1[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+    const uint8_t plain1[23] = {0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+                                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+                                0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E};
+    const uint8_t exp_ct1[23] = {0x58, 0x8C, 0x97, 0x9A, 0x61, 0xC6, 0x63, 0xD2,
+                                 0xF0, 0x66, 0xD0, 0xC2, 0xC0, 0xF9, 0x89, 0x80,
+                                 0x6D, 0x5F, 0x6B, 0x61, 0xDA, 0xC3, 0x84};
+    const uint8_t exp_tag1[8] = {0x17, 0xE8, 0xD1, 0x2C, 0xFD, 0xF9, 0x26, 0xE0};
+
+    SYN_AES_Context ctx;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_init(&ctx, key1, 16));
+
+    uint8_t ct[64] = {0};
+    uint8_t tag[16] = {0};
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, sizeof(nonce1), aad1, sizeof(aad1), plain1,
+                                          sizeof(plain1), ct, tag, sizeof(exp_tag1)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_ct1, ct, sizeof(plain1));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_tag1, tag, sizeof(exp_tag1));
+
+    uint8_t pt[64] = {0};
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_decrypt(&ctx, nonce1, sizeof(nonce1), aad1, sizeof(aad1),
+                                                  ct, sizeof(plain1), tag, sizeof(exp_tag1), pt));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(plain1, pt, sizeof(plain1));
+
+    /* 2. RFC 3610 Packet Vector #2 (24-byte payload) */
+    const uint8_t nonce2[13] = {0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01,
+                                0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
+    const uint8_t plain2[24] = {0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+                                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+                                0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F};
+    const uint8_t exp_ct2[24] = {0x72, 0xC9, 0x1A, 0x36, 0xE1, 0x35, 0xF8, 0xCF,
+                                 0x29, 0x1C, 0xA8, 0x94, 0x08, 0x5C, 0x87, 0xE3,
+                                 0xCC, 0x15, 0xC4, 0x39, 0xC9, 0xE4, 0x3A, 0x3B};
+    const uint8_t exp_tag2[8] = {0xA0, 0x91, 0xD5, 0x6E, 0x10, 0x40, 0x09, 0x16};
+
+    memset(ct, 0, sizeof(ct));
+    memset(tag, 0, sizeof(tag));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_aes_ccm_encrypt(&ctx, nonce2, sizeof(nonce2), aad1, sizeof(aad1), plain2,
+                                          sizeof(plain2), ct, tag, sizeof(exp_tag2)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_ct2, ct, sizeof(plain2));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_tag2, tag, sizeof(exp_tag2));
+
+    memset(pt, 0, sizeof(pt));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_decrypt(&ctx, nonce2, sizeof(nonce2), aad1, sizeof(aad1),
+                                                  ct, sizeof(plain2), tag, sizeof(exp_tag2), pt));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(plain2, pt, sizeof(plain2));
+
+    /* 3. RFC 3610 Packet Vector #3 (25-byte payload) */
+    const uint8_t nonce3[13] = {0x00, 0x00, 0x00, 0x05, 0x04, 0x03, 0x02,
+                                0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
+    const uint8_t plain3[25] = {0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+                                0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+                                0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20};
+    const uint8_t exp_ct3[25] = {0x51, 0xB1, 0xE5, 0xF4, 0x4A, 0x19, 0x7D, 0x1D, 0xA4,
+                                 0x6B, 0x0F, 0x8E, 0x2D, 0x28, 0x2A, 0xE8, 0x71, 0xE8,
+                                 0x38, 0xBB, 0x64, 0xDA, 0x85, 0x96, 0x57};
+    const uint8_t exp_tag3[8] = {0x4A, 0xDA, 0xA7, 0x6F, 0xBD, 0x9F, 0xB0, 0xC5};
+
+    memset(ct, 0, sizeof(ct));
+    memset(tag, 0, sizeof(tag));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_aes_ccm_encrypt(&ctx, nonce3, sizeof(nonce3), aad1, sizeof(aad1), plain3,
+                                          sizeof(plain3), ct, tag, sizeof(exp_tag3)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_ct3, ct, sizeof(plain3));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_tag3, tag, sizeof(exp_tag3));
+
+    memset(pt, 0, sizeof(pt));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_decrypt(&ctx, nonce3, sizeof(nonce3), aad1, sizeof(aad1),
+                                                  ct, sizeof(plain3), tag, sizeof(exp_tag3), pt));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(plain3, pt, sizeof(plain3));
+
+    /* 4. RFC 3610 Packet Vector #4 (12-byte AAD, 19-byte Payload) */
+    const uint8_t nonce4[13] = {0x00, 0x00, 0x00, 0x06, 0x05, 0x04, 0x03,
+                                0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
+    const uint8_t aad4[12] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+                              0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B};
+    const uint8_t plain4[19] = {0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
+                                0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E};
+    const uint8_t exp_ct4[19] = {0xA2, 0x8C, 0x68, 0x65, 0x93, 0x9A, 0x9A, 0x79, 0xFA, 0xAA,
+                                 0x5C, 0x4C, 0x2A, 0x9D, 0x4A, 0x91, 0xCD, 0xAC, 0x8C};
+    const uint8_t exp_tag4[8] = {0x96, 0xC8, 0x61, 0xB9, 0xC9, 0xE6, 0x1E, 0xF1};
+
+    memset(ct, 0, sizeof(ct));
+    memset(tag, 0, sizeof(tag));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_aes_ccm_encrypt(&ctx, nonce4, sizeof(nonce4), aad4, sizeof(aad4), plain4,
+                                          sizeof(plain4), ct, tag, sizeof(exp_tag4)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_ct4, ct, sizeof(plain4));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_tag4, tag, sizeof(exp_tag4));
+
+    memset(pt, 0, sizeof(pt));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_decrypt(&ctx, nonce4, sizeof(nonce4), aad4, sizeof(aad4),
+                                                  ct, sizeof(plain4), tag, sizeof(exp_tag4), pt));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(plain4, pt, sizeof(plain4));
+
+    /* 5. RFC 3610 Packet Vector #7 (10-byte Tag, 23-byte Payload) */
+    const uint8_t nonce7[13] = {0x00, 0x00, 0x00, 0x09, 0x08, 0x07, 0x06,
+                                0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
+    const uint8_t exp_ct7[23] = {0x01, 0x35, 0xD1, 0xB2, 0xC9, 0x5F, 0x41, 0xD5,
+                                 0xD1, 0xD4, 0xFE, 0xC1, 0x85, 0xD1, 0x66, 0xB8,
+                                 0x09, 0x4E, 0x99, 0x9D, 0xFE, 0xD9, 0x6C};
+    const uint8_t exp_tag7[10] = {0x04, 0x8C, 0x56, 0x60, 0x2C, 0x97, 0xAC, 0xBB, 0x74, 0x90};
+
+    memset(ct, 0, sizeof(ct));
+    memset(tag, 0, sizeof(tag));
+    TEST_ASSERT_EQUAL(SYN_OK,
+                      syn_aes_ccm_encrypt(&ctx, nonce7, sizeof(nonce7), aad1, sizeof(aad1), plain1,
+                                          sizeof(plain1), ct, tag, sizeof(exp_tag7)));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_ct7, ct, sizeof(plain1));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(exp_tag7, tag, sizeof(exp_tag7));
+
+    memset(pt, 0, sizeof(pt));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_decrypt(&ctx, nonce7, sizeof(nonce7), aad1, sizeof(aad1),
+                                                  ct, sizeof(plain1), tag, sizeof(exp_tag7), pt));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(plain1, pt, sizeof(plain1));
+
+    /* 4. Empty Payload / Empty AAD / 256-bit Key */
+    const uint8_t key256[32] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
+                                0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+                                0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20};
+    SYN_AES_Context ctx256;
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_init(&ctx256, key256, 32));
+
+    /* Empty payload, non-empty AAD */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_encrypt(&ctx256, nonce1, 13, aad1, sizeof(aad1), NULL, 0,
+                                                  NULL, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_decrypt(&ctx256, nonce1, 13, aad1, sizeof(aad1), NULL, 0,
+                                                  tag, 16, NULL));
+
+    /* Non-empty payload, NULL AAD */
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_encrypt(&ctx256, nonce1, 13, NULL, 0, plain1,
+                                                  sizeof(plain1), ct, tag, 16));
+    TEST_ASSERT_EQUAL(
+        SYN_OK, syn_aes_ccm_decrypt(&ctx256, nonce1, 13, NULL, 0, ct, sizeof(plain1), tag, 16, pt));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(plain1, pt, sizeof(plain1));
+
+    /* 5. Tag tampering rejection */
+    tag[0] ^= 0xFF;
+    TEST_ASSERT_EQUAL(SYN_ERROR, syn_aes_ccm_decrypt(&ctx256, nonce1, 13, NULL, 0, ct,
+                                                     sizeof(plain1), tag, 16, pt));
+
+    /* 6. Large AAD (> 65280 bytes) */
+    static uint8_t large_aad[65300];
+    memset(large_aad, 0x5A, sizeof(large_aad));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_encrypt(&ctx, nonce1, 13, large_aad, sizeof(large_aad),
+                                                  plain1, sizeof(plain1), ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_OK, syn_aes_ccm_decrypt(&ctx, nonce1, 13, large_aad, sizeof(large_aad),
+                                                  ct, sizeof(plain1), tag, 16, pt));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(plain1, pt, sizeof(plain1));
+
+    /* 7. Parameter validation */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(NULL, nonce1, 13, aad1, 8, plain1, 23, ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, NULL, 13, aad1, 8, plain1, 23, ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 6, aad1, 8, plain1, 23, ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 14, aad1, 8, plain1, 23, ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, NULL, 8, plain1, 23, ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, aad1, 8, NULL, 23, ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, aad1, 8, plain1, 23, NULL, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, aad1, 8, plain1, 23, ct, NULL, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, aad1, 8, plain1, 23, ct, tag, 3));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, aad1, 8, plain1, 23, ct, tag, 18));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, aad1, 8, plain1, 23, ct, tag, 7));
+
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(NULL, nonce1, 13, aad1, 8, ct, 23, tag, 16, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, NULL, 13, aad1, 8, ct, 23, tag, 16, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 6, aad1, 8, ct, 23, tag, 16, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 14, aad1, 8, ct, 23, tag, 16, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, NULL, 8, ct, 23, tag, 16, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, aad1, 8, NULL, 23, tag, 16, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, aad1, 8, ct, 23, tag, 16, NULL));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, aad1, 8, ct, 23, NULL, 16, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, aad1, 8, ct, 23, tag, 3, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, aad1, 8, ct, 23, tag, 18, pt));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, aad1, 8, ct, 23, tag, 7, pt));
+
+    /* Payload length exceeding L limit */
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_encrypt(&ctx, nonce1, 13, NULL, 0, plain1, 70000U, ct, tag, 16));
+    TEST_ASSERT_EQUAL(SYN_INVALID_PARAM,
+                      syn_aes_ccm_decrypt(&ctx, nonce1, 13, NULL, 0, ct, 70000U, tag, 16, pt));
+}
+
 void run_aes_tests(void)
 {
     RUN_TEST(test_aes_ecb_nist_vectors);
     RUN_TEST(test_aes_cbc_nist_vectors);
     RUN_TEST(test_aes_ctr_nist_vectors);
     RUN_TEST(test_aes_gcm_nist_vectors);
+    RUN_TEST(test_aes_ccm_nist_vectors);
     RUN_TEST(test_aes_param_validation);
     RUN_TEST(test_aes_port_and_ghash_functions);
 }

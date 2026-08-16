@@ -265,6 +265,51 @@ SYN_Status syn_aes_gcm_decrypt(const SYN_AES_GCM_Context *ctx, const uint8_t *no
 void syn_aes_ghash_mult(const uint8_t x[16], const uint8_t h[16], uint8_t out[16]);
 #endif
 
+#if !defined(SYN_USE_AES_CCM) || SYN_USE_AES_CCM
+/**
+ * @brief AES-CCM authenticated encryption (NIST SP 800-38C / RFC 3610).
+ *
+ * Computes CBC-MAC authentication tag and encrypts payload in CTR mode.
+ *
+ * @param[in]  ctx       Initialized AES context.
+ * @param[in]  nonce     Nonce buffer (length must be 7..13 bytes).
+ * @param[in]  nonce_len Nonce length in bytes (7 to 13).
+ * @param[in]  aad       Additional authenticated data (may be NULL if aad_len is 0).
+ * @param[in]  aad_len   AAD length in bytes.
+ * @param[in]  in        Plaintext buffer to encrypt (may be NULL if in_len is 0).
+ * @param[in]  in_len    Plaintext length in bytes.
+ * @param[out] out       Ciphertext output buffer (must be at least in_len bytes).
+ * @param[out] tag       Authentication tag output buffer.
+ * @param[in]  tag_len   Length of authentication tag in bytes (4, 6, 8, 10, 12, 14, or 16).
+ * @return SYN_OK on success, or SYN_INVALID_PARAM on invalid parameters.
+ */
+SYN_Status syn_aes_ccm_encrypt(const SYN_AES_Context *ctx, const uint8_t *nonce, size_t nonce_len,
+                               const uint8_t *aad, size_t aad_len, const uint8_t *in, size_t in_len,
+                               uint8_t *out, uint8_t *tag, size_t tag_len);
+
+/**
+ * @brief AES-CCM authenticated decryption and tag verification (NIST SP 800-38C / RFC 3610).
+ *
+ * Decrypts ciphertext in CTR mode and verifies CBC-MAC authentication tag in constant time.
+ * If verification fails, plaintext buffer is zeroed (if out != in) and SYN_ERROR is returned.
+ *
+ * @param[in]  ctx       Initialized AES context.
+ * @param[in]  nonce     Nonce buffer (length must be 7..13 bytes).
+ * @param[in]  nonce_len Nonce length in bytes (7 to 13).
+ * @param[in]  aad       Additional authenticated data (may be NULL if aad_len is 0).
+ * @param[in]  aad_len   AAD length in bytes.
+ * @param[in]  in        Ciphertext buffer to decrypt (may be NULL if in_len is 0).
+ * @param[in]  in_len    Ciphertext length in bytes.
+ * @param[in]  tag       Authentication tag to verify against.
+ * @param[in]  tag_len   Length of authentication tag in bytes (4, 6, 8, 10, 12, 14, or 16).
+ * @param[out] out       Plaintext output buffer (must be at least in_len bytes).
+ * @return SYN_OK on success, SYN_ERROR on tag mismatch, or SYN_INVALID_PARAM on invalid params.
+ */
+SYN_Status syn_aes_ccm_decrypt(const SYN_AES_Context *ctx, const uint8_t *nonce, size_t nonce_len,
+                               const uint8_t *aad, size_t aad_len, const uint8_t *in, size_t in_len,
+                               const uint8_t *tag, size_t tag_len, uint8_t *out);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

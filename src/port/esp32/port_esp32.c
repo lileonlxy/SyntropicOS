@@ -274,4 +274,88 @@ SYN_WEAK int syn_port_serial_read(uint8_t *buf, size_t max_len)
     return (int)received;
 }
 
+/* ── Hardware Crypto Port (ESP32 AES) ──────────────────────────────────── */
+
+#include "syntropic/port/syn_port_aes.h"
+#if defined(SOC_AES_SUPPORTED) || defined(CONFIG_IDF_TARGET_ESP32) ||           \
+    defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3) || \
+    defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)
+#include "aes/esp_aes.h"
+#endif
+
+SYN_Status syn_port_aes_init(void)
+{
+#if defined(SOC_AES_SUPPORTED) || defined(CONFIG_IDF_TARGET_ESP32) ||           \
+    defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3) || \
+    defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)
+    return SYN_OK;
+#else
+    return SYN_NOT_IMPLEMENTED;
+#endif
+}
+
+SYN_Status syn_port_aes_encrypt_block(const uint8_t *round_keys, uint8_t nr, const uint8_t in[16],
+                                      uint8_t out[16])
+{
+#if defined(SOC_AES_SUPPORTED) || defined(CONFIG_IDF_TARGET_ESP32) ||           \
+    defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3) || \
+    defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)
+    if (round_keys == NULL || in == NULL || out == NULL) {
+        return SYN_NOT_IMPLEMENTED;
+    }
+    esp_aes_context ctx;
+    esp_aes_init(&ctx);
+    uint32_t key_bits = (nr == 10U) ? 128U : ((nr == 12U) ? 192U : 256U);
+    if (esp_aes_setkey_enc(&ctx, round_keys, key_bits) != 0) {
+        esp_aes_free(&ctx);
+        return SYN_ERROR;
+    }
+    int res = esp_aes_crypt_ecb(&ctx, ESP_AES_ENCRYPT, in, out);
+    esp_aes_free(&ctx);
+    return (res == 0) ? SYN_OK : SYN_ERROR;
+#else
+    (void)round_keys;
+    (void)nr;
+    (void)in;
+    (void)out;
+    return SYN_NOT_IMPLEMENTED;
+#endif
+}
+
+SYN_Status syn_port_aes_decrypt_block(const uint8_t *round_keys, uint8_t nr, const uint8_t in[16],
+                                      uint8_t out[16])
+{
+#if defined(SOC_AES_SUPPORTED) || defined(CONFIG_IDF_TARGET_ESP32) ||           \
+    defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3) || \
+    defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)
+    if (round_keys == NULL || in == NULL || out == NULL) {
+        return SYN_NOT_IMPLEMENTED;
+    }
+    esp_aes_context ctx;
+    esp_aes_init(&ctx);
+    uint32_t key_bits = (nr == 10U) ? 128U : ((nr == 12U) ? 192U : 256U);
+    if (esp_aes_setkey_dec(&ctx, round_keys, key_bits) != 0) {
+        esp_aes_free(&ctx);
+        return SYN_ERROR;
+    }
+    int res = esp_aes_crypt_ecb(&ctx, ESP_AES_DECRYPT, in, out);
+    esp_aes_free(&ctx);
+    return (res == 0) ? SYN_OK : SYN_ERROR;
+#else
+    (void)round_keys;
+    (void)nr;
+    (void)in;
+    (void)out;
+    return SYN_NOT_IMPLEMENTED;
+#endif
+}
+
+SYN_Status syn_port_ghash_mult(const uint8_t x[16], const uint8_t h[16], uint8_t out[16])
+{
+    (void)x;
+    (void)h;
+    (void)out;
+    return SYN_NOT_IMPLEMENTED;
+}
+
 #endif /* ESP_PLATFORM && !ARDUINO */

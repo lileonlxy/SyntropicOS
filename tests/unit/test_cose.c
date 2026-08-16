@@ -238,6 +238,37 @@ void test_cose_null_and_boundary_checks(void)
                                                                sizeof(dummy), &out_len, NULL));
     TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_encrypt0_decrypt(dummy, 0, dummy, NULL, 0, dummy,
                                                                sizeof(dummy), &out_len, NULL));
+
+    /* CCM invalid IV length checks (create) */
+    TEST_ASSERT_EQUAL_INT(
+        SYN_ERROR, syn_cose_encrypt0_create(SYN_COSE_ALGO_AES_CCM_16_64_128, dummy, dummy, 6, NULL,
+                                            0, dummy, 10, NULL, 0, dummy, sizeof(dummy), &out_len));
+    TEST_ASSERT_EQUAL_INT(
+        SYN_ERROR, syn_cose_encrypt0_create(SYN_COSE_ALGO_AES_CCM_16_64_128, dummy, dummy, 14, NULL,
+                                            0, dummy, 10, NULL, 0, dummy, sizeof(dummy), &out_len));
+
+    /* CCM invalid IV length checks (decrypt) */
+    uint8_t bad_ccm_cbor[128];
+    SYN_CborWriter cw;
+    syn_cbor_writer_init(&cw, bad_ccm_cbor, sizeof(bad_ccm_cbor));
+    syn_cbor_write_array_begin(&cw, 3);
+    uint8_t prot[16];
+    SYN_CborWriter pw;
+    syn_cbor_writer_init(&pw, prot, sizeof(prot));
+    syn_cbor_write_map_begin(&pw, 1);
+    syn_cbor_write_uint(&pw, SYN_COSE_HEADER_ALG);
+    syn_cbor_write_uint(&pw, SYN_COSE_ALGO_AES_CCM_16_64_128);
+    syn_cbor_write_bytes(&cw, prot, syn_cbor_writer_len(&pw));
+    syn_cbor_write_map_begin(&cw, 1);
+    syn_cbor_write_uint(&cw, SYN_COSE_HEADER_IV);
+    uint8_t short_iv[5] = {1, 2, 3, 4, 5};
+    syn_cbor_write_bytes(&cw, short_iv, sizeof(short_iv));
+    uint8_t dummy_ct[16] = {0};
+    syn_cbor_write_bytes(&cw, dummy_ct, sizeof(dummy_ct));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_encrypt0_decrypt(bad_ccm_cbor, syn_cbor_writer_len(&cw), dummy,
+                                                    NULL, 0, dummy, sizeof(dummy), &out_len, NULL));
+
     /* Empty plaintext encryption and decryption (payload = NULL, length = 0) */
     uint8_t empty_ct_msg[256];
     size_t empty_ct_len = 0;
@@ -448,6 +479,125 @@ void test_cose_null_and_boundary_checks(void)
     TEST_ASSERT_EQUAL_INT(SYN_ERROR,
                           syn_cose_sign1_verify(empty_sign_msg, empty_sign_len, ed_pub, 32,
                                                 huge_payload, sizeof(huge_payload), NULL));
+
+    /* syn_cose_mac0_create null and boundary checks */
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, NULL, 32,
+                                                          NULL, 0, sample_pt, 10, NULL, 0, huge_out,
+                                                          sizeof(huge_out), &huge_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key32, 0,
+                                                          NULL, 0, sample_pt, 10, NULL, 0, huge_out,
+                                                          sizeof(huge_out), &huge_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key32, 32,
+                                                          NULL, 0, sample_pt, 10, NULL, 0, NULL,
+                                                          sizeof(huge_out), &huge_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key32, 32,
+                                                          NULL, 0, sample_pt, 10, NULL, 0, huge_out,
+                                                          sizeof(huge_out), NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key32, 32, NULL, 0, NULL,
+                                               10, NULL, 0, huge_out, sizeof(huge_out), &huge_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_create((SYN_COSE_Algorithm)999, key32, 32, NULL,
+                                                          0, sample_pt, 10, NULL, 0, huge_out,
+                                                          sizeof(huge_out), &huge_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key32, 32, NULL, 0,
+                                               sample_pt, 10, NULL, 0, huge_out, 5, &huge_len));
+
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key32, 32, NULL, 0,
+                                               huge_payload, sizeof(huge_payload), NULL, 0,
+                                               huge_out, sizeof(huge_out), &huge_len));
+
+    /* syn_cose_mac0_verify null and boundary checks */
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_verify(NULL, 10, key32, 32, NULL, 0, NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_verify(huge_out, 0, key32, 32, NULL, 0, NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_verify(huge_out, 10, NULL, 32, NULL, 0, NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_verify(huge_out, 10, key32, 0, NULL, 0, NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_verify(not_bstr_prot_sign1, sizeof(not_bstr_prot_sign1),
+                                               key32, 32, NULL, 0, NULL));
+
+    /* MAC0 array items != 4 (array of 3) */
+    uint8_t mac0_arr3[] = {0x83, 0x44, 0xA1, 0x01, 0x05, 0xA0, 0x40};
+    TEST_ASSERT_EQUAL_INT(
+        SYN_ERROR, syn_cose_mac0_verify(mac0_arr3, sizeof(mac0_arr3), key32, 32, NULL, 0, NULL));
+
+    /* MAC0 protected header with unknown field (skip) and unsupported alg */
+    uint8_t mac0_bad_alg[64] = {
+        0x84,                                     /* Array of 4 */
+        0x45, 0xA2, 0x01, 0x18, 0x63, 0x0A, 0x05, /* Protected: { 1: 99, 10: 5 } */
+        0xA0,                                     /* Unprotected: {} */
+        0x40,                                     /* Payload: "" */
+        0x40                                      /* Tag */
+    };
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_verify(mac0_bad_alg, sizeof(mac0_bad_alg), key32,
+                                                          32, NULL, 0, NULL));
+
+    /* MAC0 unprotected header not a map */
+    uint8_t mac0_not_map_unprot[64] = {
+        0x84,                   /* Array of 4 */
+        0x43, 0xA1, 0x01, 0x05, /* Protected: { 1: 5 } (HMAC_256_256) */
+        0x01,                   /* Unprotected: 1 (not map) */
+        0x40,                   /* Payload: "" */
+        0x40                    /* Tag */
+    };
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_verify(mac0_not_map_unprot, sizeof(mac0_not_map_unprot),
+                                               key32, 32, NULL, 0, NULL));
+
+    /* MAC0 unprotected header with unknown field (skip) */
+    uint8_t mac0_unprot_skip[64] = {
+        0x84,                   /* Array of 4 */
+        0x43, 0xA1, 0x01, 0x05, /* Protected: { 1: 5 } */
+        0xA1, 0x0B, 0x05,       /* Unprotected: { 11: 5 } */
+        0x40,                   /* Payload: "" */
+        0x40                    /* Tag (short -> tag mismatch) */
+    };
+    TEST_ASSERT_EQUAL_INT(
+        SYN_ERROR,
+        syn_cose_mac0_verify(mac0_unprot_skip, sizeof(mac0_unprot_skip), key32, 32, NULL, 0, NULL));
+
+    /* MAC0 payload not a byte string */
+    uint8_t mac0_payload_not_bstr[64] = {
+        0x84,                   /* Array of 4 */
+        0x43, 0xA1, 0x01, 0x05, /* Protected: { 1: 5 } */
+        0xA0,                   /* Unprotected: {} */
+        0x01,                   /* Payload: 1 (not bstr) */
+        0x40                    /* Tag */
+    };
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_verify(mac0_payload_not_bstr, sizeof(mac0_payload_not_bstr),
+                                               key32, 32, NULL, 0, NULL));
+
+    /* MAC0 huge external AAD > 1024 bytes */
+    uint8_t valid_mac0_msg[256];
+    size_t valid_mac0_len = 0;
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key32, 32, NULL,
+                                                       0, sample_pt, 10, NULL, 0, valid_mac0_msg,
+                                                       sizeof(valid_mac0_msg), &valid_mac0_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_verify(valid_mac0_msg, valid_mac0_len, key32, 32,
+                                               huge_payload, sizeof(huge_payload), NULL));
+
+    /* syn_cose_key_encode & decode null checks */
+    SYN_COSE_Key test_key;
+    memset(&test_key, 0, sizeof(test_key));
+    test_key.kty = SYN_COSE_KTY_SYMMETRIC;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_key_encode(NULL, huge_out, sizeof(huge_out), &huge_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_key_encode(&test_key, NULL, sizeof(huge_out), &huge_len));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_key_encode(&test_key, huge_out, sizeof(huge_out), NULL));
+    test_key.kty = (SYN_COSE_KeyType)99;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_key_encode(&test_key, huge_out, sizeof(huge_out), &huge_len));
+
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_key_decode(NULL, 10, &test_key));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_key_decode(huge_out, 0, &test_key));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_key_decode(huge_out, 10, NULL));
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_key_decode(not_bstr_prot_sign1,
+                                                         sizeof(not_bstr_prot_sign1), &test_key));
 }
 
 void test_cose_encrypt0_aes_gcm_roundtrip_and_tamper(void)
@@ -546,11 +696,281 @@ void test_cose_encrypt0_aes_gcm_roundtrip_and_tamper(void)
     TEST_ASSERT_EQUAL(0, dec_len);
 }
 
+void test_cose_encrypt0_aes_ccm_roundtrip_and_tamper(void)
+{
+    static const uint8_t key128[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                                       0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+    static const uint8_t key256[32] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                                       0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+                                       0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+                                       0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20};
+    static const uint8_t iv13[13] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+                                     0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C};
+    static const uint8_t kid[] = "ccm-node-42";
+    static const uint8_t plaintext[] = "Secure IEEE 802.15.4 / Thread Telemetry Payload";
+    static const uint8_t aad[] = "coap://sensor/temperature";
+
+    uint8_t cose_msg[512];
+    size_t cose_msg_len = 0;
+    uint8_t dec_buf[128];
+    size_t dec_len = 0;
+    SYN_COSE_Encrypt0Message parsed;
+
+    /* 1. AES-CCM-16-64-128 (alg = 10, 128-bit key, 64-bit tag, 13-byte nonce) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_AES_CCM_16_64_128, key128, iv13, sizeof(iv13),
+                                      kid, sizeof(kid) - 1, plaintext, sizeof(plaintext) - 1, aad,
+                                      sizeof(aad) - 1, cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key128, aad,
+                                                            sizeof(aad) - 1, dec_buf,
+                                                            sizeof(dec_buf), &dec_len, &parsed));
+    TEST_ASSERT_EQUAL(sizeof(plaintext) - 1, dec_len);
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, dec_buf, dec_len);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_AES_CCM_16_64_128, parsed.alg);
+    TEST_ASSERT_EQUAL(13, parsed.iv_len);
+    TEST_ASSERT_EQUAL_MEMORY(iv13, parsed.iv, 13);
+
+    /* 2. AES-CCM-16-64-256 (alg = 11, 256-bit key, 64-bit tag) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_AES_CCM_16_64_256, key256, iv13, sizeof(iv13),
+                                      kid, sizeof(kid) - 1, plaintext, sizeof(plaintext) - 1, aad,
+                                      sizeof(aad) - 1, cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key256, aad,
+                                                            sizeof(aad) - 1, dec_buf,
+                                                            sizeof(dec_buf), &dec_len, &parsed));
+    TEST_ASSERT_EQUAL(sizeof(plaintext) - 1, dec_len);
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, dec_buf, dec_len);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_AES_CCM_16_64_256, parsed.alg);
+
+    /* 3. AES-CCM-16-128-128 (alg = 30, 128-bit key, 128-bit tag) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_AES_CCM_16_128_128, key128, iv13, sizeof(iv13),
+                                      kid, sizeof(kid) - 1, plaintext, sizeof(plaintext) - 1, aad,
+                                      sizeof(aad) - 1, cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key128, aad,
+                                                            sizeof(aad) - 1, dec_buf,
+                                                            sizeof(dec_buf), &dec_len, &parsed));
+    TEST_ASSERT_EQUAL(sizeof(plaintext) - 1, dec_len);
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, dec_buf, dec_len);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_AES_CCM_16_128_128, parsed.alg);
+
+    /* 4. AES-CCM-16-128-256 (alg = 31, 256-bit key, 128-bit tag) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_create(
+                                      SYN_COSE_ALGO_AES_CCM_16_128_256, key256, iv13, sizeof(iv13),
+                                      kid, sizeof(kid) - 1, plaintext, sizeof(plaintext) - 1, aad,
+                                      sizeof(aad) - 1, cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key256, aad,
+                                                            sizeof(aad) - 1, dec_buf,
+                                                            sizeof(dec_buf), &dec_len, &parsed));
+    TEST_ASSERT_EQUAL(sizeof(plaintext) - 1, dec_len);
+    TEST_ASSERT_EQUAL_MEMORY(plaintext, dec_buf, dec_len);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_AES_CCM_16_128_256, parsed.alg);
+
+    /* 5. Tampering tests */
+    /* Bad key */
+    uint8_t bad_key[16];
+    memcpy(bad_key, key128, 16);
+    bad_key[0] ^= 0xFF;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, bad_key, aad,
+                                                               sizeof(aad) - 1, dec_buf,
+                                                               sizeof(dec_buf), &dec_len, NULL));
+
+    /* Bad tag */
+    cose_msg[cose_msg_len - 1] ^= 0xAA;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_encrypt0_decrypt(cose_msg, cose_msg_len, key256, aad,
+                                                               sizeof(aad) - 1, dec_buf,
+                                                               sizeof(dec_buf), &dec_len, NULL));
+}
+
+void test_cose_mac0_hmac_roundtrip_and_tamper(void)
+{
+    static const uint8_t key[32] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                                    0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+                                    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+                                    0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20};
+    static const uint8_t kid[] = "mac-node-01";
+    static const uint8_t payload[] = "COSE_Mac0 Authenticated Telemetry Packet";
+    static const uint8_t aad[] = "sensor://temperature/celsius";
+
+    uint8_t cose_msg[512];
+    size_t cose_msg_len = 0;
+    SYN_COSE_Mac0Message parsed;
+
+    /* 1. HMAC-256/256 (32-byte tag) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key, sizeof(key),
+                                                       kid, sizeof(kid) - 1, payload,
+                                                       sizeof(payload) - 1, aad, sizeof(aad) - 1,
+                                                       cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_mac0_verify(cose_msg, cose_msg_len, key, sizeof(key),
+                                                       aad, sizeof(aad) - 1, &parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_HMAC_256_256, parsed.alg);
+    TEST_ASSERT_EQUAL(sizeof(kid) - 1, parsed.kid_len);
+    TEST_ASSERT_EQUAL_MEMORY(kid, parsed.kid, parsed.kid_len);
+    TEST_ASSERT_EQUAL(sizeof(payload) - 1, parsed.payload_len);
+    TEST_ASSERT_EQUAL_MEMORY(payload, parsed.payload, parsed.payload_len);
+    TEST_ASSERT_EQUAL(32, parsed.tag_len);
+
+    /* 2. HMAC-256/64 (8-byte tag) */
+    memset(&parsed, 0, sizeof(parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_OK,
+                          syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_64, key, sizeof(key), NULL, 0,
+                                               payload, sizeof(payload) - 1, NULL, 0, cose_msg,
+                                               sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_GREATER_THAN(0, cose_msg_len);
+
+    TEST_ASSERT_EQUAL_INT(
+        SYN_OK, syn_cose_mac0_verify(cose_msg, cose_msg_len, key, sizeof(key), NULL, 0, &parsed));
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_HMAC_256_64, parsed.alg);
+    TEST_ASSERT_EQUAL(0, parsed.kid_len);
+    TEST_ASSERT_EQUAL(8, parsed.tag_len);
+
+    /* 3. Empty payload */
+    TEST_ASSERT_EQUAL_INT(SYN_OK,
+                          syn_cose_mac0_create(SYN_COSE_ALGO_HMAC_256_256, key, sizeof(key), kid,
+                                               sizeof(kid) - 1, NULL, 0, aad, sizeof(aad) - 1,
+                                               cose_msg, sizeof(cose_msg), &cose_msg_len));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_mac0_verify(cose_msg, cose_msg_len, key, sizeof(key),
+                                                       aad, sizeof(aad) - 1, &parsed));
+    TEST_ASSERT_EQUAL(0, parsed.payload_len);
+
+    /* 4. Tampering tests */
+    /* Wrong key */
+    uint8_t bad_key[32];
+    memcpy(bad_key, key, 32);
+    bad_key[0] ^= 0x55;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR,
+                          syn_cose_mac0_verify(cose_msg, cose_msg_len, bad_key, sizeof(bad_key),
+                                               aad, sizeof(aad) - 1, NULL));
+
+    /* Wrong AAD */
+    static const uint8_t wrong_aad[] = "sensor://pressure/pascal";
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_verify(cose_msg, cose_msg_len, key, sizeof(key),
+                                                          wrong_aad, sizeof(wrong_aad) - 1, NULL));
+
+    /* Tampered tag byte */
+    cose_msg[cose_msg_len - 1] ^= 0xFF;
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_mac0_verify(cose_msg, cose_msg_len, key, sizeof(key),
+                                                          aad, sizeof(aad) - 1, NULL));
+}
+
+void test_cose_key_encode_decode(void)
+{
+    /* 1. Symmetric Key */
+    SYN_COSE_Key sym_key;
+    memset(&sym_key, 0, sizeof(sym_key));
+    sym_key.kty = SYN_COSE_KTY_SYMMETRIC;
+    sym_key.alg = SYN_COSE_ALGO_CHACHA20_POLY1305;
+    memcpy(sym_key.kid, "key-sym-01", 10);
+    sym_key.kid_len = 10;
+    memset(sym_key.priv_d, 0x42, 32);
+    sym_key.priv_d_len = 32;
+
+    uint8_t cbor[256];
+    size_t cbor_len = 0;
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_key_encode(&sym_key, cbor, sizeof(cbor), &cbor_len));
+    TEST_ASSERT_GREATER_THAN(0, cbor_len);
+
+    SYN_COSE_Key decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_key_decode(cbor, cbor_len, &decoded));
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_KTY_SYMMETRIC, decoded.kty);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_CHACHA20_POLY1305, decoded.alg);
+    TEST_ASSERT_EQUAL(10, decoded.kid_len);
+    TEST_ASSERT_EQUAL_MEMORY("key-sym-01", decoded.kid, 10);
+    TEST_ASSERT_EQUAL(32, decoded.priv_d_len);
+    TEST_ASSERT_EQUAL_MEMORY(sym_key.priv_d, decoded.priv_d, 32);
+
+    /* 2. OKP Ed25519 Key */
+    SYN_COSE_Key okp_key;
+    memset(&okp_key, 0, sizeof(okp_key));
+    okp_key.kty = SYN_COSE_KTY_OKP;
+    okp_key.crv = SYN_COSE_CRV_ED25519;
+    okp_key.alg = SYN_COSE_ALGO_EDDSA;
+    memcpy(okp_key.kid, "ed25519-id", 10);
+    okp_key.kid_len = 10;
+    memset(okp_key.pub_x, 0x33, 32);
+    okp_key.pub_x_len = 32;
+    memset(okp_key.priv_d, 0x77, 32);
+    okp_key.priv_d_len = 32;
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_key_encode(&okp_key, cbor, sizeof(cbor), &cbor_len));
+    memset(&decoded, 0, sizeof(decoded));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_key_decode(cbor, cbor_len, &decoded));
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_KTY_OKP, decoded.kty);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_CRV_ED25519, decoded.crv);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_EDDSA, decoded.alg);
+    TEST_ASSERT_EQUAL(32, decoded.pub_x_len);
+    TEST_ASSERT_EQUAL_MEMORY(okp_key.pub_x, decoded.pub_x, 32);
+    TEST_ASSERT_EQUAL(32, decoded.priv_d_len);
+    TEST_ASSERT_EQUAL_MEMORY(okp_key.priv_d, decoded.priv_d, 32);
+
+    /* 3. EC2 P-256 Key (with private key priv_d) */
+    SYN_COSE_Key ec2_key;
+    memset(&ec2_key, 0, sizeof(ec2_key));
+    ec2_key.kty = SYN_COSE_KTY_EC2;
+    ec2_key.crv = SYN_COSE_CRV_P256;
+    ec2_key.alg = SYN_COSE_ALGO_ES256;
+    memset(ec2_key.pub_x, 0x11, 32);
+    ec2_key.pub_x_len = 32;
+    memset(ec2_key.pub_y, 0x22, 32);
+    ec2_key.pub_y_len = 32;
+    memset(ec2_key.priv_d, 0x99, 32);
+    ec2_key.priv_d_len = 32;
+
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_key_encode(&ec2_key, cbor, sizeof(cbor), &cbor_len));
+    memset(&decoded, 0, sizeof(decoded));
+    TEST_ASSERT_EQUAL_INT(SYN_OK, syn_cose_key_decode(cbor, cbor_len, &decoded));
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_KTY_EC2, decoded.kty);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_CRV_P256, decoded.crv);
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_ALGO_ES256, decoded.alg);
+    TEST_ASSERT_EQUAL(32, decoded.pub_x_len);
+    TEST_ASSERT_EQUAL_MEMORY(ec2_key.pub_x, decoded.pub_x, 32);
+    TEST_ASSERT_EQUAL(32, decoded.pub_y_len);
+    TEST_ASSERT_EQUAL_MEMORY(ec2_key.pub_y, decoded.pub_y, 32);
+    TEST_ASSERT_EQUAL(32, decoded.priv_d_len);
+    TEST_ASSERT_EQUAL_MEMORY(ec2_key.priv_d, decoded.priv_d, 32);
+
+    /* 4. Encode with small buffer failure */
+    TEST_ASSERT_EQUAL_INT(SYN_ERROR, syn_cose_key_encode(&ec2_key, cbor, 5, &cbor_len));
+
+    /* 5. Decode with unknown map label (skips unknown) */
+    uint8_t unknown_lbl_cbor[64];
+    SYN_CborWriter kw;
+    syn_cbor_writer_init(&kw, unknown_lbl_cbor, sizeof(unknown_lbl_cbor));
+    syn_cbor_write_map_begin(&kw, 2);
+    syn_cbor_write_int(&kw, SYN_COSE_KEY_KTY);
+    syn_cbor_write_int(&kw, SYN_COSE_KTY_SYMMETRIC);
+    syn_cbor_write_int(&kw, 999);
+    syn_cbor_write_text_cstr(&kw, "unknown_field");
+    memset(&decoded, 0, sizeof(decoded));
+    TEST_ASSERT_EQUAL_INT(
+        SYN_OK, syn_cose_key_decode(unknown_lbl_cbor, syn_cbor_writer_len(&kw), &decoded));
+    TEST_ASSERT_EQUAL_INT(SYN_COSE_KTY_SYMMETRIC, decoded.kty);
+}
+
 void run_cose_tests(void)
 {
     RUN_TEST(test_cose_sign1_eddsa_roundtrip_and_tamper);
     RUN_TEST(test_cose_sign1_es256_roundtrip_and_tamper);
     RUN_TEST(test_cose_encrypt0_chacha20poly1305_roundtrip_and_tamper);
     RUN_TEST(test_cose_encrypt0_aes_gcm_roundtrip_and_tamper);
+    RUN_TEST(test_cose_encrypt0_aes_ccm_roundtrip_and_tamper);
+    RUN_TEST(test_cose_mac0_hmac_roundtrip_and_tamper);
+    RUN_TEST(test_cose_key_encode_decode);
     RUN_TEST(test_cose_null_and_boundary_checks);
 }

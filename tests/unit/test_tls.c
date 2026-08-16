@@ -525,6 +525,72 @@ void test_tls_aes_gcm_cipher_suites(void)
     TEST_ASSERT_EQUAL_MEMORY(msg256, rx_buf, rx_len);
 }
 
+void test_tls_aes_ccm_cipher_suites(void)
+{
+    LoopbackTransport wire = {0};
+    SYN_Transport tr = {.send = loopback_send, .recv = loopback_recv, .ctx = &wire};
+
+    static const uint8_t psk[32] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                                    0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+                                    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+                                    0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20};
+
+    uint8_t rx_record_buf[2560];
+    uint8_t tx_record_buf[2560];
+    uint8_t rx_buf[128];
+    size_t rx_len = 0;
+    static const char msg_ccm16[] = "TLS_AES_128_CCM_SHA256 Encrypted Payload";
+    static const char msg_ccm8[] = "TLS_AES_128_CCM_8_SHA256 Short-Tag Payload";
+
+    /* 1. TLS_AES_128_CCM_SHA256 (16-byte Tag) */
+    SYN_TLS_Config cfg_ccm16 = {.mode = SYN_TLS_AUTH_MODE_PSK,
+                                .cipher_suite = SYN_TLS_CIPHER_SUITE_AES_128_CCM_SHA256,
+                                .server_name = "ccm16.local",
+                                .psk_identity = (const uint8_t *)"ccm16",
+                                .psk_identity_len = 5,
+                                .psk_secret = psk,
+                                .psk_secret_len = sizeof(psk)};
+    SYN_TLS_Context tls_ccm16;
+    wire.len = 0;
+    TEST_ASSERT_TRUE(syn_tls_init(&tls_ccm16, &cfg_ccm16, &tr, rx_record_buf, sizeof(rx_record_buf),
+                                  tx_record_buf, sizeof(tx_record_buf)));
+    TEST_ASSERT_TRUE(syn_tls_handshake(&tls_ccm16));
+    TEST_ASSERT_EQUAL(SYN_TLS_STATE_ESTABLISHED, tls_ccm16.state);
+
+    TEST_ASSERT_TRUE(syn_tls_send(&tls_ccm16, (const uint8_t *)msg_ccm16, strlen(msg_ccm16)));
+    memset(rx_buf, 0, sizeof(rx_buf));
+    TEST_ASSERT_TRUE(syn_tls_recv(&tls_ccm16, rx_buf, sizeof(rx_buf), &rx_len));
+    TEST_ASSERT_EQUAL(strlen(msg_ccm16), rx_len);
+    TEST_ASSERT_EQUAL_MEMORY(msg_ccm16, rx_buf, rx_len);
+
+    /* 2. TLS_AES_128_CCM_8_SHA256 (8-byte Tag) */
+    SYN_TLS_Config cfg_ccm8 = {.mode = SYN_TLS_AUTH_MODE_PSK,
+                               .cipher_suite = SYN_TLS_CIPHER_SUITE_AES_128_CCM_8_SHA256,
+                               .server_name = "ccm8.local",
+                               .psk_identity = (const uint8_t *)"ccm8",
+                               .psk_identity_len = 4,
+                               .psk_secret = psk,
+                               .psk_secret_len = sizeof(psk)};
+    SYN_TLS_Context tls_ccm8;
+    wire.len = 0;
+    TEST_ASSERT_TRUE(syn_tls_init(&tls_ccm8, &cfg_ccm8, &tr, rx_record_buf, sizeof(rx_record_buf),
+                                  tx_record_buf, sizeof(tx_record_buf)));
+    TEST_ASSERT_TRUE(syn_tls_handshake(&tls_ccm8));
+    TEST_ASSERT_EQUAL(SYN_TLS_STATE_ESTABLISHED, tls_ccm8.state);
+
+    TEST_ASSERT_TRUE(syn_tls_send(&tls_ccm8, (const uint8_t *)msg_ccm8, strlen(msg_ccm8)));
+    memset(rx_buf, 0, sizeof(rx_buf));
+    TEST_ASSERT_TRUE(syn_tls_recv(&tls_ccm8, rx_buf, sizeof(rx_buf), &rx_len));
+    TEST_ASSERT_EQUAL(strlen(msg_ccm8), rx_len);
+    TEST_ASSERT_EQUAL_MEMORY(msg_ccm8, rx_buf, rx_len);
+
+    /* Tampering test */
+    TEST_ASSERT_TRUE(syn_tls_send(&tls_ccm8, (const uint8_t *)msg_ccm8, strlen(msg_ccm8)));
+    wire.buf[wire.len - 1] ^= 0xFF; /* Corrupt MAC tag */
+    memset(rx_buf, 0, sizeof(rx_buf));
+    TEST_ASSERT_FALSE(syn_tls_recv(&tls_ccm8, rx_buf, sizeof(rx_buf), &rx_len));
+}
+
 void run_tls_tests(void)
 {
     RUN_TEST(test_tls_psk_mode_handshake_and_record_crypto);
@@ -534,4 +600,5 @@ void run_tls_tests(void)
     RUN_TEST(test_tls_recv_small_caller_buffer_does_not_overflow);
     RUN_TEST(test_tls_x509_mode_handshake);
     RUN_TEST(test_tls_aes_gcm_cipher_suites);
+    RUN_TEST(test_tls_aes_ccm_cipher_suites);
 }

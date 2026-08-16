@@ -38,6 +38,15 @@ extern "C" {
  */
 SYN_Status syn_port_stm32_register_uart(SYN_UARTInstance instance, void *huart);
 
+/**
+ * @brief Register an STM32 HAL CRYP_HandleTypeDef pointer (e.g. &hcryp) with SyntropicOS hardware
+ * crypto accelerator port.
+ *
+ * @param hcryp Pointer to STM32 HAL CRYP_HandleTypeDef (or NULL to unregister).
+ * @return SYN_OK on success.
+ */
+SYN_Status syn_port_stm32_register_cryp(void *hcryp);
+
 #ifdef __cplusplus
 }
 #endif

@@ -215,6 +215,8 @@ void run_p256_tests(void);
 void run_dnssd_tests(void);
 void run_ed25519_tests(void);
 void run_cose_tests(void);
+void run_sha512_tests(void);
+void run_dtls_tests(void);
 
 #define RUN_TEST_GROUP(file, fn)                           \
     do {                                                   \
@@ -877,6 +879,8 @@ int main(void)
     run_ed25519_tests();
     run_cose_tests();
     run_aes_tests();
+    run_sha512_tests();
+    run_dtls_tests();
 
     return UNITY_END();
 }

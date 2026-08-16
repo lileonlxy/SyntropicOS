@@ -791,4 +791,265 @@ SYN_Status syn_aes_gcm_decrypt(const SYN_AES_GCM_Context *ctx, const uint8_t *no
 }
 #endif
 
+#if !defined(SYN_USE_AES_CCM) || SYN_USE_AES_CCM
+/**
+ * @brief Feed data into AES-CCM CBC-MAC accumulator.
+ * @param ctx AES context.
+ * @param mac Running CBC-MAC accumulator block.
+ * @param blk Partial block staging buffer.
+ * @param blk_len Pointer to length of valid bytes in staging buffer.
+ * @param data Input byte buffer to feed into MAC.
+ * @param len Number of bytes in input data buffer.
+ */
+static void ccm_mac_feed(const SYN_AES_Context *ctx, uint8_t mac[16], uint8_t *blk, size_t *blk_len,
+                         const uint8_t *data, size_t len)
+{
+    for (size_t i = 0U; i < len; i++) {
+        blk[(*blk_len)++] = data[i];
+        if (*blk_len == 16U) {
+            for (int j = 0; j < 16; j++) {
+                mac[j] ^= blk[j];
+            }
+            syn_aes_encrypt_block(ctx, mac, mac);
+            *blk_len = 0U;
+        }
+    }
+}
+
+/**
+ * @brief Pad partial block with zeros and finish block encryption in CBC-MAC.
+ * @param ctx AES context.
+ * @param mac Running CBC-MAC accumulator block.
+ * @param blk Partial block staging buffer.
+ * @param blk_len Pointer to length of valid bytes in staging buffer.
+ */
+static void ccm_mac_pad_zero(const SYN_AES_Context *ctx, uint8_t mac[16], uint8_t *blk,
+                             size_t *blk_len)
+{
+    if (*blk_len > 0U) {
+        while (*blk_len < 16U) {
+            blk[(*blk_len)++] = 0U;
+        }
+        for (int j = 0; j < 16; j++) {
+            mac[j] ^= blk[j];
+        }
+        syn_aes_encrypt_block(ctx, mac, mac);
+        *blk_len = 0U;
+    }
+}
+
+/**
+ * @brief Format counter block Ai for AES-CCM CTR mode.
+ * @param a 16-byte formatted counter output block.
+ * @param nonce Pointer to nonce buffer.
+ * @param nonce_len Length of nonce in bytes.
+ * @param L Length parameter (15 - nonce_len).
+ * @param counter Big-endian counter integer.
+ */
+static void ccm_format_ctr(uint8_t a[16], const uint8_t *nonce, size_t nonce_len, size_t L,
+                           uint64_t counter)
+{
+    a[0] = (uint8_t)(L - 1U);
+    memcpy(a + 1, nonce, nonce_len);
+    for (size_t i = 0U; i < L; i++) {
+        a[15U - i] = (uint8_t)((counter >> (8U * i)) & 0xFFU);
+    }
+}
+
+/**
+ * @brief Compute NIST SP 800-38C / RFC 3610 CBC-MAC tag over header and payload.
+ * @param ctx AES context.
+ * @param nonce Nonce buffer.
+ * @param nonce_len Nonce length in bytes.
+ * @param L Length parameter (15 - nonce_len).
+ * @param aad Associated data buffer.
+ * @param aad_len Associated data length in bytes.
+ * @param data Payload data buffer.
+ * @param data_len Payload data length in bytes.
+ * @param tag_len Desired MAC tag length in bytes.
+ * @param mac 16-byte raw CBC-MAC output buffer.
+ * @return SYN_Status SYN_OK on success, error code otherwise.
+ */
+static SYN_Status ccm_compute_mac(const SYN_AES_Context *ctx, const uint8_t *nonce,
+                                  size_t nonce_len, size_t L, const uint8_t *aad, size_t aad_len,
+                                  const uint8_t *data, size_t data_len, size_t tag_len,
+                                  uint8_t mac[16])
+{
+    /* Format B0 */
+    uint8_t b0[16];
+    uint8_t flags = (uint8_t)((L - 1U) & 0x07U);
+    flags |= (uint8_t)(((tag_len - 2U) / 2U) << 3U);
+    if (aad_len > 0U) {
+        flags |= 0x40U;
+    }
+    b0[0] = flags;
+    memcpy(b0 + 1, nonce, nonce_len);
+    for (size_t i = 0U; i < L; i++) {
+        b0[15U - i] = (uint8_t)((data_len >> (8U * i)) & 0xFFU);
+    }
+
+    syn_aes_encrypt_block(ctx, b0, mac);
+
+    uint8_t blk[16];
+    size_t blk_len = 0U;
+
+    /* Process Associated Data */
+    if (aad_len > 0U) {
+        uint8_t hdr[10];
+        size_t hdr_len = 0U;
+        if (aad_len < 65280U) {
+            hdr[0] = (uint8_t)((aad_len >> 8U) & 0xFFU);
+            hdr[1] = (uint8_t)(aad_len & 0xFFU);
+            hdr_len = 2U;
+        } else {
+            hdr[0] = 0xFFU;
+            hdr[1] = 0xFEU;
+            hdr[2] = (uint8_t)((aad_len >> 24U) & 0xFFU);
+            hdr[3] = (uint8_t)((aad_len >> 16U) & 0xFFU);
+            hdr[4] = (uint8_t)((aad_len >> 8U) & 0xFFU);
+            hdr[5] = (uint8_t)(aad_len & 0xFFU);
+            hdr_len = 6U;
+        }
+        ccm_mac_feed(ctx, mac, blk, &blk_len, hdr, hdr_len);
+        ccm_mac_feed(ctx, mac, blk, &blk_len, aad, aad_len);
+        ccm_mac_pad_zero(ctx, mac, blk, &blk_len);
+    }
+
+    /* Process Payload */
+    if (data_len > 0U) {
+        ccm_mac_feed(ctx, mac, blk, &blk_len, data, data_len);
+        ccm_mac_pad_zero(ctx, mac, blk, &blk_len);
+    }
+
+    return SYN_OK;
+}
+
+SYN_Status syn_aes_ccm_encrypt(const SYN_AES_Context *ctx, const uint8_t *nonce, size_t nonce_len,
+                               const uint8_t *aad, size_t aad_len, const uint8_t *in, size_t in_len,
+                               uint8_t *out, uint8_t *tag, size_t tag_len)
+{
+    if (ctx == NULL || nonce == NULL || tag == NULL || nonce_len < 7U || nonce_len > 13U ||
+        tag_len < 4U || tag_len > 16U || (tag_len % 2U) != 0U ||
+        (in_len > 0U && (in == NULL || out == NULL)) || (aad_len > 0U && aad == NULL)) {
+        return SYN_INVALID_PARAM;
+    }
+
+    size_t L = 15U - nonce_len;
+    if (L < 4U) {
+        uint64_t max_len = (1ULL << (8U * L)) - 1ULL;
+        if ((uint64_t)in_len > max_len) {
+            return SYN_INVALID_PARAM;
+        }
+    }
+
+    /* 1. Compute CBC-MAC */
+    uint8_t mac[16];
+    ccm_compute_mac(ctx, nonce, nonce_len, L, aad, aad_len, in, in_len, tag_len, mac);
+
+    /* 2. CTR Payload Encryption */
+    uint64_t ctr = 1U;
+    size_t offset = 0U;
+    while (offset < in_len) {
+        uint8_t ai[16];
+        ccm_format_ctr(ai, nonce, nonce_len, L, ctr++);
+        uint8_t si[16];
+        syn_aes_encrypt_block(ctx, ai, si);
+        size_t chunk = (in_len - offset >= 16U) ? 16U : (in_len - offset);
+        for (size_t j = 0U; j < chunk; j++) {
+            out[offset + j] = (uint8_t)(in[offset + j] ^ si[j]);
+        }
+        offset += chunk;
+    }
+
+    /* 3. Encrypt Tag with S0 */
+    uint8_t a0[16];
+    uint8_t s0[16];
+    ccm_format_ctr(a0, nonce, nonce_len, L, 0U);
+    syn_aes_encrypt_block(ctx, a0, s0);
+    for (size_t j = 0U; j < tag_len; j++) {
+        tag[j] = (uint8_t)(mac[j] ^ s0[j]);
+    }
+
+    return SYN_OK;
+}
+
+SYN_Status syn_aes_ccm_decrypt(const SYN_AES_Context *ctx, const uint8_t *nonce, size_t nonce_len,
+                               const uint8_t *aad, size_t aad_len, const uint8_t *in, size_t in_len,
+                               const uint8_t *tag, size_t tag_len, uint8_t *out)
+{
+    if (ctx == NULL || nonce == NULL || tag == NULL || nonce_len < 7U || nonce_len > 13U ||
+        tag_len < 4U || tag_len > 16U || (tag_len % 2U) != 0U ||
+        (in_len > 0U && (in == NULL || out == NULL)) || (aad_len > 0U && aad == NULL)) {
+        return SYN_INVALID_PARAM;
+    }
+
+    size_t L = 15U - nonce_len;
+    if (L < 4U) {
+        uint64_t max_len = (1ULL << (8U * L)) - 1ULL;
+        if ((uint64_t)in_len > max_len) {
+            return SYN_INVALID_PARAM;
+        }
+    }
+
+    /* 1. Compute S0 and unmask expected tag T */
+    uint8_t a0[16];
+    uint8_t s0[16];
+    ccm_format_ctr(a0, nonce, nonce_len, L, 0U);
+    syn_aes_encrypt_block(ctx, a0, s0);
+    uint8_t unmasked_tag[16];
+    for (size_t j = 0U; j < tag_len; j++) {
+        unmasked_tag[j] = (uint8_t)(tag[j] ^ s0[j]);
+    }
+
+    /* 2. CTR Decrypt Ciphertext */
+    uint64_t ctr = 1U;
+    size_t offset = 0U;
+    while (offset < in_len) {
+        uint8_t ai[16];
+        ccm_format_ctr(ai, nonce, nonce_len, L, ctr++);
+        uint8_t si[16];
+        syn_aes_encrypt_block(ctx, ai, si);
+        size_t chunk = (in_len - offset >= 16U) ? 16U : (in_len - offset);
+        for (size_t j = 0U; j < chunk; j++) {
+            out[offset + j] = (uint8_t)(in[offset + j] ^ si[j]);
+        }
+        offset += chunk;
+    }
+
+    /* 3. Recompute CBC-MAC over Decrypted Plaintext */
+    uint8_t mac[16];
+    ccm_compute_mac(ctx, nonce, nonce_len, L, aad, aad_len, out, in_len, tag_len, mac);
+
+    /* 4. Constant-Time Tag Verification */
+    uint8_t diff = 0U;
+    for (size_t j = 0U; j < tag_len; j++) {
+        diff |= (uint8_t)(unmasked_tag[j] ^ mac[j]);
+    }
+
+    if (diff != 0U) {
+        if (out == in) {
+            /* In-place decryption failed: invert CTR keystream to restore original ciphertext */
+            ctr = 1U;
+            offset = 0U;
+            while (offset < in_len) {
+                uint8_t ai[16];
+                ccm_format_ctr(ai, nonce, nonce_len, L, ctr++);
+                uint8_t si[16];
+                syn_aes_encrypt_block(ctx, ai, si);
+                size_t chunk = (in_len - offset >= 16U) ? 16U : (in_len - offset);
+                for (size_t j = 0U; j < chunk; j++) {
+                    out[offset + j] = (uint8_t)(out[offset + j] ^ si[j]);
+                }
+                offset += chunk;
+            }
+        } else if (out != NULL && in_len > 0U) {
+            memset(out, 0, in_len);
+        }
+        return SYN_ERROR;
+    }
+
+    return SYN_OK;
+}
+#endif
+
 #endif /* SYN_USE_AES */

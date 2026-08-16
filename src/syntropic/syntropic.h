@@ -641,6 +641,10 @@ extern "C" {
 #include "net/syn_coap.h"
 #endif
 
+#if !defined(SYN_USE_DTLS) || SYN_USE_DTLS
+#include "net/syn_dtls.h"
+#endif
+
 #if !defined(SYN_USE_SNTP) || SYN_USE_SNTP
 #include "net/syn_sntp.h"
 #endif
@@ -664,6 +668,10 @@ extern "C" {
 #if !defined(SYN_USE_SHA256) || SYN_USE_SHA256
 #include "crypto/syn_hmac.h"
 #include "crypto/syn_sha256.h"
+#endif
+
+#if !defined(SYN_USE_SHA512) || SYN_USE_SHA512
+#include "crypto/syn_sha512.h"
 #endif
 
 #if !defined(SYN_USE_BLAKE2S) || SYN_USE_BLAKE2S

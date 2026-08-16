@@ -520,4 +520,81 @@ uint32_t syn_port_flash_sector_size(uint32_t addr)
     return 128u * 1024u;
 }
 
+/* ── Hardware Crypto Port (STM32 CRYP) ─────────────────────────────────── */
+
+#include "syntropic/port/syn_port_aes.h"
+
+static void *g_hcryp = NULL;
+
+SYN_Status syn_port_stm32_register_cryp(void *hcryp)
+{
+    g_hcryp = hcryp;
+    return SYN_OK;
+}
+
+SYN_Status syn_port_aes_init(void)
+{
+#if defined(CRYP) || defined(AES)
+    return (g_hcryp != NULL) ? SYN_OK : SYN_NOT_IMPLEMENTED;
+#else
+    return SYN_NOT_IMPLEMENTED;
+#endif
+}
+
+SYN_Status syn_port_aes_encrypt_block(const uint8_t *round_keys, uint8_t nr, const uint8_t in[16],
+                                      uint8_t out[16])
+{
+#if defined(CRYP) || defined(AES)
+    if (g_hcryp == NULL || round_keys == NULL || in == NULL || out == NULL) {
+        return SYN_NOT_IMPLEMENTED;
+    }
+#if defined(HAL_CRYP_MODULE_ENABLED)
+    CRYP_HandleTypeDef *hcryp = (CRYP_HandleTypeDef *)g_hcryp;
+    HAL_StatusTypeDef res = HAL_CRYP_AESECB_Encrypt(hcryp, (uint8_t *)in, 16U, out, 1000U);
+    return (res == HAL_OK) ? SYN_OK : SYN_ERROR;
+#else
+    (void)nr;
+    return SYN_NOT_IMPLEMENTED;
+#endif
+#else
+    (void)round_keys;
+    (void)nr;
+    (void)in;
+    (void)out;
+    return SYN_NOT_IMPLEMENTED;
+#endif
+}
+
+SYN_Status syn_port_aes_decrypt_block(const uint8_t *round_keys, uint8_t nr, const uint8_t in[16],
+                                      uint8_t out[16])
+{
+#if defined(CRYP) || defined(AES)
+    if (g_hcryp == NULL || round_keys == NULL || in == NULL || out == NULL) {
+        return SYN_NOT_IMPLEMENTED;
+    }
+#if defined(HAL_CRYP_MODULE_ENABLED)
+    CRYP_HandleTypeDef *hcryp = (CRYP_HandleTypeDef *)g_hcryp;
+    HAL_StatusTypeDef res = HAL_CRYP_AESECB_Decrypt(hcryp, (uint8_t *)in, 16U, out, 1000U);
+    return (res == HAL_OK) ? SYN_OK : SYN_ERROR;
+#else
+    (void)nr;
+    return SYN_NOT_IMPLEMENTED;
+#endif
+#else
+    (void)round_keys;
+    (void)nr;
+    (void)in;
+    (void)out;
+    return SYN_NOT_IMPLEMENTED;
+#endif
+}
+
+SYN_Status syn_port_ghash_mult(const uint8_t x[16], const uint8_t h[16], uint8_t out[16])
+{
+    (void)x;
+    (void)h;
+    (void)out;
+    return SYN_NOT_IMPLEMENTED;
+}
+
 #endif /* STM32 HAL */

@@ -106,6 +106,7 @@
 #define SYN_P256_USE_COMB_TABLE 0  /**< Precomputed G comb table (opt-in)   */
 #define SYN_USE_HMAC_DRBG 1        /**< NIST SP 800-90A HMAC-DRBG (SHA-256) */
 #define SYN_USE_BASE64 1           /**< RFC 4648 Base64 & Base64URL codec   */
+#define SYN_USE_SHA512 1           /**< SHA-512 / SHA-384 / HMAC-SHA512/384 */
 
 /* ── Bluetooth Low Energy ───────────────────────────────────────────────── */
 
@@ -131,6 +132,7 @@
 #define SYN_USE_HTTPD 1          /**< HTTP server (embedded web server)   */
 #define SYN_USE_WEBSOCKET 1      /**< WebSocket client                    */
 #define SYN_USE_COAP 1           /**< CoAP protocol client                */
+#define SYN_USE_DTLS 1           /**< DTLS 1.3 datagram security (RFC 9147) */
 #define SYN_USE_DNS 1            /**< DNS resolver                        */
 #define SYN_USE_ETH 1            /**< Zero-heap Ethernet II & ARP engine  */
 #define SYN_ETH_ARP_CACHE_SIZE 8 /**< ARP table cache size (entries)      */
@@ -218,8 +220,8 @@
 #define SYN_USE_AES_CBC 1          /**< AES-CBC mode with PKCS#7            */
 #define SYN_USE_AES_CTR 1          /**< AES-CTR stream cipher mode          */
 #define SYN_USE_AES_GCM 1          /**< AES-GCM AEAD authenticated cipher   */
+#define SYN_USE_AES_CCM 1          /**< AES-CCM AEAD (NIST SP 800-38C / BLE)*/
 #define SYN_AES_GCM_TABLE 0        /**< GCM GHASH table: 0=none, 4=256B, 8=4KB*/
-#define SYN_USE_AES128 1           /**< Legacy AES-128 compat wrapper       */
 #define SYN_USE_AES_CMAC 1         /**< AES-CMAC message authentication     */
 #define SYN_USE_SHA256 1           /**< SHA-256 hash + HMAC-SHA256          */
 #define SYN_USE_BLAKE2S 1          /**< BLAKE2s cryptographic hash          */

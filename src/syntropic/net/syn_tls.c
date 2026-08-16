@@ -162,8 +162,11 @@ static void derive_tls13_key_schedule(SYN_TLS_Context *ctx)
                           SYN_SHA256_DIGEST_SIZE, ctx->server_app_secret, 32);
 
     /* Cache per-record traffic keys & IVs to eliminate HKDF expansion during record I/O */
-    size_t key_len =
-        (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256) ? 16U : 32U;
+    size_t key_len = (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256 ||
+                      ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_SHA256 ||
+                      ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_8_SHA256)
+                         ? 16U
+                         : 32U;
     derive_traffic_key_or_iv(ctx->client_app_secret, "key", ctx->client_app_key, key_len);
     derive_traffic_key_or_iv(ctx->client_app_secret, "iv", ctx->client_app_iv, 12);
     derive_traffic_key_or_iv(ctx->server_app_secret, "key", ctx->server_app_key, key_len);
@@ -177,6 +180,19 @@ static void derive_tls13_key_schedule(SYN_TLS_Context *ctx)
     syn_secure_zero(handshake_secret, sizeof(handshake_secret));
     syn_secure_zero(transcript_digest, sizeof(transcript_digest));
     syn_secure_zero(derived_2, sizeof(derived_2));
+}
+
+/**
+ * @brief Get tag length in bytes for active TLS 1.3 cipher suite.
+ * @param ctx TLS context.
+ * @return size_t Authentication tag size (8 or 16 bytes).
+ */
+static inline size_t tls_tag_len(const SYN_TLS_Context *ctx)
+{
+    if (ctx != NULL && ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_8_SHA256) {
+        return 8U;
+    }
+    return 16U;
 }
 
 /**
@@ -207,6 +223,16 @@ static void tls_record_encrypt(const SYN_TLS_Context *ctx, const uint8_t *key,
         if (syn_aes_gcm_init(&gcm, key, 32U) == SYN_OK) {
             (void)syn_aes_gcm_encrypt(&gcm, nonce, 12U, NULL, 0U, in, in_len, out_ct, out_tag);
         }
+    } else if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_SHA256) {
+        SYN_AES_Context aes;
+        if (syn_aes_init(&aes, key, 16U) == SYN_OK) {
+            (void)syn_aes_ccm_encrypt(&aes, nonce, 12U, NULL, 0U, in, in_len, out_ct, out_tag, 16U);
+        }
+    } else if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_8_SHA256) {
+        SYN_AES_Context aes;
+        if (syn_aes_init(&aes, key, 16U) == SYN_OK) {
+            (void)syn_aes_ccm_encrypt(&aes, nonce, 12U, NULL, 0U, in, in_len, out_ct, out_tag, 8U);
+        }
     } else {
         syn_aead_encrypt(key, nonce, NULL, 0U, in, in_len, out_ct, out_tag);
     }
@@ -214,7 +240,7 @@ static void tls_record_encrypt(const SYN_TLS_Context *ctx, const uint8_t *key,
 
 static bool tls_record_decrypt(const SYN_TLS_Context *ctx, const uint8_t *key,
                                const uint8_t nonce[12], const uint8_t *ct, size_t ct_len,
-                               const uint8_t tag[16], uint8_t *out_pt)
+                               const uint8_t *tag, uint8_t *out_pt)
 {
     if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_GCM_SHA256) {
         SYN_AES_GCM_Context gcm;
@@ -224,6 +250,16 @@ static bool tls_record_decrypt(const SYN_TLS_Context *ctx, const uint8_t *key,
         SYN_AES_GCM_Context gcm;
         (void)syn_aes_gcm_init(&gcm, key, 32U);
         return (syn_aes_gcm_decrypt(&gcm, nonce, 12U, NULL, 0U, ct, ct_len, out_pt, tag) == SYN_OK);
+    } else if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_SHA256) {
+        SYN_AES_Context aes;
+        (void)syn_aes_init(&aes, key, 16U);
+        return (syn_aes_ccm_decrypt(&aes, nonce, 12U, NULL, 0U, ct, ct_len, tag, 16U, out_pt) ==
+                SYN_OK);
+    } else if (ctx->config.cipher_suite == SYN_TLS_CIPHER_SUITE_AES_128_CCM_8_SHA256) {
+        SYN_AES_Context aes;
+        (void)syn_aes_init(&aes, key, 16U);
+        return (syn_aes_ccm_decrypt(&aes, nonce, 12U, NULL, 0U, ct, ct_len, tag, 8U, out_pt) ==
+                SYN_OK);
     } else {
         return syn_aead_decrypt(key, nonce, NULL, 0U, ct, ct_len, tag, out_pt);
     }
@@ -415,7 +451,8 @@ bool syn_tls_send(SYN_TLS_Context *ctx, const uint8_t *data, size_t len)
     }
 
     uint8_t *record_buf = ctx->tx_buf;
-    if (len + TLS_RECORD_HEADER_LEN + 16 > ctx->tx_buf_size) {
+    size_t tag_sz = tls_tag_len(ctx);
+    if (len + TLS_RECORD_HEADER_LEN + tag_sz > ctx->tx_buf_size) {
         return false; /* LCOV_EXCL_LINE: Oversized send buffer check */
     }
 
@@ -424,7 +461,7 @@ bool syn_tls_send(SYN_TLS_Context *ctx, const uint8_t *data, size_t len)
     record_buf[offset++] = 0x03;
     record_buf[offset++] = 0x03;
 
-    size_t ciphertext_len = len + 16;
+    size_t ciphertext_len = len + tag_sz;
     record_buf[offset++] = (uint8_t)((ciphertext_len >> 8) & 0xFF);
     record_buf[offset++] = (uint8_t)(ciphertext_len & 0xFF);
 
@@ -475,11 +512,12 @@ bool syn_tls_recv(SYN_TLS_Context *ctx, uint8_t *data, size_t max_len, size_t *o
         return false;
     }
 
-    if (rx_len < TLS_RECORD_HEADER_LEN + 16) {
+    size_t tag_sz = tls_tag_len(ctx);
+    if (rx_len < TLS_RECORD_HEADER_LEN + tag_sz) {
         return false;
     }
 
-    size_t full_payload_len = rx_len - TLS_RECORD_HEADER_LEN - 16;
+    size_t full_payload_len = rx_len - TLS_RECORD_HEADER_LEN - tag_sz;
     size_t copy_len = full_payload_len;
     if (copy_len > max_len) {
         copy_len = max_len;
