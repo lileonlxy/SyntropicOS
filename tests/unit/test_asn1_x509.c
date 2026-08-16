@@ -541,6 +541,56 @@ void test_x509_edge_cases_and_corrupt_structures(void)
     TEST_ASSERT_FALSE(syn_x509_parse(bad_serial_cert, sizeof(bad_serial_cert), &cert));
 }
 
+void test_x509_ed25519_live_keypair_verification_and_chain(void)
+{
+    /* Generate live Ed25519 CA and Server keypairs */
+    uint8_t ca_seed[32] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22};
+    uint8_t ca_pub[32], ca_sec[32];
+    TEST_ASSERT_TRUE(syn_ed25519_create_keypair(ca_pub, ca_sec, ca_seed));
+
+    uint8_t srv_seed[32] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+    uint8_t srv_pub[32], srv_sec[32];
+    TEST_ASSERT_TRUE(syn_ed25519_create_keypair(srv_pub, srv_sec, srv_seed));
+
+    static const uint8_t tbs_payload[] = "SyntropicOS Live Ed25519 TBS Certificate";
+    uint8_t sig[64];
+    TEST_ASSERT_TRUE(syn_ed25519_sign(tbs_payload, sizeof(tbs_payload) - 1, ca_sec, ca_pub, sig));
+
+    SYN_X509_Cert srv_cert;
+    memset(&srv_cert, 0, sizeof(srv_cert));
+    srv_cert.tbs_bytes = tbs_payload;
+    srv_cert.tbs_len = sizeof(tbs_payload) - 1;
+    memcpy(srv_cert.pubkey, srv_pub, 32);
+    srv_cert.pubkey_len = 32;
+    srv_cert.pubkey_algo = SYN_X509_ALGO_ED25519;
+    memcpy(srv_cert.signature, sig, 64);
+    srv_cert.signature_len = 64;
+    srv_cert.sig_algo = SYN_X509_ALGO_ED25519;
+    strncpy(srv_cert.subject_cn, "api.syntropicos.internal", sizeof(srv_cert.subject_cn));
+    strncpy(srv_cert.issuer_cn, "SyntropicOS Root CA", sizeof(srv_cert.issuer_cn));
+
+    /* Verify signature directly using CA public key */
+    TEST_ASSERT_TRUE(syn_x509_verify_signature(&srv_cert, ca_pub, 32, SYN_X509_ALGO_ED25519));
+
+    /* Corrupted signature must fail */
+    srv_cert.signature[0] ^= 0x01;
+    TEST_ASSERT_FALSE(syn_x509_verify_signature(&srv_cert, ca_pub, 32, SYN_X509_ALGO_ED25519));
+    srv_cert.signature[0] ^= 0x01;
+
+    /* Validate chain against Root CA cert */
+    SYN_X509_Cert ca_cert;
+    memset(&ca_cert, 0, sizeof(ca_cert));
+    memcpy(ca_cert.pubkey, ca_pub, 32);
+    ca_cert.pubkey_len = 32;
+    ca_cert.pubkey_algo = SYN_X509_ALGO_ED25519;
+    strncpy(ca_cert.subject_cn, "SyntropicOS Root CA", sizeof(ca_cert.subject_cn));
+    ca_cert.is_ca = true;
+
+    TEST_ASSERT_TRUE(syn_x509_validate_chain(&srv_cert, &ca_cert, "api.syntropicos.internal"));
+    TEST_ASSERT_TRUE(syn_x509_validate_chain(&srv_cert, &ca_cert, NULL));
+    TEST_ASSERT_FALSE(syn_x509_validate_chain(&srv_cert, &ca_cert, "wrong.domain.org"));
+}
+
 void run_asn1_x509_tests(void)
 {
     RUN_TEST(test_asn1_basic_tlv_parse);
@@ -548,6 +598,7 @@ void run_asn1_x509_tests(void)
     RUN_TEST(test_ed25519_verify_basic);
     RUN_TEST(test_x509_cert_parse_and_chain);
     RUN_TEST(test_x509_ecdsa_p256_verification_and_chain);
+    RUN_TEST(test_x509_ed25519_live_keypair_verification_and_chain);
     RUN_TEST(test_x509_parse_ecdsa_cert);
     RUN_TEST(test_x509_edge_cases_and_corrupt_structures);
 }

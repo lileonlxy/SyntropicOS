@@ -3,6 +3,7 @@
  * @brief Unit tests for native zero-dependency TLS 1.3 engine and transport binding.
  */
 
+#include "syntropic/crypto/syn_ed25519.h"
 #include "syntropic/net/syn_tls.h"
 #include "unity/unity.h"
 
@@ -415,6 +416,53 @@ void test_tls_x509_mode_handshake(void)
                                   sizeof(rx_record_buf), tx_record_buf, sizeof(tx_record_buf)));
     TEST_ASSERT_FALSE(syn_tls_handshake(&bad_chain_tls));
     TEST_ASSERT_EQUAL(SYN_TLS_STATE_ERROR, bad_chain_tls.state);
+
+    /* Test successful X.509 handshake with live Ed25519-signed certificate */
+    uint8_t ca_seed[32] = {0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC};
+    uint8_t ca_pub[32], ca_sec[32];
+    TEST_ASSERT_TRUE(syn_ed25519_create_keypair(ca_pub, ca_sec, ca_seed));
+
+    /* Build DER certificate: Root SEQUENCE [ TBS (84B), SigAlgo (7B), SigBits (67B) ] = 161B */
+    uint8_t live_cert_der[161] = {
+        0x30, 0x81, 0x9E,                         /* SEQUENCE length 158 */
+        0x30, 0x52,                               /* TBSCertificate length 82 (offset 3..86) */
+        0xA0, 0x03, 0x02, 0x01, 0x02,             /* [0] Version 3 */
+        0x02, 0x01, 0x01,                         /* Serial Number 1 */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, /* Sig Algo ed25519 */
+        0x30, 0x12, 0x31, 0x10, 0x30, 0x0E, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x07,
+        'T',  'e',  's',  't',  ' ',  'C',  'A', /* Issuer CN "Test CA" */
+        0x30, 0x00,                              /* Validity empty */
+        0x30, 0x16, 0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x0B,
+        'T',  'e',  's',  't',  ' ',  'S',  'e',  'r',  'v',  'e',  'r', /* Subject CN "Test Server"
+                                                                          */
+        0x30, 0x13,                                                      /* SPKI */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70,                        /* SPKI Algo ed25519 */
+        0x03, 0x0A, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, /* Pubkey bits */
+        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70,                               /* Outer Sig Algo */
+        0x03, 0x41, 0x00                                                        /* BIT STRING 64B */
+    };
+
+    /* Sign TBS bytes (offset 3, length 84) */
+    uint8_t live_sig[64];
+    TEST_ASSERT_TRUE(syn_ed25519_sign(live_cert_der + 3, 84, ca_sec, ca_pub, live_sig));
+    memcpy(live_cert_der + 97, live_sig, 64);
+
+    SYN_X509_Cert valid_root_ca;
+    memset(&valid_root_ca, 0, sizeof(valid_root_ca));
+    memcpy(valid_root_ca.pubkey, ca_pub, 32);
+    valid_root_ca.pubkey_len = 32;
+    valid_root_ca.pubkey_algo = SYN_X509_ALGO_ED25519;
+
+    SYN_TLS_Config valid_x509_cfg = {.mode = SYN_TLS_AUTH_MODE_X509_SERVER,
+                                     .server_name = "Test Server",
+                                     .root_ca = &valid_root_ca,
+                                     .client_cert_der = live_cert_der,
+                                     .client_cert_len = sizeof(live_cert_der)};
+    SYN_TLS_Context valid_tls;
+    TEST_ASSERT_TRUE(syn_tls_init(&valid_tls, &valid_x509_cfg, &tr, rx_record_buf,
+                                  sizeof(rx_record_buf), tx_record_buf, sizeof(tx_record_buf)));
+    TEST_ASSERT_TRUE(syn_tls_handshake(&valid_tls));
+    TEST_ASSERT_EQUAL(SYN_TLS_STATE_ESTABLISHED, valid_tls.state);
 }
 
 void run_tls_tests(void)
