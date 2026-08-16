@@ -9,8 +9,8 @@
  * @brief AES-128 implementation (S-Box, Key Expansion, ECB, CBC mode).
  */
 
+#include "../util/syn_assert.h"
 #include "syn_aes128.h"
-#include "syn_assert.h"
 
 #include <string.h>
 

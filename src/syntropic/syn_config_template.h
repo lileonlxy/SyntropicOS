@@ -209,6 +209,15 @@
 
 #define SYN_USE_DATALOG 1 /**< Data logger (ring buffer to flash)  */
 
+/* ── Cryptography ───────────────────────────────────────────────────────── */
+
+#define SYN_USE_AES128 1           /**< AES-128 block cipher (ECB & CBC)    */
+#define SYN_USE_AES_CMAC 1         /**< AES-CMAC message authentication     */
+#define SYN_USE_BLAKE2S 1          /**< BLAKE2s cryptographic hash          */
+#define SYN_USE_CHACHA20POLY1305 1 /**< ChaCha20-Poly1305 AEAD cipher       */
+#define SYN_USE_X25519 1           /**< X25519 Elliptic Curve Diffie-Hellman*/
+#define SYN_USE_HMAC_DRBG 1        /**< NIST SP 800-90A HMAC-DRBG           */
+
 /* ── Utilities ──────────────────────────────────────────────────────────── */
 
 #define SYN_USE_FMT 1           /**< Lightweight printf alternative      */

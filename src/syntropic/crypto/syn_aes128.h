@@ -4,7 +4,7 @@
  *
  * Constant-time, zero-heap implementation designed for embedded systems.
  * Supports 128-bit key expansion and CBC cipher block chaining.
- * @ingroup syn_util
+ * @ingroup syn_crypto
  */
 
 #ifndef SYN_AES128_H

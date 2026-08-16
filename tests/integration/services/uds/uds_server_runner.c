@@ -1,5 +1,5 @@
+#include "syntropic/crypto/syn_aes128.h"
 #include "syntropic/proto/syn_uds.h"
-#include "syntropic/util/syn_aes128.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>

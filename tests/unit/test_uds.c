@@ -3,9 +3,9 @@
  * @brief Unit tests for ISO 14229 UDS server protocol implementation.
  */
 
+#include "syntropic/crypto/syn_aes128.h"
 #include "syntropic/proto/syn_isotp.h"
 #include "syntropic/proto/syn_uds.h"
-#include "syntropic/util/syn_aes128.h"
 #include "syntropic/util/syn_pack.h"
 #include "unity/unity.h"
 

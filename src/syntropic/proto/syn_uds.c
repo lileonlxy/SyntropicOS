@@ -5,7 +5,7 @@
 
 #include "syn_uds.h"
 
-#include "../util/syn_aes128.h"
+#include "../crypto/syn_aes128.h"
 #include "../util/syn_pack.h"
 
 #include <string.h>

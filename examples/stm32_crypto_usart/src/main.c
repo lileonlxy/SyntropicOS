@@ -18,7 +18,7 @@
 #include "syntropic/syntropic.h"
 #include "syntropic/util/syn_ringbuf.h"
 #include "syntropic/util/syn_sha256.h"
-#include "syntropic/util/syn_aes128.h"
+#include "syntropic/crypto/syn_aes128.h"
 #include "port/stm32_hal/port_stm32_hal.h"
 
 #define RX_BUF_SIZE 128

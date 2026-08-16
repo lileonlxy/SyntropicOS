@@ -122,7 +122,6 @@ extern "C" {
 #endif
 
 #if !defined(SYN_USE_SHA256) || SYN_USE_SHA256
-#include "util/syn_aes128.h"
 #include "util/syn_hmac.h"
 #include "util/syn_sha256.h"
 #endif
@@ -655,6 +654,14 @@ extern "C" {
 #endif
 
 /* ── Cryptography ───────────────────────────────────────────────────────── */
+
+#if !defined(SYN_USE_AES128) || SYN_USE_AES128
+#include "crypto/syn_aes128.h"
+#endif
+
+#if !defined(SYN_USE_AES_CMAC) || SYN_USE_AES_CMAC
+#include "crypto/syn_aes_cmac.h"
+#endif
 
 #if !defined(SYN_USE_BLAKE2S) || SYN_USE_BLAKE2S
 #include "crypto/syn_blake2s.h"

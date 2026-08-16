@@ -1,4 +1,4 @@
-#include "syntropic/util/syn_aes128.h"
+#include "syntropic/crypto/syn_aes128.h"
 #include "unity/unity.h"
 
 #include <string.h>
