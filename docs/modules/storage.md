@@ -73,7 +73,72 @@ void update_node_id(uint16_t new_id) {
 
 ---
 
-## 2. Virtual File System (`syn_vfs.h`)
+## 2. Flash Wear-Leveling Engine (`syn_param.h`)
+
+The `syn_param` module provides low-overhead, power-fail-safe, wear-leveled storage directly on raw Flash sectors or pages without requiring a filesystem.
+
+### Architecture & Memory Layout
+
+Flash is divided into $K$ contiguous sectors or pages. Each sector is partitioned into fixed-size slots aligned to 16-byte boundaries:
+
+```mermaid
+flowchart LR
+    subgraph S0["Sector 0 (Active)"]
+        s0_0["Slot 0<br/>(Seq 1)"]
+        s0_1["Slot 1<br/>(Seq 2)"]
+        s0_2["Slot 2<br/>(Seq 3 - Active)"]
+        s0_3["Slot 3<br/>(0xFF Blank)"]
+    end
+    subgraph S1["Sector 1 (Standby)"]
+        s1_0["Slot 0<br/>(0xFF Blank)"]
+        s1_1["Slot 1<br/>(0xFF Blank)"]
+        s1_2["Slot 2<br/>(0xFF Blank)"]
+        s1_3["Slot 3<br/>(0xFF Blank)"]
+    end
+    s0_2 -->|Next Save| s0_3
+    s0_3 -->|Sector Full -> Erase & Rotate| s1_0
+```
+
+### Slot Structure
+
+Each slot consists of a 16-byte metadata header followed by the caller's parameter data:
+
+```
++------------------+------------------+-------------------+------------------+--------------------+------------------------+
+| magic (2 bytes)  |  seq (2 bytes)   | data_size (2 B)   |  crc (2 bytes)   |  pad (8 bytes)     |  Payload (data_size B) |
+|     0xC0DE       |  Incrementing    | User Struct Size  |  CRC-16-CCITT    |  0x00 / Reserved   |  Raw Struct Binary     |
++------------------+------------------+-------------------+------------------+--------------------+------------------------+
+|<----------------------------- 16-Byte Slot Header ---------------------------->|<------ Aligned Data Payload --------->|
+```
+
+### Core Principles
+
+1. **Sequential Append Writes**:
+   - Updates are written to the next blank slot in the current sector (`active_slot++`) without erasing flash.
+   - Flash write alignment is enforced via `align16(sizeof(SYN_ParamSlotHeader) + data_size)` to satisfy MCU flash programming parallelism constraints.
+
+2. **Circular Sector Rotation & Erase Minimization**:
+   - When all slots in `active_sector` are exhausted (`active_slot >= slots_per_sector`), the store rotates to the next sector:
+     $$\text{active\_sector} = (\text{active\_sector} + 1) \pmod{\text{sector\_count}}$$
+   - Only the incoming sector is erased (`syn_port_flash_erase`).
+   - Total write cycles before any single flash sector reaches its physical erase endurance limit ($E$):
+     $$\text{Total Lifetime Writes} = E \times \text{sector\_count} \times \left\lfloor \frac{\text{sector\_size}}{\text{slot\_size}} \right\rfloor$$
+     *Example: 2 sectors of 4 KB storing a 16-byte payload ($\text{slot\_size} = 32\text{ bytes}$) yields $128 \text{ slots/sector} \times 2 \times 10,000 \text{ cycles} = \mathbf{2,560,000\text{ write cycles}}$.*
+
+3. **Two-Phase Atomic Commit Protocol**:
+   - **Phase 1 (Payload Write)**: The parameter payload is written to flash at `slot_addr + sizeof(SYN_ParamSlotHeader)`.
+   - **Phase 2 (Header Commit)**: The 16-byte header containing `SYN_PARAM_MAGIC (0xC0DE)` and the CRC-16 checksum is written last.
+   - If power is cut during Phase 1, the slot lacks the `0xC0DE` magic signature or fails CRC validation on boot, causing the engine to cleanly ignore the partial write and retain the previous valid slot.
+
+4. **Boot Recovery & Sequence Integer Rollover**:
+   - On boot, `syn_param_init()` scans all slots across all configured sectors.
+   - Sequence comparisons use signed 16-bit modular arithmetic:
+     $$\text{is\_newer} = ((\text{int16\_t})(\text{hdr.seq} - \text{best\_seq}) > 0)$$
+   - This handles 16-bit sequence number rollover ($65535 \rightarrow 0$) seamlessly without data loss.
+
+---
+
+## 3. Virtual File System (`syn_vfs.h`)
 
 SyntropicOS provides a unified Virtual File System (VFS) interface to abstract raw storage media (Internal Flash, SPI NOR Flash, SD Cards).
 
@@ -88,3 +153,4 @@ SyntropicOS provides a unified Virtual File System (VFS) interface to abstract r
 | **LittleFS** | `storage/syn_lfs.h` | NOR Flash memory, power-fail safe, wear-leveled |
 | **FAT / FAT32** | `storage/syn_fat.h` | SD Cards, USB Mass Storage, PC-readable drives |
 | **Param Store** | `storage/syn_param.h` | Sector-based raw parameter storage without a filesystem |
+

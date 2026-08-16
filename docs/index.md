@@ -95,8 +95,9 @@ Quick-jump to specific feature guides and API references:
 
 
 ### 💾 Storage & Filesystems ([Read Storage Docs →](modules/storage.md))
-- **[Persistent Settings (`syn_settings`)](modules/storage.md#1-persistent-settings-manager)**: Wear-leveled flash configuration with load-or-default & CRC-16.
-- **[Virtual File System (`syn_vfs`)](modules/storage.md#2-virtual-file-system)**: POSIX-like VFS abstraction for LittleFS and FAT.
+- **[Persistent Settings (`syn_settings`)](modules/storage.md#1-persistent-settings-manager)**: High-level configuration manager with load-or-default, change-detection & CRC-16.
+- **[Flash Wear-Leveling Engine (`syn_param`)](modules/storage.md#2-flash-wear-leveling-engine-syn_paramh)**: Raw sector/page wear leveling with two-phase power-fail safety.
+- **[Virtual File System (`syn_vfs`)](modules/storage.md#3-virtual-file-system-syn_vfsh)**: POSIX-like VFS abstraction for LittleFS and FAT.
 
 ### 🖥️ Display & Embedded UI ([Read Display Docs →](modules/display.md))
 - **[Display Canvas (`syn_canvas`)](modules/display.md#1-framebuffer-display-canvas)**: Hardware-independent 1bpp/16bpp framebuffer & 2D graphics.
