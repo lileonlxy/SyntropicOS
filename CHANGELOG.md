@@ -9,6 +9,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (`YYYY.M.
 
 ## [Unreleased]
 
+### Fixed
+- **UDS Service 0x19 (ReadDTCInformation)**: Fixed fallback response wire formatting for subfunctions `0x04`, `0x06`, `0x10`, `0x18`, and `0x19` to return authoritative `statusOfDTC` instead of `SYN_UDS_DTC_STATUS_AVAILABILITY_MASK`. Enforced NRC `0x31` (`RequestOutOfRange`) when requested DTC is not registered.
+- **UDS DTC Lifecycle & State Machine**: Aligned `syn_uds_dtc_report_test_result()` and `syn_uds_dtc_start_operation_cycle()` with ISO 14229-1: set Fault Detection Counter to +127 on qualified failure and -128 on qualified pass; clear `pendingDTC` (bit 2) on operation cycle transition if preceding cycle completed without malfunction.
+- **DTC Manager Demo (`examples/stm32_dtc_manager_demo`)**: Corrected wire format in callback handlers for subfunctions `0x04` and `0x06` to adhere to ISO 14229-1 Tables 258 and 260. Consolidated DTC status tracking to use `syn_uds_dtc_get_status()` as single source of truth.
+
 ---
 
 ## [2026.8.0] - 2026-08-10

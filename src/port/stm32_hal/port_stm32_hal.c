@@ -450,30 +450,53 @@ SYN_WEAK int syn_port_serial_read(uint8_t *buf, size_t max_len)
 #if defined(FLASH_TYPEERASE_SECTORS)
 static uint32_t syn_stm32_addr_to_sector(uint32_t addr)
 {
-    if (addr < 0x08004000U) return FLASH_SECTOR_0;
-    if (addr < 0x08008000U) return FLASH_SECTOR_1;
-    if (addr < 0x0800C000U) return FLASH_SECTOR_2;
-    if (addr < 0x08010000U) return FLASH_SECTOR_3;
-    if (addr < 0x08020000U) return FLASH_SECTOR_4;
-    if (addr < 0x08040000U) return FLASH_SECTOR_5;
-    if (addr < 0x08060000U) return FLASH_SECTOR_6;
-    if (addr < 0x08080000U) return FLASH_SECTOR_7;
-    if (addr < 0x080A0000U) return FLASH_SECTOR_8;
-    if (addr < 0x080C0000U) return FLASH_SECTOR_9;
-    if (addr < 0x080E0000U) return FLASH_SECTOR_10;
-    if (addr < 0x08100000U) return FLASH_SECTOR_11;
+    if (addr < 0x08004000U)
+        return FLASH_SECTOR_0;
+    if (addr < 0x08008000U)
+        return FLASH_SECTOR_1;
+    if (addr < 0x0800C000U)
+        return FLASH_SECTOR_2;
+    if (addr < 0x08010000U)
+        return FLASH_SECTOR_3;
+    if (addr < 0x08020000U)
+        return FLASH_SECTOR_4;
+    if (addr < 0x08040000U)
+        return FLASH_SECTOR_5;
+    if (addr < 0x08060000U)
+        return FLASH_SECTOR_6;
+    if (addr < 0x08080000U)
+        return FLASH_SECTOR_7;
+    if (addr < 0x080A0000U)
+        return FLASH_SECTOR_8;
+    if (addr < 0x080C0000U)
+        return FLASH_SECTOR_9;
+    if (addr < 0x080E0000U)
+        return FLASH_SECTOR_10;
+    if (addr < 0x08100000U)
+        return FLASH_SECTOR_11;
 #if defined(FLASH_SECTOR_12)
-    if (addr < 0x08104000U) return FLASH_SECTOR_12;
-    if (addr < 0x08108000U) return FLASH_SECTOR_13;
-    if (addr < 0x0810C000U) return FLASH_SECTOR_14;
-    if (addr < 0x08110000U) return FLASH_SECTOR_15;
-    if (addr < 0x08120000U) return FLASH_SECTOR_16;
-    if (addr < 0x08140000U) return FLASH_SECTOR_17;
-    if (addr < 0x08160000U) return FLASH_SECTOR_18;
-    if (addr < 0x08180000U) return FLASH_SECTOR_19;
-    if (addr < 0x081A0000U) return FLASH_SECTOR_20;
-    if (addr < 0x081C0000U) return FLASH_SECTOR_21;
-    if (addr < 0x081E0000U) return FLASH_SECTOR_22;
+    if (addr < 0x08104000U)
+        return FLASH_SECTOR_12;
+    if (addr < 0x08108000U)
+        return FLASH_SECTOR_13;
+    if (addr < 0x0810C000U)
+        return FLASH_SECTOR_14;
+    if (addr < 0x08110000U)
+        return FLASH_SECTOR_15;
+    if (addr < 0x08120000U)
+        return FLASH_SECTOR_16;
+    if (addr < 0x08140000U)
+        return FLASH_SECTOR_17;
+    if (addr < 0x08160000U)
+        return FLASH_SECTOR_18;
+    if (addr < 0x08180000U)
+        return FLASH_SECTOR_19;
+    if (addr < 0x081A0000U)
+        return FLASH_SECTOR_20;
+    if (addr < 0x081C0000U)
+        return FLASH_SECTOR_21;
+    if (addr < 0x081E0000U)
+        return FLASH_SECTOR_22;
     return FLASH_SECTOR_23;
 #else
     return FLASH_SECTOR_11;

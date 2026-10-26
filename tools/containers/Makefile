@@ -15,7 +15,7 @@ else
   else
     CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || command -v docker.exe 2>/dev/null || command -v docker 2>/dev/null || echo docker)
   endif
-  VOL_FLAG ?= $(shell if [ "$(CONTAINER_ENGINE)" = "podman" ]; then echo ":z"; else echo ""; fi)
+  VOL_FLAG ?= $(shell echo "$(CONTAINER_ENGINE)" | grep -q "podman" && echo ":z" || true)
   JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 endif
 export CONTAINER_ENGINE

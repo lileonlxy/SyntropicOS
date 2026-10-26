@@ -825,20 +825,35 @@ bool syn_uds_is_sid_functional_supported(uint8_t sid);
  * @brief Report diagnostic test result for a registered DTC according to ISO 14229-1 state
  * transitions.
  *
- * Updates DTC status bits (testFailed, testFailedThisOperationCycle, pendingDTC, confirmedDTC,
- * etc.) and fault detection counter.
+ * Diagnostic monitors must invoke this function whenever a periodic or event-driven test completes:
+ * - When @p failed is true (qualified failure):
+ *   - Sets @c testFailed (bit 0), @c testFailedThisOperationCycle (bit 1),
+ *     @c pendingDTC (bit 2), @c confirmedDTC (bit 3), and @c testFailedSinceLastClear (bit 5).
+ *   - Clears @c testNotCompletedSinceLastClear (bit 4) and @c testNotCompletedThisOperationCycle
+ * (bit 6).
+ *   - Sets Fault Detection Counter (FDC) to +127.
+ * - When @p failed is false (qualified pass):
+ *   - Clears @c testFailed (bit 0), @c testNotCompletedSinceLastClear (bit 4), and
+ *     @c testNotCompletedThisOperationCycle (bit 6).
+ *   - Sets Fault Detection Counter (FDC) to -128.
  *
  * @param server Pointer to UDS server instance.
  * @param dtc 24-bit Diagnostic Trouble Code.
- * @param failed True if test failed, false if test passed.
+ * @param failed True if test qualified failed, false if test qualified passed.
  * @return true if DTC found and updated, false otherwise.
  */
 bool syn_uds_dtc_report_test_result(SYN_UDS_Server *server, uint32_t dtc, bool failed);
 
 /**
  * @brief Advance server state to a new operation cycle.
- * Clears testFailedThisOperationCycle and sets testNotCompletedThisOperationCycle for all
- * registered DTCs.
+ *
+ * Must be invoked at ECU ignition ON / startup and upon completion/boundary of each driving
+ * or operation cycle:
+ * - If a registered DTC completed testing during the previous cycle without any failure
+ *   (@c testNotCompletedThisOperationCycle == 0 and @c testFailedThisOperationCycle == 0),
+ *   clears @c pendingDTC (bit 2) per ISO 14229-1 Table 242.
+ * - Clears @c testFailedThisOperationCycle (bit 1) to 0.
+ * - Sets @c testNotCompletedThisOperationCycle (bit 6) to 1.
  *
  * @param server Pointer to UDS server instance.
  * @return true on success, false if server is NULL.
@@ -847,6 +862,8 @@ bool syn_uds_dtc_start_operation_cycle(SYN_UDS_Server *server);
 
 /**
  * @brief Get current 8-bit status byte for a registered DTC.
+ *
+ * Returns the authoritative ISO 14229-1 DTCStatusByte tracked by the UDS server.
  *
  * @param server Pointer to UDS server instance.
  * @param dtc 24-bit Diagnostic Trouble Code.

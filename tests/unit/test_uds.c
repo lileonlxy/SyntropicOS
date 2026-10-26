@@ -1412,10 +1412,10 @@ static void test_uds_read_dtc_information_subfunctions(void)
     TEST_ASSERT_EQUAL_HEX8(SYN_UDS_RESPONSE_NEGATIVE, resp[0]);
     TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH, resp[2]);
 
-    req[1] = 0x04; /* Send 6 bytes, but max_resp_len = 5 -> NRC 0x38 */
-    req[2] = 0x12;
-    req[3] = 0x34;
-    req[4] = 0x56;
+    req[1] = 0x04; /* Send 6 bytes, but max_resp_len = 5 -> NRC 0x14 */
+    req[2] = 0x01;
+    req[3] = 0x23;
+    req[4] = 0x45;
     req[5] = 0x01;
     TEST_ASSERT_TRUE(
         syn_uds_process_request(&server, req, 6, resp, 5, &resp_len, SYN_UDS_ADDR_PHYSICAL));
@@ -2204,6 +2204,7 @@ static void test_uds_read_dtc_by_status_mask(void)
 {
     SYN_UDS_Server server;
     TEST_ASSERT_TRUE(syn_uds_init(&server));
+    TEST_ASSERT_TRUE(syn_uds_register_dtc(&server, 0x012345U, 0x09U, 0xA0U));
 
     uint8_t req[16] = {0};
     uint8_t resp[64] = {0};
@@ -2225,12 +2226,26 @@ static void test_uds_read_dtc_by_status_mask(void)
         TEST_ASSERT_EQUAL_HEX8(SYN_UDS_RESPONSE_NEGATIVE, resp[0]);
         TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH, resp[2]);
 
-        /* Valid request (6 bytes) -> Positive response (0x59, sub) */
+        /* Valid request (6 bytes) with registered DTC -> Positive response (0x59, sub) with
+         * statusOfDTC */
         TEST_ASSERT_TRUE(syn_uds_process_request(&server, req, 6, resp, sizeof(resp), &resp_len,
                                                  SYN_UDS_ADDR_PHYSICAL));
         TEST_ASSERT_EQUAL_HEX8(0x59, resp[0]);
         TEST_ASSERT_EQUAL_HEX8(subs6[i], resp[1]);
+        TEST_ASSERT_EQUAL_HEX8(0x09, resp[5]); /* statusOfDTC */
         TEST_ASSERT_EQUAL_UINT16(6, resp_len);
+
+        /* Unregistered DTC (0x999999) -> NRC 0x31 RequestOutOfRange */
+        req[2] = 0x99;
+        req[3] = 0x99;
+        req[4] = 0x99;
+        TEST_ASSERT_TRUE(syn_uds_process_request(&server, req, 6, resp, sizeof(resp), &resp_len,
+                                                 SYN_UDS_ADDR_PHYSICAL));
+        TEST_ASSERT_EQUAL_HEX8(SYN_UDS_RESPONSE_NEGATIVE, resp[0]);
+        TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_REQUEST_OUT_OF_RANGE, resp[2]);
+        req[2] = 0x01;
+        req[3] = 0x23;
+        req[4] = 0x45;
     }
 
     /* 2. Subfunctions requiring req_len >= 7 (0x18, 0x19) */
@@ -2248,12 +2263,26 @@ static void test_uds_read_dtc_by_status_mask(void)
         TEST_ASSERT_EQUAL_HEX8(SYN_UDS_RESPONSE_NEGATIVE, resp[0]);
         TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH, resp[2]);
 
-        /* Valid request (7 bytes) -> Positive response (0x59, sub) */
+        /* Valid request (7 bytes) with registered DTC -> Positive response (0x59, sub) with
+         * statusOfDTC */
         TEST_ASSERT_TRUE(syn_uds_process_request(&server, req, 7, resp, sizeof(resp), &resp_len,
                                                  SYN_UDS_ADDR_PHYSICAL));
         TEST_ASSERT_EQUAL_HEX8(0x59, resp[0]);
         TEST_ASSERT_EQUAL_HEX8(subs7[i], resp[1]);
+        TEST_ASSERT_EQUAL_HEX8(0x09, resp[6]); /* statusOfDTC */
         TEST_ASSERT_EQUAL_UINT16(7, resp_len);
+
+        /* Unregistered DTC (0x999999) -> NRC 0x31 RequestOutOfRange */
+        req[2] = 0x99;
+        req[3] = 0x99;
+        req[4] = 0x99;
+        TEST_ASSERT_TRUE(syn_uds_process_request(&server, req, 7, resp, sizeof(resp), &resp_len,
+                                                 SYN_UDS_ADDR_PHYSICAL));
+        TEST_ASSERT_EQUAL_HEX8(SYN_UDS_RESPONSE_NEGATIVE, resp[0]);
+        TEST_ASSERT_EQUAL_HEX8(SYN_UDS_NRC_REQUEST_OUT_OF_RANGE, resp[2]);
+        req[2] = 0x01;
+        req[3] = 0x23;
+        req[4] = 0x45;
     }
 
     /* 3. Subfunction 0x03 (valid at req_len >= 2) */
@@ -2315,7 +2344,6 @@ static void test_uds_read_dtc_by_status_mask(void)
     TEST_ASSERT_EQUAL_UINT16(4, resp_len);
 
     /* 5. Subfunction 0x09 (severity info) & 0x55 (WWH-OBD permanent status) with registered DTC */
-    TEST_ASSERT_TRUE(syn_uds_register_dtc(&server, 0x012345, 0x09, 0xA0));
     uint8_t req09[5] = {SYN_UDS_SID_READ_DTC_INFORMATION, 0x09, 0x01, 0x23, 0x45};
     /* Short request (<5 bytes) -> NRC 0x13 */
     TEST_ASSERT_TRUE(syn_uds_process_request(&server, req09, 4, resp, sizeof(resp), &resp_len,
@@ -2532,17 +2560,34 @@ static void test_uds_dtc_iso14229_bit_operations(void)
     TEST_ASSERT_TRUE((status & SYN_UDS_DTC_STATUS_CONFIRMED_DTC) != 0);
     TEST_ASSERT_TRUE((status & SYN_UDS_DTC_STATUS_TEST_FAILED_SINCE_LAST_CLEAR) != 0);
     TEST_ASSERT_EQUAL_HEX8(0, status & SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_THIS_OP_CYCLE);
+    TEST_ASSERT_EQUAL_INT8(127, server.dtc_table[0].fault_cnt);
 
     /* Report test pass */
     TEST_ASSERT_TRUE(syn_uds_dtc_report_test_result(&server, 0x010203U, false));
     TEST_ASSERT_TRUE(syn_uds_dtc_get_status(&server, 0x010203U, &status));
     TEST_ASSERT_EQUAL_HEX8(0, status & SYN_UDS_DTC_STATUS_TEST_FAILED);
+    TEST_ASSERT_EQUAL_INT8(-128, server.dtc_table[0].fault_cnt);
 
-    /* Start new operation cycle */
+    /* Start new operation cycle (cycle 2) - previous cycle failed, pendingDTC retained */
     TEST_ASSERT_TRUE(syn_uds_dtc_start_operation_cycle(&server));
     TEST_ASSERT_TRUE(syn_uds_dtc_get_status(&server, 0x010203U, &status));
     TEST_ASSERT_EQUAL_HEX8(0, status & SYN_UDS_DTC_STATUS_TEST_FAILED_THIS_OP_CYCLE);
     TEST_ASSERT_TRUE((status & SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_THIS_OP_CYCLE) != 0);
+    TEST_ASSERT_TRUE((status & SYN_UDS_DTC_STATUS_PENDING_DTC) != 0);
+
+    /* Cycle 2: test completes with pass (no failure in this cycle) */
+    TEST_ASSERT_TRUE(syn_uds_dtc_report_test_result(&server, 0x010203U, false));
+    TEST_ASSERT_TRUE(syn_uds_dtc_get_status(&server, 0x010203U, &status));
+    TEST_ASSERT_EQUAL_HEX8(0, status & SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_THIS_OP_CYCLE);
+    TEST_ASSERT_EQUAL_HEX8(0, status & SYN_UDS_DTC_STATUS_TEST_FAILED_THIS_OP_CYCLE);
+    TEST_ASSERT_TRUE((status & SYN_UDS_DTC_STATUS_PENDING_DTC) != 0);
+
+    /* Start new operation cycle (cycle 3) - ISO 14229-1: test completed cleanly in cycle 2,
+     * pendingDTC clears */
+    TEST_ASSERT_TRUE(syn_uds_dtc_start_operation_cycle(&server));
+    TEST_ASSERT_TRUE(syn_uds_dtc_get_status(&server, 0x010203U, &status));
+    TEST_ASSERT_EQUAL_HEX8(0, status & SYN_UDS_DTC_STATUS_PENDING_DTC);
+    TEST_ASSERT_TRUE((status & SYN_UDS_DTC_STATUS_CONFIRMED_DTC) != 0); /* confirmedDTC remains */
 
     /* Non-existent DTC search */
     TEST_ASSERT_FALSE(syn_uds_dtc_report_test_result(&server, 0x999999U, true));

@@ -320,6 +320,30 @@ static bool on_access_timing(SYN_UDS_AccessTimingType timing_type, uint16_t *p2_
 syn_uds_register_access_timing(&g_uds, on_access_timing, NULL);
 ```
 
+### Diagnostic Trouble Code (DTC) Management & ISO 14229-1 Lifecycle
+
+SyntropicOS implements normative ISO 14229-1 DTC status bit management, fault detection counters, and operation cycle boundaries directly in the core stack:
+
+- **Normative State Machine**: Tracks `DTCStatusByte` bits (`testFailed`, `testFailedThisOperationCycle`, `pendingDTC`, `confirmedDTC`, `testNotCompletedSinceLastClear`, `testFailedSinceLastClear`, `testNotCompletedThisOperationCycle`).
+- **Single Source of Truth**: The core `SYN_UDS_Server` context manages status bits and fault detection counters (-128 to +127). Applications should not duplicate status byte tracking.
+- **OEM Extension Hook (`dtc_cb`)**: Snapshot DIDs (subfunction `0x04`) and Extended Data records (subfunction `0x06`) are defined by vehicle manufacturers and delegated cleanly via `syn_uds_register_dtc_handler()`.
+
+```c
+/* 1. Registration at initialization */
+syn_uds_register_dtc(&g_uds, 0x00B10016U, 0x00, SYN_UDS_DTC_SEVERITY_CHECK_IMMEDIATELY);
+
+/* 2. Diagnostic monitors report test results (pass / fail) */
+syn_uds_dtc_report_test_result(&g_uds, 0x00B10016U, true);  /* Sets testFailed, pending, confirmed; FDC = +127 */
+syn_uds_dtc_report_test_result(&g_uds, 0x00B10016U, false); /* Clears testFailed; FDC = -128 */
+
+/* 3. Driving / Operation cycle boundary */
+syn_uds_dtc_start_operation_cycle(&g_uds); /* Resets testFailedThisOpCycle; clears pendingDTC if cycle completed clean */
+
+/* 4. Querying authoritative status */
+uint8_t dtc_status = 0;
+syn_uds_dtc_get_status(&g_uds, 0x00B10016U, &dtc_status);
+```
+
 ---
 
 ## 8. DoIP Protocol Stack (`syn_doip`)

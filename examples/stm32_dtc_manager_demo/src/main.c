@@ -45,10 +45,8 @@ typedef struct {
 /** @brief Application DTC Control Block */
 typedef struct {
     uint32_t dtc_code;                              /* 24-bit ISO DTC code */
-    uint8_t status_byte;                            /* ISO 14229-1 DTCStatusByte */
-    uint16_t consecutive_fail_cnt;                  /* Confirmation cycle counter */
-    uint16_t consecutive_pass_cnt;                  /* Self-healing cycle counter */
     uint32_t occurrence_cnt;                        /* Total fault occurrence count */
+    uint8_t saved_status;                           /* Cached status for Flash persistence */
     ApplicationSnapshotRecord snapshots[DTC_MAX_SNAPSHOT_RECORDS]; /* Freeze frame records */
 } ApplicationDTCRecord;
 
@@ -107,7 +105,7 @@ static void capture_freeze_frame(ApplicationDTCRecord *rec)
 }
 
 /**
- * @brief Evaluate periodic fault status & drive ISO 14229-1 state machine.
+ * @brief Evaluate periodic fault status & drive ISO 14229-1 state machine via syn_uds_dtc_report_test_result.
  */
 static void evaluate_dtc_status(uint32_t code, bool is_fault_active)
 {
@@ -115,32 +113,10 @@ static void evaluate_dtc_status(uint32_t code, bool is_fault_active)
     if (rec == NULL) return;
 
     if (is_fault_active) {
-        rec->consecutive_pass_cnt = 0;
-        rec->consecutive_fail_cnt++;
-        rec->status_byte |= (SYN_UDS_DTC_STATUS_TEST_FAILED |
-                            SYN_UDS_DTC_STATUS_TEST_FAILED_THIS_OP_CYCLE |
-                            SYN_UDS_DTC_STATUS_PENDING_DTC |
-                            SYN_UDS_DTC_STATUS_TEST_FAILED_SINCE_LAST_CLEAR);
-
-        /* Confirm DTC after 2 consecutive failing cycles */
-        if (rec->consecutive_fail_cnt >= 2U) {
-            rec->status_byte |= SYN_UDS_DTC_STATUS_CONFIRMED_DTC;
-        }
-
         rec->occurrence_cnt++;
         capture_freeze_frame(rec);
         syn_uds_dtc_report_test_result(&g_uds_server, code, true);
     } else {
-        rec->consecutive_fail_cnt = 0;
-        rec->consecutive_pass_cnt++;
-        rec->status_byte &= ~(uint8_t)SYN_UDS_DTC_STATUS_TEST_FAILED;
-
-        /* Self-healing: clear pending/confirmed status after 3 consecutive clean cycles */
-        if (rec->consecutive_pass_cnt >= 3U) {
-            rec->status_byte &= ~(uint8_t)(SYN_UDS_DTC_STATUS_PENDING_DTC |
-                                          SYN_UDS_DTC_STATUS_CONFIRMED_DTC);
-            rec->consecutive_pass_cnt = 0;
-        }
         syn_uds_dtc_report_test_result(&g_uds_server, code, false);
     }
 }
@@ -176,6 +152,7 @@ uint8_t DTC_SaveToFlash(void)
     g_sim_flash_storage.record_count = g_dtc_count;
 
     for (uint8_t i = 0; i < g_dtc_count; i++) {
+        syn_uds_dtc_get_status(&g_uds_server, g_dtc_db[i].dtc_code, &g_dtc_db[i].saved_status);
         g_sim_flash_storage.records[i] = g_dtc_db[i];
     }
 
@@ -198,6 +175,7 @@ uint8_t DTC_LoadFromFlash(void)
     uint8_t loaded = 0;
     for (uint16_t i = 0; i < g_sim_flash_storage.record_count && i < MAX_APP_DTCS; i++) {
         g_dtc_db[i] = g_sim_flash_storage.records[i];
+        syn_uds_register_dtc(&g_uds_server, g_dtc_db[i].dtc_code, g_dtc_db[i].saved_status, 0x00);
         loaded++;
     }
     g_dtc_count = loaded;
@@ -213,13 +191,16 @@ static bool on_read_dtc_info(uint8_t subfunction, const uint8_t *in_data, uint16
 
     switch (subfunction) {
     case 0x01: { /* reportNumberOfDTCByStatusMask */
-        if (in_len < 1 || max_out_len < 6) return false;
+        if (in_len < 1 || max_out_len < 4) return false;
         uint8_t mask = in_data[0];
         uint16_t match_cnt = 0;
 
         for (uint8_t i = 0; i < g_dtc_count; i++) {
-            if ((g_dtc_db[i].status_byte & mask) != 0) {
-                match_cnt++;
+            uint8_t status = 0;
+            if (syn_uds_dtc_get_status(&g_uds_server, g_dtc_db[i].dtc_code, &status)) {
+                if ((status & mask) != 0) {
+                    match_cnt++;
+                }
             }
         }
 
@@ -232,19 +213,22 @@ static bool on_read_dtc_info(uint8_t subfunction, const uint8_t *in_data, uint16
     }
 
     case 0x02: { /* reportDTCByStatusMask */
-        if (in_len < 1 || max_out_len < 2) return false;
+        if (in_len < 1 || max_out_len < 1) return false;
         uint8_t mask = in_data[0];
         uint16_t offset = 0;
 
         out_buf[offset++] = SYN_UDS_DTC_STATUS_AVAILABILITY_MASK;
 
         for (uint8_t i = 0; i < g_dtc_count; i++) {
-            if ((g_dtc_db[i].status_byte & mask) != 0) {
-                if (offset + 4 > max_out_len) break;
-                out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 16);
-                out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 8);
-                out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code & 0xFF);
-                out_buf[offset++] = g_dtc_db[i].status_byte;
+            uint8_t status = 0;
+            if (syn_uds_dtc_get_status(&g_uds_server, g_dtc_db[i].dtc_code, &status)) {
+                if ((status & mask) != 0) {
+                    if (offset + 4 > max_out_len) break;
+                    out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 16);
+                    out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 8);
+                    out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code & 0xFF);
+                    out_buf[offset++] = status;
+                }
             }
         }
         *out_len = offset;
@@ -270,60 +254,67 @@ static bool on_read_dtc_info(uint8_t subfunction, const uint8_t *in_data, uint16
         return true;
     }
 
-    case 0x04: { /* reportDTCSnapshotRecordByDTCNumber */
-        if (in_len < 4 || max_out_len < 5) return false;
+    case 0x04: { /* reportDTCSnapshotRecordByDTCNumber (ISO 14229-1 Table 258) */
+        if (in_len < 4 || max_out_len < 4) return false;
         uint32_t req_dtc = ((uint32_t)in_data[0] << 16) | ((uint32_t)in_data[1] << 8) | in_data[2];
         uint8_t req_rec_num = in_data[3];
 
         ApplicationDTCRecord *rec = find_dtc_record(req_dtc);
         if (rec == NULL) return false;
 
+        uint8_t status = 0;
+        if (!syn_uds_dtc_get_status(&g_uds_server, req_dtc, &status)) return false;
+
         uint16_t offset = 0;
+        out_buf[offset++] = (uint8_t)(req_dtc >> 16);
+        out_buf[offset++] = (uint8_t)(req_dtc >> 8);
+        out_buf[offset++] = (uint8_t)(req_dtc & 0xFF);
+        out_buf[offset++] = status;
+
         for (uint8_t s = 0; s < DTC_MAX_SNAPSHOT_RECORDS; s++) {
             if (rec->snapshots[s].captured &&
                 (req_rec_num == 0xFF || rec->snapshots[s].record_num == req_rec_num)) {
-                if (offset + 5 > max_out_len) break;
-                out_buf[offset++] = (uint8_t)(req_dtc >> 16);
-                out_buf[offset++] = (uint8_t)(req_dtc >> 8);
-                out_buf[offset++] = (uint8_t)(req_dtc & 0xFF);
+                /* Snapshot Record: record_num (1), num_dids (1), DID 0x0100 (2), voltage_mv (2) */
+                if (offset + 6 > max_out_len) break;
                 out_buf[offset++] = rec->snapshots[s].record_num;
-                out_buf[offset++] = rec->status_byte;
+                out_buf[offset++] = 0x01; /* 1 DID record included */
+                out_buf[offset++] = 0x01; /* DID 0x0100 high */
+                out_buf[offset++] = 0x00; /* DID 0x0100 low */
+                out_buf[offset++] = (uint8_t)(rec->snapshots[s].voltage_mv >> 8);
+                out_buf[offset++] = (uint8_t)(rec->snapshots[s].voltage_mv & 0xFF);
             }
         }
         *out_len = offset;
         return true;
     }
 
-    case 0x06: { /* reportDTCSnapshotRecordByDTCNumber (Detailed DID payload) */
-        if (in_len < 4 || max_out_len < 10) return false;
+    case 0x06: { /* reportDTCExtDataRecordByDTCNumber (ISO 14229-1 Table 260) */
+        if (in_len < 4 || max_out_len < 4) return false;
         uint32_t req_dtc = ((uint32_t)in_data[0] << 16) | ((uint32_t)in_data[1] << 8) | in_data[2];
         uint8_t req_rec_num = in_data[3];
 
         ApplicationDTCRecord *rec = find_dtc_record(req_dtc);
         if (rec == NULL) return false;
 
-        for (uint8_t s = 0; s < DTC_MAX_SNAPSHOT_RECORDS; s++) {
-            if (rec->snapshots[s].captured &&
-                (req_rec_num == 0xFF || rec->snapshots[s].record_num == req_rec_num)) {
-                uint16_t offset = 0;
-                out_buf[offset++] = (uint8_t)(req_dtc >> 16);
-                out_buf[offset++] = (uint8_t)(req_dtc >> 8);
-                out_buf[offset++] = (uint8_t)(req_dtc & 0xFF);
-                out_buf[offset++] = rec->status_byte;
-                out_buf[offset++] = rec->snapshots[s].record_num;
-                out_buf[offset++] = 0x01; /* 1 DID record included */
+        uint8_t status = 0;
+        if (!syn_uds_dtc_get_status(&g_uds_server, req_dtc, &status)) return false;
 
-                /* DID 0x0100: Voltage (mV) */
-                out_buf[offset++] = 0x01;
-                out_buf[offset++] = 0x00;
-                out_buf[offset++] = (uint8_t)(rec->snapshots[s].voltage_mv >> 8);
-                out_buf[offset++] = (uint8_t)(rec->snapshots[s].voltage_mv & 0xFF);
+        uint16_t offset = 0;
+        out_buf[offset++] = (uint8_t)(req_dtc >> 16);
+        out_buf[offset++] = (uint8_t)(req_dtc >> 8);
+        out_buf[offset++] = (uint8_t)(req_dtc & 0xFF);
+        out_buf[offset++] = status;
 
-                *out_len = offset;
-                return true;
+        /* Extended Data Record 0x01: 2-byte occurrence counter */
+        if (req_rec_num == 0xFF || req_rec_num == 0x01) {
+            if (offset + 3 <= max_out_len) {
+                out_buf[offset++] = 0x01; /* Record Number 0x01 */
+                out_buf[offset++] = (uint8_t)(rec->occurrence_cnt >> 8);
+                out_buf[offset++] = (uint8_t)(rec->occurrence_cnt & 0xFF);
             }
         }
-        return false;
+        *out_len = offset;
+        return true;
     }
 
     case 0x0A: { /* reportSupportedDTCs */
@@ -332,11 +323,14 @@ static bool on_read_dtc_info(uint8_t subfunction, const uint8_t *in_data, uint16
         out_buf[offset++] = SYN_UDS_DTC_STATUS_AVAILABILITY_MASK;
 
         for (uint8_t i = 0; i < g_dtc_count; i++) {
-            if (offset + 4 > max_out_len) break;
-            out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 16);
-            out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 8);
-            out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code & 0xFF);
-            out_buf[offset++] = g_dtc_db[i].status_byte;
+            uint8_t status = 0;
+            if (syn_uds_dtc_get_status(&g_uds_server, g_dtc_db[i].dtc_code, &status)) {
+                if (offset + 4 > max_out_len) break;
+                out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 16);
+                out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code >> 8);
+                out_buf[offset++] = (uint8_t)(g_dtc_db[i].dtc_code & 0xFF);
+                out_buf[offset++] = status;
+            }
         }
         *out_len = offset;
         return true;
@@ -367,8 +361,11 @@ static uint32_t get_confirmed_dtc_count(void)
 {
     uint32_t count = 0;
     for (uint8_t i = 0; i < g_dtc_count; i++) {
-        if ((g_dtc_db[i].status_byte & SYN_UDS_DTC_STATUS_CONFIRMED_DTC) != 0) {
-            count++;
+        uint8_t status = 0;
+        if (syn_uds_dtc_get_status(&g_uds_server, g_dtc_db[i].dtc_code, &status)) {
+            if ((status & SYN_UDS_DTC_STATUS_CONFIRMED_DTC) != 0) {
+                count++;
+            }
         }
     }
     return count;
@@ -400,12 +397,8 @@ int main(void)
     app_dtc_monitor_task(&monitor_pt);
     printf("Confirmed DTC count: %u\n", (unsigned)get_confirmed_dtc_count());
 
-    printf("Step 2: Simulating CAN Bus-Off fault (Cycle 1 -> Pending)...\n");
+    printf("Step 2: Simulating CAN Bus-Off fault (Cycle 1 -> Fault active)...\n");
     g_sim_can_bus_off = true;
-    PT_INIT(&monitor_pt);
-    app_dtc_monitor_task(&monitor_pt);
-
-    printf("Step 3: Simulating CAN Bus-Off fault (Cycle 2 -> Confirmed + Freeze Frame)...\n");
     PT_INIT(&monitor_pt);
     app_dtc_monitor_task(&monitor_pt);
     printf("Confirmed DTC count: %u\n", (unsigned)get_confirmed_dtc_count());
@@ -424,6 +417,32 @@ int main(void)
     if (on_read_dtc_info(0x03, NULL, 0, s19_resp, sizeof(s19_resp), &resp_len, NULL)) {
         printf("UDS $19 0x03 Response (Len=%u): DTC 0x%02X%02X%02X Record=%u\n",
                resp_len, s19_resp[0], s19_resp[1], s19_resp[2], s19_resp[3]);
+    }
+
+    /* Query UDS Service 0x19 0x04 (Report DTC Snapshot Record by DTC Number) */
+    uint8_t s19_snap_req[4] = {
+        (uint8_t)(DTC_CODE_CAN_BUS_OFF >> 16),
+        (uint8_t)(DTC_CODE_CAN_BUS_OFF >> 8),
+        (uint8_t)(DTC_CODE_CAN_BUS_OFF & 0xFF),
+        0x01 /* Record number 1 */
+    };
+    if (on_read_dtc_info(0x04, s19_snap_req, sizeof(s19_snap_req), s19_resp, sizeof(s19_resp), &resp_len, NULL)) {
+        printf("UDS $19 0x04 Response (Len=%u): DTC 0x%02X%02X%02X Status=0x%02X Rec=%u DIDs=%u DID=0x%02X%02X Val=%u mV\n",
+               resp_len, s19_resp[0], s19_resp[1], s19_resp[2], s19_resp[3], s19_resp[4], s19_resp[5],
+               s19_resp[6], s19_resp[7], ((unsigned)s19_resp[8] << 8) | s19_resp[9]);
+    }
+
+    /* Query UDS Service 0x19 0x06 (Report Extended Data Record by DTC Number) */
+    uint8_t s19_ext_req[4] = {
+        (uint8_t)(DTC_CODE_CAN_BUS_OFF >> 16),
+        (uint8_t)(DTC_CODE_CAN_BUS_OFF >> 8),
+        (uint8_t)(DTC_CODE_CAN_BUS_OFF & 0xFF),
+        0x01 /* Extended data record 1 */
+    };
+    if (on_read_dtc_info(0x06, s19_ext_req, sizeof(s19_ext_req), s19_resp, sizeof(s19_resp), &resp_len, NULL)) {
+        printf("UDS $19 0x06 Response (Len=%u): DTC 0x%02X%02X%02X Status=0x%02X Rec=%u OccurCnt=%u\n",
+               resp_len, s19_resp[0], s19_resp[1], s19_resp[2], s19_resp[3], s19_resp[4],
+               ((unsigned)s19_resp[5] << 8) | s19_resp[6]);
     }
 
     /* Query UDS Service 0x19 0x0A (Report Supported DTCs) */

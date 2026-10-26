@@ -1587,6 +1587,19 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
                     return make_negative_response(sid, SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH,
                                                   resp_buf, resp_len, addr_mode);
                 }
+                uint32_t req_dtc =
+                    ((uint32_t)req[2] << 16U) | ((uint32_t)req[3] << 8U) | (uint32_t)req[4];
+                uint8_t match_idx = 0xFFU;
+                for (uint8_t i = 0U; i < server->dtc_count; i++) {
+                    if (server->dtc_table[i].dtc == req_dtc) {
+                        match_idx = i;
+                        break;
+                    }
+                }
+                if (match_idx == 0xFFU) {
+                    return make_negative_response(sid, SYN_UDS_NRC_REQUEST_OUT_OF_RANGE, resp_buf,
+                                                  resp_len, addr_mode);
+                }
                 if (max_resp_len < 6U) {
                     return make_negative_response(sid, SYN_UDS_NRC_RESPONSE_TOO_LONG, resp_buf,
                                                   resp_len, addr_mode);
@@ -1596,7 +1609,7 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
                 resp_buf[2] = req[2];
                 resp_buf[3] = req[3];
                 resp_buf[4] = req[4];
-                resp_buf[5] = SYN_UDS_DTC_STATUS_AVAILABILITY_MASK;
+                resp_buf[5] = server->dtc_table[match_idx].status;
                 *resp_len = 6U;
             }
             success = true;
@@ -1622,6 +1635,19 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
                     return make_negative_response(sid, SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH,
                                                   resp_buf, resp_len, addr_mode);
                 }
+                uint32_t req_dtc =
+                    ((uint32_t)req[2] << 16U) | ((uint32_t)req[3] << 8U) | (uint32_t)req[4];
+                uint8_t match_idx = 0xFFU;
+                for (uint8_t i = 0U; i < server->dtc_count; i++) {
+                    if (server->dtc_table[i].dtc == req_dtc) {
+                        match_idx = i;
+                        break;
+                    }
+                }
+                if (match_idx == 0xFFU) {
+                    return make_negative_response(sid, SYN_UDS_NRC_REQUEST_OUT_OF_RANGE, resp_buf,
+                                                  resp_len, addr_mode);
+                }
                 if (max_resp_len < 6U) {
                     return make_negative_response(sid, SYN_UDS_NRC_RESPONSE_TOO_LONG, resp_buf,
                                                   resp_len, addr_mode);
@@ -1631,7 +1657,7 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
                 resp_buf[2] = req[2];
                 resp_buf[3] = req[3];
                 resp_buf[4] = req[4];
-                resp_buf[5] = SYN_UDS_DTC_STATUS_AVAILABILITY_MASK;
+                resp_buf[5] = server->dtc_table[match_idx].status;
                 *resp_len = 6U;
             }
             success = true;
@@ -1655,6 +1681,19 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
                     return make_negative_response(sid, SYN_UDS_NRC_INCORRECT_MESSAGE_LENGTH,
                                                   resp_buf, resp_len, addr_mode);
                 }
+                uint32_t req_dtc =
+                    ((uint32_t)req[2] << 16U) | ((uint32_t)req[3] << 8U) | (uint32_t)req[4];
+                uint8_t match_idx = 0xFFU;
+                for (uint8_t i = 0U; i < server->dtc_count; i++) {
+                    if (server->dtc_table[i].dtc == req_dtc) {
+                        match_idx = i;
+                        break;
+                    }
+                }
+                if (match_idx == 0xFFU) {
+                    return make_negative_response(sid, SYN_UDS_NRC_REQUEST_OUT_OF_RANGE, resp_buf,
+                                                  resp_len, addr_mode);
+                }
                 if (max_resp_len < 7U) {
                     return make_negative_response(sid, SYN_UDS_NRC_RESPONSE_TOO_LONG, resp_buf,
                                                   resp_len, addr_mode);
@@ -1665,7 +1704,7 @@ bool syn_uds_process_request(SYN_UDS_Server *server, const uint8_t *req, uint16_
                 resp_buf[3] = req[2]; /* DTC high */
                 resp_buf[4] = req[3]; /* DTC mid */
                 resp_buf[5] = req[4]; /* DTC low */
-                resp_buf[6] = SYN_UDS_DTC_STATUS_AVAILABILITY_MASK;
+                resp_buf[6] = server->dtc_table[match_idx].status;
                 *resp_len = 7U;
             }
             success = true;
@@ -2315,17 +2354,13 @@ bool syn_uds_dtc_report_test_result(SYN_UDS_Server *server, uint32_t dtc, bool f
                 status &= (uint8_t)~(uint8_t)SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_SINCE_LAST_CLEAR;
                 status &= (uint8_t)~(uint8_t)SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_THIS_OP_CYCLE;
 
-                if (server->dtc_table[i].fault_cnt < 127) {
-                    server->dtc_table[i].fault_cnt++;
-                }
+                server->dtc_table[i].fault_cnt = 127;
             } else {
                 status &= (uint8_t)~(uint8_t)SYN_UDS_DTC_STATUS_TEST_FAILED;
                 status &= (uint8_t)~(uint8_t)SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_SINCE_LAST_CLEAR;
                 status &= (uint8_t)~(uint8_t)SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_THIS_OP_CYCLE;
 
-                if (server->dtc_table[i].fault_cnt > -128) {
-                    server->dtc_table[i].fault_cnt--;
-                }
+                server->dtc_table[i].fault_cnt = -128;
             }
 
             server->dtc_table[i].status = status;
@@ -2344,6 +2379,13 @@ bool syn_uds_dtc_start_operation_cycle(SYN_UDS_Server *server)
 
     for (uint8_t i = 0U; i < server->dtc_count; i++) {
         uint8_t status = server->dtc_table[i].status;
+
+        /* ISO 14229-1: Clear pendingDTC if test completed during previous cycle without failure */
+        if ((status & (uint8_t)SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_THIS_OP_CYCLE) == 0U &&
+            (status & (uint8_t)SYN_UDS_DTC_STATUS_TEST_FAILED_THIS_OP_CYCLE) == 0U) {
+            status &= (uint8_t)~(uint8_t)SYN_UDS_DTC_STATUS_PENDING_DTC;
+        }
+
         status &= (uint8_t)~(uint8_t)SYN_UDS_DTC_STATUS_TEST_FAILED_THIS_OP_CYCLE;
         status |= (uint8_t)SYN_UDS_DTC_STATUS_TEST_NOT_COMPLETED_THIS_OP_CYCLE;
         server->dtc_table[i].status = status;
